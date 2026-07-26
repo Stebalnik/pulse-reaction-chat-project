@@ -18,9 +18,16 @@ The product must never claim to read thoughts, attraction, truthfulness, or exac
 - `.codex/prompts/ARTICLE_INGESTION.md` — analyze a new paper and update the knowledge base.
 - `.codex/prompts/IMPLEMENT_FEATURE.md` — implement a scoped feature.
 - `docs/architecture/SYSTEM.md` — target system architecture.
+- `docs/architecture/LOCAL_DEVELOPMENT.md` — local ports and environment defaults.
+- `docs/architecture/TECH_STACK_DECISION.md` — proposed stack and monorepo shape.
 - `docs/product/REACTION_MODEL.md` — normalized reaction model.
+- `docs/product/ONE_MONTH_LAUNCH_PLAN.md` — desktop-first launch plan.
 - `docs/safety/PRODUCT_GUARDRAILS.md` — consent, privacy, claims, and UX restrictions.
 - `knowledge/README.md` — evidence storage and update rules.
+
+## Local development
+
+The default local development port is `1059`. Until runtime apps are implemented, `pnpm dev` prints the configured local values rather than starting a server.
 
 ## Current status
 

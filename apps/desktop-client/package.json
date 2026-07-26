@@ -1,0 +1,9 @@
+{
+  "name": "@pulse-reaction/desktop-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "echo \"desktop-client scaffold only; local port 1059\""
+  }
+}

@@ -1,5 +1,17 @@
 # Development roadmap
 
+## One-month launch override
+
+The current delivery plan is desktop-first and optimized for a small public beta within one month. This accelerates Phases 0-4 into a narrow MVP:
+
+- desktop client with camera consent, pause, local signal-quality display, and WebRTC chat;
+- existing server used for signaling and roulette-style matching;
+- first pulse-trend estimator with explicit quality gates and rejection reasons;
+- reaction states limited to baseline-relative physiological dynamics and `INSUFFICIENT_SIGNAL`;
+- opt-in research feedback loop for improving estimators after launch.
+
+This override does not relax scientific, privacy, consent, age, or product-language rules.
+
 ## Phase 0 — Repository and evidence foundation
 
 - ingest existing papers;

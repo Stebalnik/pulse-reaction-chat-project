@@ -23,10 +23,14 @@ const requiredPaths = [
   "knowledge/papers/README.md",
   "schemas/hr-estimate.schema.json",
   "schemas/paper-record.schema.yaml",
+  "docs/architecture/LOCAL_DEVELOPMENT.md",
+  "docs/product/ONE_MONTH_LAUNCH_PLAN.md",
+  "apps/desktop-client/package.json",
   "apps/browser-client/package.json",
   "apps/signaling-backend/package.json",
   "packages/shared-schemas/package.json",
   "packages/research-pipeline/package.json",
+  ".env.example",
   ".github/ISSUES_PHASE_0_1.md",
   ".github/DRAFT_PR.md"
 ];

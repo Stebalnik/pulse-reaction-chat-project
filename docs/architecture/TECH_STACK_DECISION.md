@@ -1,17 +1,20 @@
 # Tech stack decision
 
-Status: proposed for Phase 0 and Phase 1  
+Status: proposed for one-month desktop-first MVP  
 Date: 2026-07-26
 
 ## Scope
 
-This decision covers the repository scaffold for a research-first monorepo. It does not implement rPPG algorithms, reaction inference, matchmaking, or a user application.
+This decision covers the repository scaffold and a fast desktop-first MVP direction. It does not implement rPPG algorithms, reaction inference, matchmaking, or a user application.
 
 ## Assumptions
 
-- The first usable milestone is an offline benchmark and knowledge base, not a dating product.
+- The first usable milestone is a desktop beta that can estimate pulse trends locally, show signal quality, and connect users through a roulette-style WebRTC chat.
+- The one-month launch goal prioritizes speed, explicit consent, abstention behavior, and learning from opt-in research feedback.
 - Browser processing should be preferred for physiological analysis where feasible, because video and derived biometric-adjacent time series are sensitive.
-- The browser client must support WebRTC later, but Phase 0 only needs structure and contracts.
+- The browser client must remain viable, but the first packaged app should be desktop-first to reduce distribution and capture variability work.
+- The existing server will be treated as the first signaling/matchmaking backend.
+- Local development uses port `1059` by default.
 - Classical GREEN, CHROM, and POS methods will be benchmarked before learned models, consistent with `docs/architecture/SYSTEM.md`.
 - Research datasets, if added later, must use explicit consent and must not be committed as raw or identifiable media.
 - The team is small enough that TypeScript-first shared contracts reduce coordination cost across browser, backend, and scripts.
@@ -21,6 +24,10 @@ This decision covers the repository scaffold for a research-first monorepo. It d
 
 ```text
 apps/
+  desktop-client/
+    src/
+    README.md
+    package.json
   browser-client/
     src/
     README.md
@@ -53,9 +60,39 @@ docs/
   safety/
 ```
 
+## Local development
+
+Default port: `1059`.
+
+Use this for the local signaling/backend process and desktop client development server unless a task explicitly documents a different port. Public production ports and domains remain a deployment decision.
+
+Environment defaults:
+
+- `LOCAL_DEV_PORT=1059`
+- `SIGNALING_PORT=1059`
+- `APP_ORIGIN=http://localhost:1059`
+
+## Desktop client
+
+Recommendation: Electron with TypeScript, React, and Vite for the first month.
+
+Candidate stack:
+
+- Electron for fast desktop packaging on macOS, Windows, and Linux.
+- React plus TypeScript for consent flows, call controls, signal-quality UI, and reaction-state display.
+- Vite for local development and bundling.
+- WebRTC in the renderer process for video chat.
+- Node/Electron main process only for shell integration, auto-update, permissions, and app lifecycle.
+
+Rationale:
+
+- Electron is heavier than Tauri, but fastest for a one-month launch because browser camera/WebRTC behavior maps directly to the app.
+- The desktop shell can reuse browser UI and shared schemas.
+- Local physiological processing can remain in the renderer/Web Worker path and avoid sending raw video to the server by default.
+
 ## Browser client
 
-Recommendation: TypeScript with a modern browser build tool, selected when Phase 2 starts.
+Recommendation: keep the browser client as a secondary surface that shares UI and processing modules with the desktop client.
 
 Candidate stack:
 
@@ -69,7 +106,7 @@ Rationale:
 
 - Browser-first processing supports the privacy direction in `AGENTS.md`.
 - TypeScript keeps physiological estimates, quality gates, and UI states explicit.
-- Deferring framework lock-in avoids premature application work during research setup.
+- Keeping this surface available prevents desktop-only architecture from blocking later web distribution.
 
 ## Signaling backend
 
@@ -113,10 +150,11 @@ Rationale:
 - Python is the strongest default for reproducible scientific analysis.
 - Node-based repo checks avoid adding a Python dependency before research code exists.
 
-## Phase 0 decision
+## Current decision
 
 Adopt a pnpm monorepo with placeholder workspace packages:
 
+- `apps/desktop-client`
 - `apps/browser-client`
 - `apps/signaling-backend`
 - `packages/shared-schemas`
@@ -126,7 +164,7 @@ Use a minimal root `package.json`, `pnpm-workspace.yaml`, `tsconfig.json`, `.edi
 
 ## Deferred decisions
 
-- Browser UI framework.
+- Exact Electron packaging and auto-update provider.
 - Backend framework.
 - Database and retention model.
 - Numerical Python package set.
@@ -140,6 +178,7 @@ Use a minimal root `package.json`, `pnpm-workspace.yaml`, `tsconfig.json`, `.edi
 - Keep consent, pause, signal quality, and insufficient-signal states as first-class product requirements.
 - Do not expose precise BPM to another participant by default.
 - Do not infer valence, intent, honesty, compatibility, or attraction from heart-rate dynamics.
+- Opt-in research feedback may be used to improve estimators only when consent, retention, deletion, and purpose limits are documented.
 
 ## Rollback
 

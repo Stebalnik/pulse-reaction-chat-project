@@ -1,8 +1,8 @@
-# Draft PR: docs/infrastructure scaffold for research-first monorepo
+# Draft PR: docs/infrastructure scaffold for desktop-first research MVP
 
 ## Purpose
 
-Prepare the repository for Phase 0 and Phase 1 work without implementing rPPG algorithms, reaction inference, matchmaking, or a user-facing application.
+Prepare the repository for a one-month desktop-first MVP without implementing rPPG algorithms, reaction inference, matchmaking, or a user-facing application in this PR.
 
 ## Evidence and assumptions
 
@@ -10,6 +10,8 @@ Prepare the repository for Phase 0 and Phase 1 work without implementing rPPG al
 - Evidence status: `HYPOTHESIS`, `SUPPORTED`, `PROVISIONAL`
 - Assumptions:
   - The first milestone is repository/evidence readiness, followed by offline benchmarks.
+  - The delivery target is now a packaged desktop beta first, with browser support kept as a reusable secondary surface.
+  - Local development uses port `1059`.
   - TypeScript is suitable for shared contracts across browser, backend, and repo checks.
   - Python should be introduced for numerical research once benchmark code begins.
   - Raw video and biometric-adjacent time series remain out of git by default.
@@ -18,10 +20,12 @@ Prepare the repository for Phase 0 and Phase 1 work without implementing rPPG al
 ## Changes
 
 - Added pnpm workspace scaffolding for:
+  - `apps/desktop-client`
   - `apps/browser-client`
   - `apps/signaling-backend`
   - `packages/shared-schemas`
   - `packages/research-pipeline`
+- Added local development defaults for port `1059`.
 - Added index files for empty docs and knowledge directories.
 - Added minimal root project config:
   - `package.json`
@@ -30,6 +34,8 @@ Prepare the repository for Phase 0 and Phase 1 work without implementing rPPG al
   - `.editorconfig`
 - Added `scripts/check-repo.mjs` for structure, schema, and product-claim guardrail checks.
 - Added `docs/architecture/TECH_STACK_DECISION.md`.
+- Added `docs/architecture/LOCAL_DEVELOPMENT.md`.
+- Added `docs/product/ONE_MONTH_LAUNCH_PLAN.md`.
 - Added `.github/ISSUES_PHASE_0_1.md`.
 
 ## Acceptance criteria
@@ -37,6 +43,8 @@ Prepare the repository for Phase 0 and Phase 1 work without implementing rPPG al
 - Repository structure is logical and documented.
 - Missing empty directories are represented by README or `.gitkeep` files.
 - Minimal project config exists for future development.
+- Local dev port `1059` is documented.
+- Desktop-first launch plan is documented.
 - No rPPG algorithms or user application behavior are implemented.
 - Scientific claim and safety rules are unchanged.
 - Tech-stack decision documents assumptions, tradeoffs, privacy implications, and deferred choices.
@@ -59,6 +67,7 @@ pnpm check
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm dev
 ```
 
 ## Signal-quality and failure behavior

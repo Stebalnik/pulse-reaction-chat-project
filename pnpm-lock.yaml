@@ -14,6 +14,8 @@ importers:
 
   apps/browser-client: {}
 
+  apps/desktop-client: {}
+
   apps/signaling-backend: {}
 
   packages/research-pipeline: {}

@@ -2,6 +2,63 @@
 
 These issue drafts are intentionally scoped before product implementation. Each issue must preserve the evidence hierarchy and safety rules in `AGENTS.md`.
 
+## One-month desktop MVP track
+
+### A. Scaffold desktop client runtime
+
+Labels: `mvp`, `desktop`, `phase-0`
+
+Acceptance criteria:
+
+- Desktop app runs locally using port `1059`.
+- Camera permission, preview, pause, and teardown states are represented in UI.
+- Physiological analysis is off until explicit consent is granted.
+- No raw video is sent to the server by default.
+
+### B. Connect desktop client to existing signaling server
+
+Labels: `mvp`, `webrtc`, `backend`
+
+Acceptance criteria:
+
+- Two desktop clients can establish and end a WebRTC call.
+- Server handles roulette-style matching, signaling, disconnects, and reconnect attempts.
+- Block/report hooks are present even if moderation tooling is minimal.
+- Signaling server does not process raw video frames.
+
+### C. Build first local pulse-trend prototype
+
+Labels: `mvp`, `rppg`, `signal`
+
+Acceptance criteria:
+
+- Estimator outputs follow `schemas/hr-estimate.schema.json`.
+- Every estimate includes quality, confidence, ROI coverage, motion, illumination, method version, and reason codes.
+- Invalid windows abstain instead of emitting a physiological reaction state.
+- Debug UI shows the local user's own quality and trend only.
+
+### D. Add baseline-relative physiological reaction states
+
+Labels: `mvp`, `reactions`, `safety`
+
+Acceptance criteria:
+
+- States are relative to the same user's baseline.
+- Outputs include confidence, evidence features, and alternative explanations.
+- UI includes `INSUFFICIENT_SIGNAL`.
+- Labels do not imply attraction, honesty, intent, compatibility, exact emotion, or medical status.
+
+### E. Add opt-in research feedback loop
+
+Labels: `mvp`, `privacy`, `research`
+
+Acceptance criteria:
+
+- Feedback and retention are separate from basic app consent.
+- User can decline research feedback and still use the app.
+- Deletion path and retention period are documented.
+- Stored data excludes raw video by default.
+
 ## Phase 0 — Repository and evidence foundation
 
 ### 1. Establish repository checks and workspace scaffolding
