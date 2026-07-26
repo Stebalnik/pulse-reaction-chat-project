@@ -11,9 +11,11 @@
     "format:check": "node scripts/check-repo.mjs --format",
     "lint": "node scripts/check-repo.mjs --lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --test"
+    "test": "node --import tsx --test tests/*.test.ts"
   },
   "devDependencies": {
+    "@types/node": "^20.14.12",
+    "tsx": "^4.19.2",
     "typescript": "^5.5.4"
   }
 }

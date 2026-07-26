@@ -72,3 +72,9 @@ UI updates must be smoothed and delayed enough to avoid flashing artifacts. The 
 ## Data contracts
 
 Use schemas in `schemas/`. Raw estimates, quality decisions, baseline state, and reaction state must be independently versioned.
+
+## Current implementation notes
+
+- `packages/rppg-engine` implements the first on-device RGB trace to HR-estimate core.
+- The package starts after face/ROI extraction and before baseline/reaction inference.
+- It must remain usable in a desktop renderer, Web Worker, or browser client without server-side video processing.

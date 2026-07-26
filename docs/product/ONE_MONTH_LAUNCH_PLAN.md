@@ -41,6 +41,12 @@ Exit criteria:
 - Local-only debug display for own signal quality and own estimated pulse trend.
 - Synthetic fixtures and basic regression tests.
 
+Initial estimator package:
+
+- `packages/rppg-engine` accepts local RGB traces and returns schema-aligned HR estimates.
+- Methods: GREEN sanity baseline, CHROM, POS, and CHROM/POS fusion with agreement gate.
+- It has no camera, network, reaction inference, or storage behavior.
+
 Exit criteria:
 
 - The app can abstain reliably when face, lighting, motion, or timestamps are poor.
