@@ -1,0 +1,15 @@
+.env
+.env.*
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+coverage/
+dist/
+build/
+.DS_Store
+research-data/raw/
+research-data/identifiable/
+*.mp4
+*.mov
+*.avi

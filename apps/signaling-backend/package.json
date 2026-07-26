@@ -1,0 +1,9 @@
+{
+  "name": "@pulse-reaction/signaling-backend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "echo \"signaling-backend scaffold only\""
+  }
+}

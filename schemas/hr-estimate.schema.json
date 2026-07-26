@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HeartRateEstimate",
+  "type": "object",
+  "required": ["timestampMs", "windowStartMs", "windowEndMs", "bpm", "signalQuality", "confidence", "method", "methodVersion", "reasonCodes"],
+  "properties": {
+    "timestampMs": {"type": "integer"},
+    "windowStartMs": {"type": "integer"},
+    "windowEndMs": {"type": "integer"},
+    "bpm": {"type": ["number", "null"]},
+    "signalQuality": {"type": "number", "minimum": 0, "maximum": 1},
+    "confidence": {"enum": ["high", "medium", "low", "invalid"]},
+    "method": {"type": "string"},
+    "methodVersion": {"type": "string"},
+    "roiCoverage": {"type": "number", "minimum": 0, "maximum": 1},
+    "motionScore": {"type": "number", "minimum": 0, "maximum": 1},
+    "illuminationInstability": {"type": "number", "minimum": 0, "maximum": 1},
+    "reasonCodes": {"type": "array", "items": {"type": "string"}}
+  }
+}

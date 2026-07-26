@@ -1,0 +1,27 @@
+schema_version: 1
+required_sections:
+  - identity
+  - research_question
+  - method
+  - capture
+  - participants
+  - ground_truth
+  - evaluation
+  - results
+  - limitations
+  - reproducibility
+  - project_relevance
+  - evidence_updates
+  - proposed_experiments
+null_value: not_reported
+evidence_labels:
+  - FACT_FROM_PAPER
+  - EXPERIMENTAL_RESULT
+  - AUTHOR_CLAIM
+  - ENGINEERING_INTERPRETATION
+  - PROJECT_HYPOTHESIS
+claim_status:
+  - SUPPORTED
+  - PROVISIONAL
+  - HYPOTHESIS
+  - REJECTED

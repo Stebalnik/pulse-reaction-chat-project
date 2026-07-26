@@ -1,0 +1,18 @@
+{
+  "name": "pulse-reaction-chat",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Research-first rPPG project for consent-based physiological reaction trend experiments.",
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "check": "node scripts/check-repo.mjs",
+    "format:check": "node scripts/check-repo.mjs --format",
+    "lint": "node scripts/check-repo.mjs --lint",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}
