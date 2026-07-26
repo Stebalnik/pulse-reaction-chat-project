@@ -9,6 +9,8 @@
 - `CLAIM_INDEX.md`: overview of claims and status;
 - `METHOD_COMPARISON.md`: comparable algorithm table;
 - `EXPERIMENT_BACKLOG.md`: prioritized hypotheses to test.
+- `SOURCE_INVENTORY.md`: source PDF to paper-record map and reading guide;
+- `DEVELOPMENT_SYNTHESIS.md`: implementation-oriented synthesis across ingested sources.
 
 ## Claim record rule
 

@@ -39,3 +39,23 @@ After POS/CHROM baselines are stable, test facial aggregation, SNR weighting, RG
 ## EXP-010 — PRV feature deferral gate
 
 Determine minimum recording duration, FPS, signal quality, and ground-truth requirements before exposing any PRV-like feature internally. Keep PRV out of launch UI until this passes.
+
+## EXP-011 — CHROM/POS launch estimator gate
+
+Implement GREEN, CHROM, and POS with identical trace extraction and benchmark them on synthetic fixtures plus the first consented desktop recordings. Launch only if estimator agreement and reason-code behavior are stable.
+
+## EXP-012 — ICA/PCA component ambiguity
+
+Implement ICA/PCA as benchmark comparators and measure how often component selection is ambiguous. Add `COMPONENT_AMBIGUOUS` rejection before any BSS-derived trend is shown.
+
+## EXP-013 — Skin segmentation and ROI coverage
+
+Compare whole-face ROI, skin-masked ROI, stable sub-ROI, and SNR-weighted ROI under normal webcam conditions. Report ROI coverage, pixel count, skin-mask false inclusion, and abstention rate.
+
+## EXP-014 — Motion-in-band failure fixture
+
+Create fixtures where periodic motion overlaps plausible HR frequencies. Verify that bandpass-only estimators fail and quality gates abstain.
+
+## EXP-015 — Desktop beta field report
+
+For opt-in beta sessions only, aggregate camera FPS, ROI coverage, illumination instability, motion score, estimator agreement, abstention reason distribution, and user-reported quality. Do not store raw video by default.
