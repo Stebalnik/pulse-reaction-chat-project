@@ -2,7 +2,7 @@
 
 Default local port: `1059`.
 
-Use `1059` for the first local signaling/backend process and any desktop-client development server unless a task explicitly documents another port.
+Use `1059` for the browser prototype, first local signaling/backend process, and any desktop-client development server unless a task explicitly documents another port.
 
 Default environment:
 
@@ -12,4 +12,4 @@ SIGNALING_PORT=1059
 APP_ORIGIN=http://localhost:1059
 ```
 
-Current status: runtime servers are not implemented yet. `pnpm dev` prints these values so future app work has a single documented default.
+Current status: `pnpm dev` starts the browser prototype on `http://127.0.0.1:1059/`.

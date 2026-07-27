@@ -62,7 +62,7 @@ async function walk(dir) {
   for (const entry of entries) {
     const absolute = path.join(dir, entry.name);
     const relative = path.relative(root, absolute);
-    if ([".git", "node_modules", "dist", "build", "coverage", ".venv"].includes(entry.name)) {
+    if ([".git", "node_modules", "dist", "build", "coverage", ".venv", ".playwright-cli", "output", "tmp"].includes(entry.name)) {
       continue;
     }
     if (entry.isDirectory()) {

@@ -27,8 +27,8 @@ The product must never claim to read thoughts, attraction, truthfulness, or exac
 
 ## Local development
 
-The default local development port is `1059`. Until runtime apps are implemented, `pnpm dev` prints the configured local values rather than starting a server.
+The default local development port is `1059`. Run `pnpm dev` to start the browser prototype at `http://127.0.0.1:1059/`.
 
 ## Current status
 
-Initial project scaffold. No medical or emotion-recognition claims are validated yet.
+Prototype browser client and on-device pulse-rate engine are available for local testing. No medical or emotion-recognition claims are validated.

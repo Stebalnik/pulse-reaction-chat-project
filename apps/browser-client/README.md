@@ -1,5 +1,17 @@
 # Browser client
 
-Planned browser surface for camera consent, local video processing, quality feedback, and later video-chat UI.
+Browser surface for camera consent, local video processing, quality feedback, and later video-chat UI.
 
-Initial scope is scaffolding only. rPPG algorithms and user-facing reaction UI are intentionally not implemented here yet.
+Current prototype:
+
+- local camera preview;
+- local-only pulse-rate estimate from a center ROI;
+- signal-quality and reason-code panel;
+- temporary bot peer;
+- simple chat UI.
+
+Run with:
+
+```bash
+pnpm dev
+```
