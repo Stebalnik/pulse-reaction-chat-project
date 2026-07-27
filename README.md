@@ -19,6 +19,7 @@ The product must never claim to read thoughts, attraction, truthfulness, or exac
 - `.codex/prompts/IMPLEMENT_FEATURE.md` — implement a scoped feature.
 - `docs/architecture/SYSTEM.md` — target system architecture.
 - `docs/architecture/LOCAL_DEVELOPMENT.md` — local ports and environment defaults.
+- `docs/architecture/DOMAIN_AND_DEPLOYMENT.md` — production domain and GitHub Pages setup.
 - `docs/architecture/TECH_STACK_DECISION.md` — proposed stack and monorepo shape.
 - `docs/product/REACTION_MODEL.md` — normalized reaction model.
 - `docs/product/ONE_MONTH_LAUNCH_PLAN.md` — desktop-first launch plan.
@@ -29,6 +30,10 @@ The product must never claim to read thoughts, attraction, truthfulness, or exac
 
 The default local development port is `1059`. Run `pnpm dev` to start the browser prototype at `http://127.0.0.1:1059/`.
 
+## Production domain
+
+The reserved public domain is `synvibe.app`. The first production browser prototype is prepared for GitHub Pages deployment from `apps/browser-client`.
+
 ## Current status
 
-Prototype browser client and on-device pulse-rate engine are available for local testing. No medical or emotion-recognition claims are validated.
+Prototype browser client and on-device pulse-rate engine are available for local testing. No medical or unsupported interpretation claims are validated.

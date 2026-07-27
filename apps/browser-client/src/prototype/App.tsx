@@ -15,6 +15,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { HeartRateEstimate } from "@pulse-reaction/rppg-engine";
 import { PulseSampler, type RoiRect } from "./pulseSampler.js";
 
+const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
+
 interface ChatMessage {
   id: number;
   author: "you" | "bot";
@@ -131,7 +133,7 @@ export function App(): JSX.Element {
       <section className="topBar" aria-label="Session controls">
         <div className="brand">
           <Activity aria-hidden="true" />
-          <span>Pulse Reaction Chat</span>
+          <span>{APP_NAME}</span>
         </div>
         <div className="toolbar">
           <button className="iconButton" type="button" onClick={() => setCameraEnabled((value) => !value)} title="Camera">

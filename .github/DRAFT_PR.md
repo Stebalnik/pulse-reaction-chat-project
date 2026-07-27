@@ -1,88 +1,79 @@
-# Draft PR: docs/infrastructure scaffold for desktop-first research MVP
+# Draft PR: on-device pulse engine, test chat prototype, and SynVibe domain setup
 
 ## Purpose
 
-Prepare the repository for a one-month desktop-first MVP without implementing rPPG algorithms, reaction inference, matchmaking, or a user-facing application in this PR.
+Add the first local-only pulse-rate estimation engine and a browser test chat prototype with a temporary peer placeholder, then prepare the public `synvibe.app` deployment path.
 
 ## Evidence and assumptions
 
-- Claim IDs: `CLM-0001`, `CLM-0002`, `CLM-0003`
-- Evidence status: `HYPOTHESIS`, `SUPPORTED`, `PROVISIONAL`
+- Claim IDs: `CLM-0003`, `CLM-0004`, `CLM-0008`, `CLM-0009`, `CLM-0011`, `CLM-0012`, `CLM-0014`
+- Evidence status: `PROVISIONAL`/`SUPPORTED` per knowledge records.
 - Assumptions:
-  - The first milestone is repository/evidence readiness, followed by offline benchmarks.
-  - The delivery target is now a packaged desktop beta first, with browser support kept as a reusable secondary surface.
+  - rPPG analysis runs on the user's device by default.
+  - The first prototype can use a browser client while desktop packaging is prepared.
+  - The temporary test peer is a placeholder for chat-flow testing only.
   - Local development uses port `1059`.
-  - TypeScript is suitable for shared contracts across browser, backend, and repo checks.
-  - Python should be introduced for numerical research once benchmark code begins.
-  - Raw video and biometric-adjacent time series remain out of git by default.
-  - The project must present physiology-derived trends only when consent, signal quality, and baseline requirements are satisfied.
+  - `synvibe.app` is the intended first public domain.
+  - GitHub Pages is sufficient for the first static browser prototype.
+  - Signaling and desktop distribution remain separate deployment decisions.
+  - No raw video, biometric time series, or precise BPM sharing is enabled by the static deploy.
 
 ## Changes
 
-- Added pnpm workspace scaffolding for:
-  - `apps/desktop-client`
-  - `apps/browser-client`
-  - `apps/signaling-backend`
-  - `packages/shared-schemas`
-  - `packages/research-pipeline`
-- Added local development defaults for port `1059`.
-- Added index files for empty docs and knowledge directories.
-- Added minimal root project config:
-  - `package.json`
-  - `pnpm-workspace.yaml`
-  - `tsconfig.json`
-  - `.editorconfig`
-- Added `scripts/check-repo.mjs` for structure, schema, and product-claim guardrail checks.
-- Added `docs/architecture/TECH_STACK_DECISION.md`.
-- Added `docs/architecture/LOCAL_DEVELOPMENT.md`.
-- Added `docs/product/ONE_MONTH_LAUNCH_PLAN.md`.
-- Added `.github/ISSUES_PHASE_0_1.md`.
+- Added `packages/rppg-engine` with deterministic GREEN, CHROM, POS, and FUSION pulse-estimation baselines.
+- Added quality gates for timestamps, ROI coverage, motion, illumination, weak spectra, and estimator disagreement.
+- Added unit tests with deterministic synthetic traces.
+- Added `apps/browser-client` Vite/React prototype on local port `1059`.
+- Added local camera sampling from a center ROI into the on-device pulse engine.
+- Added a temporary peer placeholder and chat composer for flow testing.
+- Added SynVibe branding for the browser prototype.
+- Added GitHub Pages workflow for `apps/browser-client/dist`.
+- Added Pages `CNAME` for `synvibe.app`.
+- Added `docs/architecture/DOMAIN_AND_DEPLOYMENT.md` with registrar DNS records and deployment assumptions.
 
 ## Acceptance criteria
 
-- Repository structure is logical and documented.
-- Missing empty directories are represented by README or `.gitkeep` files.
-- Minimal project config exists for future development.
-- Local dev port `1059` is documented.
-- Desktop-first launch plan is documented.
-- No rPPG algorithms or user application behavior are implemented.
-- Scientific claim and safety rules are unchanged.
-- Tech-stack decision documents assumptions, tradeoffs, privacy implications, and deferred choices.
-- Phase 0 and Phase 1 GitHub Issue drafts are available.
+- HR estimates include timestamp, window, BPM/null, signal quality, confidence, method version, ROI coverage, motion, illumination, and reason codes.
+- Invalid windows return `bpm: null` and `confidence: invalid`.
+- Browser prototype runs locally at `http://127.0.0.1:1059/`.
+- Production build includes `CNAME` for `synvibe.app`.
+- GitHub Pages is configured for GitHub Actions and custom domain `synvibe.app`.
+- No reaction-state inference, medical claim, or unsupported product claim is introduced.
 
 ## Validation
 
-- [ ] Formatting
-- [ ] Lint
-- [ ] Type checks
-- [ ] Unit tests
-- [ ] Integration tests
-- [ ] Relevant benchmark
+- [x] `pnpm check`
+- [x] `pnpm lint`
+- [x] `pnpm typecheck`
+- [x] `pnpm test`
+- [x] `pnpm --filter @pulse-reaction/browser-client build`
+- [x] Verified `apps/browser-client/dist/CNAME` contains `synvibe.app`.
+- [x] GitHub Pages site created with `build_type=workflow`.
+- [x] GitHub Pages custom domain set to `synvibe.app`.
 
-Commands to run before marking ready for review:
+## DNS status
 
-```bash
-pnpm install
-pnpm check
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm dev
-```
+- Current `synvibe.app` A record resolves to registrar parking: `162.255.119.220`.
+- Current `www.synvibe.app` CNAME resolves to registrar parking: `parkingpage.namecheap.com`.
+- Registrar DNS still needs to be pointed to GitHub Pages.
+- HTTPS enforcement should be enabled after DNS verification and certificate readiness.
 
 ## Signal-quality and failure behavior
 
-No signal processing was implemented. The scaffold preserves the requirement that invalid or insufficient-quality HR windows must not produce reaction states.
+Invalidates short windows, timestamp gaps, low ROI coverage, high motion, weak spectra, illumination instability, and estimator disagreement. Invalid HR windows do not emit reaction states.
 
 ## Privacy and safety impact
 
-- [x] No raw/identifiable data committed
-- [x] Consent implications reviewed
-- [x] No unsupported emotion, attraction, honesty, intent, compatibility, or medical claim introduced
-- [x] `INSUFFICIENT_SIGNAL` behavior preserved as a required future state
+- [x] On-device only pulse analysis in the current prototype.
+- [x] No raw video/network/storage behavior for physiological traces.
+- [x] No precise BPM sharing with another participant.
+- [x] No unsupported emotion, attraction, honesty, intent, compatibility, or medical claim.
+- [x] Consent toggle is required before local pulse analysis starts.
 
 ## Risks and rollback
 
-Risk: package choices may need adjustment once actual benchmark and browser requirements are known.
+Risk: current rPPG estimator is a deterministic baseline for testing, not a validated production model.
 
-Rollback: remove the newly added workspace config, package directories, index files, check script, tech-stack decision, and issue draft document. No runtime behavior exists yet.
+Risk: `synvibe.app` will not serve the app until registrar DNS records are updated and GitHub issues the certificate.
+
+Rollback: remove `packages/rppg-engine`, `apps/browser-client`, the Pages workflow, the CNAME file, and related docs updates.
