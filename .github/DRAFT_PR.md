@@ -53,9 +53,10 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 
 ## DNS status
 
+- Nameservers are delegated to Cloudflare: `kate.ns.cloudflare.com`, `paul.ns.cloudflare.com`.
 - Current `synvibe.app` A record resolves to registrar parking: `162.255.119.220`.
-- Current `www.synvibe.app` CNAME resolves to registrar parking: `parkingpage.namecheap.com`.
-- Registrar DNS still needs to be pointed to GitHub Pages.
+- Current `www.synvibe.app` resolves through Cloudflare proxy IPs, which hides the origin from public DNS.
+- Cloudflare DNS records still need to be pointed to GitHub Pages with proxy status set to `DNS only` until GitHub certificate readiness.
 - HTTPS enforcement should be enabled after DNS verification and certificate readiness.
 
 ## Signal-quality and failure behavior
