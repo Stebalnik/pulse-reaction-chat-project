@@ -21,7 +21,7 @@ Deployment source:
 2. GitHub Actions installs dependencies with pnpm.
 3. Guardrail checks, type checks, and tests run before deployment.
 4. Vite builds `apps/browser-client`.
-5. The Pages artifact includes `apps/browser-client/public/CNAME` with `SYNVIBE.app`.
+5. The Pages artifact includes `apps/browser-client/public/CNAME` with `synvibe.app`.
 
 ## GitHub setup
 
@@ -40,30 +40,45 @@ Required repository settings:
 
 Important: add the custom domain in GitHub Pages before pointing DNS records at GitHub Pages to reduce custom-domain takeover risk.
 
-## Registrar DNS setup
+## Cloudflare DNS setup
 
 Set these records at the domain registrar or DNS provider.
 
-Current DNS observation: `synvibe.app` still resolves to the registrar parking address `162.255.119.220`, and `www.synvibe.app` resolves to `parkingpage.namecheap.com`.
+Current DNS observation:
+
+- Nameservers are delegated to Cloudflare: `kate.ns.cloudflare.com`, `paul.ns.cloudflare.com`.
+- `synvibe.app` still resolves to the registrar parking address `162.255.119.220`.
+- `www.synvibe.app` resolves through Cloudflare proxy IPs, which hides the origin from public DNS.
+
+Cloudflare records to remove:
+
+| Type | Host | Value |
+| --- | --- | --- |
+| A | `@` | `162.255.119.220` |
+| Any proxied A/CNAME | `www` | registrar parking or non-GitHub target |
+
+Cloudflare records to create:
 
 For the apex domain `synvibe.app`:
 
-| Type | Host | Value |
-| --- | --- | --- |
-| A | `@` | `185.199.108.153` |
-| A | `@` | `185.199.109.153` |
-| A | `@` | `185.199.110.153` |
-| A | `@` | `185.199.111.153` |
-| AAAA | `@` | `2606:50c0:8000::153` |
-| AAAA | `@` | `2606:50c0:8001::153` |
-| AAAA | `@` | `2606:50c0:8002::153` |
-| AAAA | `@` | `2606:50c0:8003::153` |
+| Type | Host | Value | Proxy status |
+| --- | --- | --- | --- |
+| A | `@` | `185.199.108.153` | DNS only |
+| A | `@` | `185.199.109.153` | DNS only |
+| A | `@` | `185.199.110.153` | DNS only |
+| A | `@` | `185.199.111.153` | DNS only |
+| AAAA | `@` | `2606:50c0:8000::153` | DNS only |
+| AAAA | `@` | `2606:50c0:8001::153` | DNS only |
+| AAAA | `@` | `2606:50c0:8002::153` | DNS only |
+| AAAA | `@` | `2606:50c0:8003::153` | DNS only |
 
 For `www.synvibe.app`:
 
-| Type | Host | Value |
-| --- | --- | --- |
-| CNAME | `www` | `Stebalnik.github.io` |
+| Type | Host | Value | Proxy status |
+| --- | --- | --- | --- |
+| CNAME | `www` | `Stebalnik.github.io` | DNS only |
+
+Use `DNS only` until GitHub Pages verifies the domain and issues the certificate. After GitHub HTTPS enforcement is enabled, Cloudflare proxying can be reconsidered as a separate deployment decision.
 
 Do not create wildcard DNS records for this launch unless a later threat model explicitly approves them.
 
