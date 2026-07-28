@@ -32,7 +32,8 @@ Current server status:
 - Deployed release: `/var/www/synvibe.app/releases/20260728032427`
 - Active symlink: `/var/www/synvibe.app/current`
 - Nginx site: `/etc/nginx/sites-available/synvibe.app`
-- Current protocol: HTTP only until DNS points to the server and a certificate is issued.
+- Current protocol: HTTPS with HTTP-to-HTTPS redirect.
+- TLS certificate: Let's Encrypt certificate for `synvibe.app` and `www.synvibe.app`, expiring on 2026-10-26 with certbot auto-renewal enabled.
 
 GitHub Pages fallback source:
 
@@ -66,8 +67,8 @@ Set these records at the domain registrar or DNS provider.
 Current DNS observation:
 
 - Nameservers are delegated to Cloudflare: `kate.ns.cloudflare.com`, `paul.ns.cloudflare.com`.
-- `synvibe.app` still resolves to the registrar parking address `162.255.119.220`.
-- `www.synvibe.app` resolves through Cloudflare proxy IPs, which hides the origin from public DNS.
+- `synvibe.app` resolves to `165.232.145.239`.
+- `www.synvibe.app` is a CNAME to `synvibe.app`.
 
 Cloudflare records to remove:
 
@@ -82,15 +83,15 @@ For the apex domain `synvibe.app`:
 
 | Type | Host | Value | Proxy status |
 | --- | --- | --- | --- |
-| A | `@` | `165.232.145.239` | DNS only until server HTTPS is issued |
+| A | `@` | `165.232.145.239` | DNS only |
 
 For `www.synvibe.app`:
 
 | Type | Host | Value | Proxy status |
 | --- | --- | --- | --- |
-| CNAME | `www` | `synvibe.app` | DNS only until server HTTPS is issued |
+| CNAME | `www` | `synvibe.app` | DNS only |
 
-Use `DNS only` until server HTTPS is issued. After that, Cloudflare proxying can be reconsidered as a separate deployment decision.
+Keep `DNS only` for the initial launch. Cloudflare proxying can be reconsidered as a separate deployment decision after WebSocket, WebRTC signaling, and certificate behavior are tested end to end.
 
 If GitHub Pages becomes primary again, replace these records with the GitHub Pages A/AAAA records and `www -> Stebalnik.github.io`.
 

@@ -57,14 +57,17 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 - [x] Deployed release `/var/www/synvibe.app/releases/20260728032427` to the project server.
 - [x] Verified `curl -H 'Host: synvibe.app' http://165.232.145.239/` returns the SynVibe browser build.
 - [x] Verified nginx config with `nginx -t` and reloaded nginx.
+- [x] Verified Cloudflare DNS resolves `synvibe.app` to `165.232.145.239`.
+- [x] Issued Let's Encrypt certificate for `synvibe.app` and `www.synvibe.app`.
+- [x] Verified HTTPS returns the SynVibe browser build.
 
 ## DNS status
 
 - Nameservers are delegated to Cloudflare: `kate.ns.cloudflare.com`, `paul.ns.cloudflare.com`.
-- Current `synvibe.app` A record resolves to registrar parking: `162.255.119.220`.
-- Current `www.synvibe.app` resolves through Cloudflare proxy IPs, which hides the origin from public DNS.
-- Cloudflare DNS records should point `@` to `165.232.145.239` and `www` to `synvibe.app` with proxy status set to `DNS only` until server HTTPS is issued.
-- Server HTTPS should be issued after DNS verification.
+- Current `synvibe.app` A record resolves to `165.232.145.239`.
+- Current `www.synvibe.app` CNAME resolves to `synvibe.app`.
+- Cloudflare DNS records should stay `DNS only` for the initial launch.
+- Server HTTPS is active through Let's Encrypt; certificate expires on 2026-10-26 with certbot auto-renewal enabled.
 
 ## Signal-quality and failure behavior
 
@@ -82,6 +85,6 @@ Invalidates short windows, timestamp gaps, low ROI coverage, high motion, weak s
 
 Risk: current rPPG estimator is a deterministic baseline for testing, not a validated production model.
 
-Risk: `synvibe.app` will not serve the app until Cloudflare DNS records are updated to point at `165.232.145.239`.
+Risk: Cloudflare proxying may affect later WebSocket or WebRTC signaling behavior and should be tested before enabling.
 
 Rollback: remove `packages/rppg-engine`, `apps/browser-client`, the Pages workflow, the CNAME file, the nginx site `/etc/nginx/sites-enabled/synvibe.app`, `/var/www/synvibe.app`, and related docs updates.
