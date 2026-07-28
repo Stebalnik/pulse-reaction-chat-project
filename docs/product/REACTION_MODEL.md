@@ -81,6 +81,10 @@ Optional research features:
 }
 ```
 
+## Prototype implementation status
+
+The browser prototype includes a local-only baseline-relative trend monitor as `pulse-trend-rules-0.1.0`. It is a deterministic MVP rule set, not a validated interpretation model. It only emits neutral physiological trend states and must continue to abstain when HR estimates are invalid or signal quality, motion, illumination, or baseline maturity are insufficient.
+
 ## Gating rules
 
 Do not classify when:

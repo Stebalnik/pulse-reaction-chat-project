@@ -2,6 +2,7 @@ import {
   Activity,
   Bot,
   Camera,
+  Gauge,
   MessageCircle,
   Mic,
   Pause,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 import type { CSSProperties, JSX } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { HeartRateEstimate } from "@pulse-reaction/rppg-engine";
+import { PulseTrendMonitor, type HeartRateEstimate, type PulseTrendEstimate } from "@pulse-reaction/rppg-engine";
 import { PulseSampler, type RoiRect } from "./pulseSampler.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
@@ -30,13 +31,26 @@ const BOT_LINES = [
   "The chat flow is ready for a human peer later."
 ];
 
+interface PulseSnapshot {
+  sampleCount: number;
+  estimate: HeartRateEstimate;
+  trend: PulseTrendEstimate;
+}
+
 export function App(): JSX.Element {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const samplerRef = useRef(new PulseSampler());
+  const trendMonitorRef = useRef(
+    new PulseTrendMonitor({
+      minBaselineSamples: 6,
+      minBaselineSpanMs: 20_000,
+      minAcceptedEstimateSpacingMs: 1_500
+    })
+  );
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [analysisEnabled, setAnalysisEnabled] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [snapshot, setSnapshot] = useState<{ sampleCount: number; estimate: HeartRateEstimate } | null>(null);
+  const [snapshot, setSnapshot] = useState<PulseSnapshot | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 1, author: "bot", text: "Room opened. I am the temporary test peer." }
   ]);
@@ -46,6 +60,7 @@ export function App(): JSX.Element {
     if (!cameraEnabled) {
       stopCamera(videoRef.current);
       samplerRef.current.reset();
+      trendMonitorRef.current.reset();
       setSnapshot(null);
       return;
     }
@@ -84,19 +99,31 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (!analysisEnabled || !cameraEnabled) {
       samplerRef.current.reset();
+      trendMonitorRef.current.reset();
       setSnapshot(null);
       return;
     }
 
-    const id = window.setInterval(() => {
+    let animationId = 0;
+    let lastSampleAt = 0;
+    const loop = (timestamp: number): void => {
       const video = videoRef.current;
-      if (!video) return;
-      const roi = centerRoi(video.videoWidth, video.videoHeight);
-      const next = samplerRef.current.sample(video, roi);
-      if (next) setSnapshot(next);
-    }, 200);
+      if (video && timestamp - lastSampleAt >= 180) {
+        lastSampleAt = timestamp;
+        const roi = centerRoi(video.videoWidth, video.videoHeight);
+        const next = samplerRef.current.sample(video, roi);
+        if (next) {
+          setSnapshot({
+            ...next,
+            trend: trendMonitorRef.current.update(next.estimate)
+          });
+        }
+      }
+      animationId = window.requestAnimationFrame(loop);
+    };
+    animationId = window.requestAnimationFrame(loop);
 
-    return () => window.clearInterval(id);
+    return () => window.cancelAnimationFrame(animationId);
   }, [analysisEnabled, cameraEnabled]);
 
   useEffect(() => {
@@ -112,6 +139,7 @@ export function App(): JSX.Element {
   }, []);
 
   const estimate = snapshot?.estimate;
+  const trend = snapshot?.trend;
   const roiStyle = useMemo(() => roiOverlayStyle(videoRef.current), [cameraEnabled, snapshot?.sampleCount]);
   const readiness = estimate ? readinessLabel(estimate) : "warming";
 
@@ -196,8 +224,21 @@ export function App(): JSX.Element {
               <span>Pulse trend</span>
             </div>
             <div className={`readiness ${readiness}`}>{readinessText(readiness)}</div>
-            <div className="bpmReadout">{estimate?.bpm === null || !estimate ? "--" : Math.round(estimate.bpm)}</div>
+            <div className={`bpmReadout ${estimate?.bpm === null || !estimate ? "empty" : ""}`}>
+              {estimate?.bpm === null || !estimate ? "No signal" : Math.round(estimate.bpm)}
+            </div>
             <div className="bpmUnit">BPM estimate, local only</div>
+            <div className={`trendCard ${trendClass(trend)}`}>
+              <div className="trendLabel">
+                <Gauge aria-hidden="true" />
+                <span>{trendText(trend)}</span>
+              </div>
+              <div className="trendGrid">
+                <Metric label="Baseline" value={trend?.baselineBpm === null || !trend ? "--" : `${Math.round(trend.baselineBpm)}`} />
+                <Metric label="Delta" value={trend?.deltaBpm === null || !trend ? "--" : formatDelta(trend.deltaBpm)} />
+                <Metric label="Maturity" value={`${Math.round((trend?.baselineMaturity ?? 0) * 100)}%`} />
+              </div>
+            </div>
             <div className="meterRows">
               <Meter label="Quality" value={estimate?.signalQuality ?? 0} />
               <Meter label="ROI" value={estimate?.roiCoverage ?? 0} />
@@ -243,6 +284,15 @@ export function App(): JSX.Element {
         </aside>
       </section>
     </main>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }): JSX.Element {
+  return (
+    <div className="miniMetric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -296,6 +346,28 @@ function readinessText(readiness: "good" | "warming" | "blocked"): string {
   if (readiness === "good") return "usable signal";
   if (readiness === "blocked") return "insufficient signal";
   return "collecting window";
+}
+
+function trendText(trend: PulseTrendEstimate | undefined): string {
+  if (!trend) return "calibrating baseline";
+  if (trend.state === "INSUFFICIENT_SIGNAL") return "insufficient signal";
+  if (trend.state === "CALIBRATING_BASELINE") return "calibrating baseline";
+  if (trend.state === "POSSIBLE_ACTIVATION") return "possible activation";
+  if (trend.state === "HIGH_ACTIVATION") return "higher activation";
+  if (trend.state === "RECOVERY") return "recovery toward baseline";
+  return "near baseline";
+}
+
+function trendClass(trend: PulseTrendEstimate | undefined): string {
+  if (!trend || trend.state === "CALIBRATING_BASELINE") return "warming";
+  if (trend.state === "INSUFFICIENT_SIGNAL") return "blocked";
+  if (trend.state === "POSSIBLE_ACTIVATION" || trend.state === "HIGH_ACTIVATION") return "active";
+  return "stable";
+}
+
+function formatDelta(deltaBpm: number): string {
+  const rounded = Math.round(deltaBpm);
+  return rounded > 0 ? `+${rounded}` : `${rounded}`;
 }
 
 function stopCamera(video: HTMLVideoElement | null): void {

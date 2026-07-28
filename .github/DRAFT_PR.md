@@ -26,6 +26,8 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 - Added unit tests with deterministic synthetic traces.
 - Added `apps/browser-client` Vite/React prototype on local port `1059`.
 - Added local camera sampling from a center ROI into the on-device pulse engine.
+- Added continuous local pulse monitoring while camera and local analysis consent are active.
+- Added baseline-relative neutral physiological trend states with invalid-window abstention.
 - Added a temporary peer placeholder and chat composer for flow testing.
 - Added SynVibe branding for the browser prototype.
 - Added GitHub Pages workflow for `apps/browser-client/dist`.
@@ -42,6 +44,7 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 - Production build includes `CNAME` for `synvibe.app`.
 - Server nginx serves the browser build for `synvibe.app` and `www.synvibe.app`.
 - Cloudflare DNS is ready to point `synvibe.app` at `165.232.145.239`.
+- Video panes stay within viewport width and height across desktop, tablet, and mobile layouts.
 - No reaction-state inference, medical claim, or unsupported product claim is introduced.
 
 ## Validation
@@ -60,6 +63,7 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 - [x] Verified Cloudflare DNS resolves `synvibe.app` to `165.232.145.239`.
 - [x] Issued Let's Encrypt certificate for `synvibe.app` and `www.synvibe.app`.
 - [x] Verified HTTPS returns the SynVibe browser build.
+- [x] Playwright responsive smoke across 1440x900, 820x1180, and 390x844 viewports.
 
 ## DNS status
 

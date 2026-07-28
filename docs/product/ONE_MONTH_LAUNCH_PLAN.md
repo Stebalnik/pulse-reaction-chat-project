@@ -38,7 +38,7 @@ Exit criteria:
 - Face/ROI trace extraction prototype.
 - First transparent pulse estimator with versioned config.
 - Signal-quality score, reason codes, and invalid-window behavior.
-- Local-only debug display for own signal quality and own estimated pulse trend.
+- Continuous local-only debug display for own signal quality and own estimated pulse trend while camera and analysis consent are active.
 - Synthetic fixtures and basic regression tests.
 
 Initial estimator package:
@@ -55,7 +55,7 @@ Exit criteria:
 ## Week 3 — Baseline-relative reaction states
 
 - Personal baseline calibration phases.
-- Baseline-relative state machine for physiological dynamics.
+- Baseline-relative state machine for physiological dynamics, limited to broad neutral states such as insufficient signal, calibrating baseline, near baseline, possible activation, higher activation, and recovery.
 - Alternative explanations surfaced internally and in debug logs.
 - Product UI limited to broad, non-valenced trend indicators.
 - Consent copy and safety UX review.
