@@ -5,6 +5,7 @@ import type { PreparedWindow } from "./window.js";
 import { prepareWindow } from "./window.js";
 import { resolveConfig } from "./config.js";
 import type {
+  HeartRateDiagnostics,
   HeartRateEstimate,
   InternalEstimate,
   ReasonCode,
@@ -36,8 +37,41 @@ export function estimateHeartRate(
   return validEstimate(prepared, config, estimate.bpm, estimate.signalQuality, config.method, estimate.reasonCodes);
 }
 
+export function estimateHeartRateDiagnostics(
+  samples: readonly RgbTraceSample[],
+  configOverrides: Partial<RppgEngineConfig> = {}
+): HeartRateDiagnostics {
+  const config = resolveConfig({ ...configOverrides, method: "FUSION" });
+  const prepared = prepareWindow(samples, config);
+  if (prepared.reasonCodes.length > 0) {
+    return {
+      estimate: invalidEstimate(prepared, config, prepared.reasonCodes),
+      methodEstimates: [],
+      selectedMethod: config.method,
+      methodSpreadBpm: null
+    };
+  }
+
+  const methodEstimates = (["CHROM", "POS", "GREEN"] as const).map((method) => estimateSingleMethod(prepared, method, config));
+  return {
+    estimate: estimateFusionFromMethods(prepared, config, methodEstimates),
+    methodEstimates: methodEstimates.map((estimate) => ({
+      method: estimate.method,
+      bpm: estimate.bpm === null ? null : round(estimate.bpm, 2),
+      signalQuality: round(clamp(estimate.signalQuality, 0, 1), 4),
+      reasonCodes: [...new Set(estimate.reasonCodes)]
+    })),
+    selectedMethod: config.method,
+    methodSpreadBpm: methodSpread(methodEstimates, config)
+  };
+}
+
 function estimateFusion(prepared: PreparedWindow, config: RppgEngineConfig): HeartRateEstimate {
   const estimates = (["CHROM", "POS", "GREEN"] as const).map((method) => estimateSingleMethod(prepared, method, config));
+  return estimateFusionFromMethods(prepared, config, estimates);
+}
+
+function estimateFusionFromMethods(prepared: PreparedWindow, config: RppgEngineConfig, estimates: InternalEstimate[]): HeartRateEstimate {
   const valid = estimates.filter(
     (estimate) => estimate.bpm !== null && estimate.signalQuality >= config.minSpectralQuality && estimate.reasonCodes.length === 0
   );
@@ -61,6 +95,15 @@ function estimateFusion(prepared: PreparedWindow, config: RppgEngineConfig): Hea
 
   const signalQuality = clamp(mean([chrom.signalQuality, pos.signalQuality]) * (1 - spread / 30), 0, 1);
   return validEstimate(prepared, config, mean(bpmValues), signalQuality, "FUSION", []);
+}
+
+function methodSpread(estimates: InternalEstimate[], config: RppgEngineConfig): number | null {
+  const valid = estimates.filter(
+    (estimate) => estimate.bpm !== null && estimate.signalQuality >= config.minSpectralQuality && estimate.reasonCodes.length === 0
+  );
+  if (valid.length < 2) return null;
+  const values = valid.map((estimate) => estimate.bpm ?? 0);
+  return round(Math.max(...values) - Math.min(...values), 2);
 }
 
 function estimateSingleMethod(

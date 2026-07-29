@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { estimateHeartRate, type RgbTraceSample } from "../packages/rppg-engine/src/index.js";
+import { estimateHeartRate, estimateHeartRateDiagnostics, type RgbTraceSample } from "../packages/rppg-engine/src/index.js";
 
 test("GREEN estimates a clean synthetic pulse rate", () => {
   const samples = syntheticTrace({ bpm: 72, seconds: 15, fps: 30, projection: "green" });
@@ -22,6 +22,30 @@ test("FUSION estimates pulse when CHROM and POS agree", () => {
   const bpm = estimate.bpm;
   assert.ok(Math.abs(bpm - 90) <= 5, `expected about 90 bpm, got ${bpm}`);
   assert.equal(estimate.method, "FUSION");
+});
+
+test("diagnostics exposes per-method estimates and fusion spread", () => {
+  const samples = syntheticTrace({ bpm: 84, seconds: 15, fps: 30, projection: "rgb" });
+  const diagnostics = estimateHeartRateDiagnostics(samples, { minSpectralQuality: 0.2 });
+
+  assert.equal(diagnostics.estimate.confidence !== "invalid", true);
+  assert.ok(diagnostics.estimate.bpm !== null);
+  assert.equal(diagnostics.selectedMethod, "FUSION");
+  assert.equal(diagnostics.methodEstimates.length, 3);
+  assert.ok(diagnostics.methodEstimates.some((estimate) => estimate.method === "CHROM" && estimate.bpm !== null));
+  assert.ok(diagnostics.methodEstimates.some((estimate) => estimate.method === "POS" && estimate.bpm !== null));
+  assert.ok(diagnostics.methodSpreadBpm !== null);
+});
+
+test("diagnostics preserves invalid window reason without method estimates", () => {
+  const samples = syntheticTrace({ bpm: 72, seconds: 4, fps: 30, projection: "rgb" });
+  const diagnostics = estimateHeartRateDiagnostics(samples);
+
+  assert.equal(diagnostics.estimate.bpm, null);
+  assert.equal(diagnostics.estimate.confidence, "invalid");
+  assert.deepEqual(diagnostics.methodEstimates, []);
+  assert.equal(diagnostics.methodSpreadBpm, null);
+  assert.ok(diagnostics.estimate.reasonCodes.includes("WINDOW_TOO_SHORT"));
 });
 
 test("spectral interpolation estimates off-bin pulse rates", () => {

@@ -91,6 +91,8 @@ The browser prototype now uses face/skin ROI extraction before trace averaging. 
 
 The live browser estimator requests up to 60 fps when available, samples frames at display cadence, and uses a 12-second minimum window for the first visible estimate. The launch UI constrains the live HR search band to 51-192 BPM to reduce low-frequency drift being selected as pulse; wider ranges require separate validation and user-specific configuration.
 
+The live debug UI exposes recent local BPM estimates, median, spread, CHROM/POS/GREEN candidates, method spread, and the current selection or rejection reason. These diagnostics are for signal tuning and validation only; reaction states must continue to use valid baseline-relative windows and abstain when quality gates fail.
+
 Blood pressure or other cardiovascular parameters must remain `HYPOTHESIS` research outputs until there is dedicated evidence, consented validation data, and a separate safety review. The current product surface is limited to pulse-rate estimates and neutral pulse-trend changes.
 
 ## Gating rules

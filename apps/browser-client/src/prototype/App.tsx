@@ -2,6 +2,7 @@ import {
   Activity,
   Bot,
   Camera,
+  ChartNoAxesColumn,
   Gauge,
   MessageCircle,
   Mic,
@@ -13,7 +14,7 @@ import {
 } from "lucide-react";
 import type { CSSProperties, JSX } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PulseTrendMonitor, type HeartRateEstimate, type PulseTrendEstimate } from "@pulse-reaction/rppg-engine";
+import { PulseTrendMonitor, type HeartRateDiagnostics, type HeartRateEstimate, type PulseTrendEstimate } from "@pulse-reaction/rppg-engine";
 import { FaceRoiTracker, type FaceRoiResult } from "./faceRoi.js";
 import { PulseSampler, type RoiRect } from "./pulseSampler.js";
 
@@ -39,7 +40,14 @@ interface PulseSnapshot {
   validRegionCount: number;
   roi: FaceRoiResult;
   estimate: HeartRateEstimate;
+  diagnostics: HeartRateDiagnostics;
   trend: PulseTrendEstimate;
+}
+
+interface PulseHistoryEntry {
+  timestampMs: number;
+  bpm: number;
+  signalQuality: number;
 }
 
 export function App(): JSX.Element {
@@ -57,6 +65,7 @@ export function App(): JSX.Element {
   const [analysisEnabled, setAnalysisEnabled] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<PulseSnapshot | null>(null);
+  const [pulseHistory, setPulseHistory] = useState<PulseHistoryEntry[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 1, author: "bot", text: "Room opened. I am the temporary test peer." }
   ]);
@@ -69,6 +78,7 @@ export function App(): JSX.Element {
       roiTrackerRef.current.reset();
       trendMonitorRef.current.reset();
       setSnapshot(null);
+      setPulseHistory([]);
       return;
     }
 
@@ -109,6 +119,7 @@ export function App(): JSX.Element {
       roiTrackerRef.current.reset();
       trendMonitorRef.current.reset();
       setSnapshot(null);
+      setPulseHistory([]);
       return;
     }
 
@@ -126,6 +137,19 @@ export function App(): JSX.Element {
               roi,
               trend: trendMonitorRef.current.update(next.estimate)
             });
+            const bpm = next.estimate.bpm;
+            if (bpm !== null && next.estimate.confidence !== "invalid") {
+              setPulseHistory((current) =>
+                [
+                  ...current,
+                  {
+                    timestampMs: next.estimate.timestampMs,
+                    bpm,
+                    signalQuality: next.estimate.signalQuality
+                  }
+                ].slice(-10)
+              );
+            }
           }
         });
       }
@@ -150,6 +174,8 @@ export function App(): JSX.Element {
 
   const estimate = snapshot?.estimate;
   const trend = snapshot?.trend;
+  const diagnostics = snapshot?.diagnostics;
+  const historyStats = useMemo(() => pulseHistoryStats(pulseHistory), [pulseHistory]);
   const roiStyle = useMemo(() => roiOverlayStyle(videoRef.current, snapshot?.roi.roi), [cameraEnabled, snapshot?.sampleCount]);
   const readiness = estimate ? readinessLabel(estimate) : "warming";
 
@@ -251,6 +277,40 @@ export function App(): JSX.Element {
                 <Metric label="Zones" value={snapshot ? `${snapshot.validRegionCount}/${snapshot.roi.regions.length}` : "--"} />
               </div>
             </div>
+            <div className="diagnosticPanel">
+              <div className="diagnosticTitle">
+                <ChartNoAxesColumn aria-hidden="true" />
+                <span>Estimator diagnostics</span>
+              </div>
+              <div className="trendGrid">
+                <Metric label="Median" value={historyStats.medianBpm === null ? "--" : `${Math.round(historyStats.medianBpm)}`} />
+                <Metric label="Spread" value={historyStats.spreadBpm === null ? "--" : `${Math.round(historyStats.spreadBpm)}`} />
+                <Metric label="Recent" value={`${pulseHistory.length}/10`} />
+                <Metric label="Method spread" value={diagnostics?.methodSpreadBpm === null || !diagnostics ? "--" : `${Math.round(diagnostics.methodSpreadBpm)}`} />
+              </div>
+              <div className="historyStrip" aria-label="Recent BPM estimates">
+                {pulseHistory.length === 0 ? (
+                  <span className="historyEmpty">waiting</span>
+                ) : (
+                  pulseHistory.map((entry) => (
+                    <span key={`${entry.timestampMs}-${entry.bpm}`} title={`Quality ${Math.round(entry.signalQuality * 100)}%`}>
+                      {Math.round(entry.bpm)}
+                    </span>
+                  ))
+                )}
+              </div>
+              <div className="methodRows">
+                {(diagnostics?.methodEstimates ?? []).map((methodEstimate) => (
+                  <div className="methodRow" key={methodEstimate.method}>
+                    <span>{methodEstimate.method}</span>
+                    <strong>{methodEstimate.bpm === null ? "--" : Math.round(methodEstimate.bpm)}</strong>
+                    <small>{methodStatusText(methodEstimate.signalQuality, methodEstimate.reasonCodes)}</small>
+                  </div>
+                ))}
+                {!diagnostics?.methodEstimates.length && <div className="methodEmpty">method estimates pending</div>}
+              </div>
+              <div className="selectionReason">{selectionReasonText(diagnostics)}</div>
+            </div>
             <div className="meterRows">
               <Meter label="Quality" value={estimate?.signalQuality ?? 0} />
               <Meter label="Skin" value={snapshot?.skinCoverage ?? 0} />
@@ -309,6 +369,32 @@ function Metric({ label, value }: { label: string; value: string }): JSX.Element
       <strong>{value}</strong>
     </div>
   );
+}
+
+function pulseHistoryStats(history: readonly PulseHistoryEntry[]): { medianBpm: number | null; spreadBpm: number | null } {
+  if (history.length === 0) return { medianBpm: null, spreadBpm: null };
+  const sorted = history.map((entry) => entry.bpm).sort((a, b) => a - b);
+  const midpoint = Math.floor(sorted.length / 2);
+  const medianBpm = sorted.length % 2 === 0 ? (sorted[midpoint - 1]! + sorted[midpoint]!) / 2 : sorted[midpoint]!;
+  return {
+    medianBpm,
+    spreadBpm: sorted[sorted.length - 1]! - sorted[0]!
+  };
+}
+
+function methodStatusText(signalQuality: number, reasonCodes: readonly string[]): string {
+  if (reasonCodes.length > 0) return reasonCodes[0]!;
+  return `q ${Math.round(signalQuality * 100)}%`;
+}
+
+function selectionReasonText(diagnostics: HeartRateDiagnostics | undefined): string {
+  if (!diagnostics) return "Selection pending until the first valid analysis window.";
+  if (diagnostics.estimate.bpm !== null) {
+    const spread = diagnostics.methodSpreadBpm === null ? "n/a" : `${Math.round(diagnostics.methodSpreadBpm)} BPM`;
+    return `${diagnostics.selectedMethod} selected from agreeing methods; spread ${spread}.`;
+  }
+  if (diagnostics.estimate.reasonCodes.length === 0) return "No method selected yet.";
+  return `No BPM selected: ${diagnostics.estimate.reasonCodes.join(", ")}.`;
 }
 
 function Meter({ label, value, invert = false }: { label: string; value: number; invert?: boolean }): JSX.Element {

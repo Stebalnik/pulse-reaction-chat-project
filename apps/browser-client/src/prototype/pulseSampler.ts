@@ -1,4 +1,4 @@
-import { estimateHeartRate, type HeartRateEstimate, type RgbTraceSample } from "@pulse-reaction/rppg-engine";
+import { estimateHeartRateDiagnostics, type HeartRateDiagnostics, type HeartRateEstimate, type RgbTraceSample } from "@pulse-reaction/rppg-engine";
 
 export interface RoiRect {
   x: number;
@@ -17,6 +17,7 @@ export interface PulseSamplerSnapshot {
   skinCoverage: number;
   validRegionCount: number;
   estimate: HeartRateEstimate;
+  diagnostics: HeartRateDiagnostics;
 }
 
 const MAX_TRACE_MS = 24_000;
@@ -63,7 +64,7 @@ export class PulseSampler {
       this.samples.shift();
     }
 
-    const estimate = estimateHeartRate(this.samples, {
+    const diagnostics = estimateHeartRateDiagnostics(this.samples, {
       method: "FUSION",
       minWindowMs: 12_000,
       minSamples: 180,
@@ -84,7 +85,8 @@ export class PulseSampler {
       sampleRateHz: sampleRateHz(this.samples),
       skinCoverage: skin.coverage,
       validRegionCount: skin.validRegionCount,
-      estimate
+      estimate: diagnostics.estimate,
+      diagnostics
     };
   }
 

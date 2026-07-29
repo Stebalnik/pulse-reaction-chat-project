@@ -43,6 +43,20 @@ export interface HeartRateEstimate {
   reasonCodes: ReasonCode[];
 }
 
+export interface MethodEstimateDiagnostic {
+  method: Exclude<RppgMethod, "FUSION">;
+  bpm: number | null;
+  signalQuality: number;
+  reasonCodes: ReasonCode[];
+}
+
+export interface HeartRateDiagnostics {
+  estimate: HeartRateEstimate;
+  methodEstimates: MethodEstimateDiagnostic[];
+  selectedMethod: string;
+  methodSpreadBpm: number | null;
+}
+
 export interface RppgEngineConfig {
   method: RppgMethod;
   methodVersion: string;

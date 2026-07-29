@@ -405,6 +405,91 @@ input {
   gap: 12px;
 }
 
+.diagnosticPanel {
+  margin-top: 12px;
+  border: 1px solid #d1ddd6;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfb;
+}
+
+.diagnosticTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #26332e;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.diagnosticTitle svg {
+  width: 16px;
+  height: 16px;
+}
+
+.historyStrip {
+  min-height: 30px;
+  margin-top: 9px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.historyStrip span,
+.historyEmpty {
+  min-width: 28px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  background: #eaf1ed;
+  color: #26332e;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.historyEmpty {
+  min-width: 64px;
+  color: #63736b;
+  font-weight: 650;
+}
+
+.methodRows {
+  margin-top: 9px;
+  display: grid;
+  gap: 6px;
+}
+
+.methodRow {
+  display: grid;
+  grid-template-columns: 54px 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: #34443d;
+  font-size: 12px;
+}
+
+.methodRow strong {
+  color: #18231e;
+  font-size: 14px;
+}
+
+.methodRow small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #63736b;
+}
+
+.methodEmpty,
+.selectionReason {
+  color: #63736b;
+  font-size: 12px;
+}
+
+.selectionReason {
+  margin-top: 9px;
+  line-height: 1.35;
+}
+
 .roiSource {
   margin-top: 12px;
   color: #63736b;
