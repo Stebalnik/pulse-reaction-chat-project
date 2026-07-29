@@ -244,30 +244,41 @@ input {
   background: color-mix(in srgb, var(--badge-bg) 88%, transparent);
 }
 
-.reactionBadge.no_signal {
+.reactionBadge.static {
   --badge-accent: #8f9b96;
   --badge-bg: #eef2ef;
 }
 
-.reactionBadge.calibrating {
+.reactionBadge.tuning {
   --badge-accent: #d2aa3a;
   --badge-bg: #fff6d9;
 }
 
-.reactionBadge.baseline,
-.reactionBadge.recovery {
+.reactionBadge.steady {
   --badge-accent: #3f8069;
   --badge-bg: #eaf7ef;
 }
 
-.reactionBadge.mild_activation {
+.reactionBadge.soft_lift {
   --badge-accent: #d58c34;
   --badge-bg: #fff0d7;
 }
 
-.reactionBadge.high_activation {
+.reactionBadge.quick_lift,
+.reactionBadge.surge {
+  --badge-accent: #cc6f3b;
+  --badge-bg: #ffeadc;
+}
+
+.reactionBadge.peak {
   --badge-accent: #b95342;
   --badge-bg: #fde7e1;
+}
+
+.reactionBadge.settling,
+.reactionBadge.cooldown {
+  --badge-accent: #4f7fa4;
+  --badge-bg: #e6f1f8;
 }
 
 .badgeSymbol {

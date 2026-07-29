@@ -10,35 +10,47 @@ No label may imply attraction, dislike, truthfulness, consent, compatibility, or
 
 The launch UI should display a small local-only visual badge instead of user-facing interpretation copy. The badge is a coarse visualization of baseline-relative physiology and signal validity. It must not be described as an emotion, attraction, intent, truthfulness, compatibility, or medical state.
 
-The allowed launch badge codes are:
+The allowed launch badge codes are product-facing pulse-change labels:
 
-1. `NO_SIGNAL`
+1. `STATIC`
 
 Invalid or unavailable estimate. Maps from `INSUFFICIENT_SIGNAL`.
 
-2. `CALIBRATING`
+2. `TUNING`
 
 Personal baseline is still being built. Maps from `CALIBRATING_BASELINE`.
 
-3. `BASELINE`
+3. `STEADY`
 
 Pulse dynamics remain near personal baseline with low short-term deviation and acceptable signal quality.
 
-4. `MILD_ACTIVATION`
+4. `SOFT_LIFT`
 
-Sustained, moderate activation relative to baseline and not sufficiently explained by visible motion or lighting. This is neutral-valence physiological activation, not “interest” or attraction.
+Moderate upward pulse change relative to baseline, without assigning a cause.
 
-5. `HIGH_ACTIVATION`
+5. `QUICK_LIFT`
 
-A larger sustained increase in activation. Possible explanations include excitement, stress, exertion, speaking, surprise, heat, or artifacts.
+Faster upward pulse change relative to baseline, without assigning a cause.
 
-6. `RECOVERY`
+6. `SURGE`
+
+Larger sustained upward pulse change. Possible explanations include excitement, stress, exertion, speaking, surprise, heat, or artifacts.
+
+7. `PEAK`
+
+Highest launch-level upward pulse-change badge, only when the baseline-relative change is large and quality gates pass.
+
+8. `SETTLING`
 
 Return toward baseline following a previously detected activation period.
 
+9. `COOLDOWN`
+
+Downward pulse movement or faster recovery toward baseline.
+
 ## Why these states
 
-They can be defined from time-series dynamics without pretending to recover emotional valence. Six visual badges are appropriate for the MVP because they cover invalid signal, calibration, baseline, two activation intensities, and recovery without creating a large unsupported taxonomy. The taxonomy must remain versioned and experimentally revisable.
+They can be defined from time-series dynamics without pretending to recover emotional valence. The visual vocabulary is richer than the internal state machine, but every badge is still derived from valid pulse-change features such as delta, slope, confidence, and recovery. The taxonomy must remain versioned and experimentally revisable.
 
 ## Required input features
 
@@ -85,7 +97,7 @@ Optional research features:
 
 The browser prototype includes a local-only baseline-relative trend monitor as `pulse-trend-rules-0.1.0`. It is a deterministic MVP rule set, not a validated interpretation model. It only emits neutral physiological trend states and must continue to abstain when HR estimates are invalid or signal quality, motion, illumination, FPS, or baseline maturity are insufficient.
 
-The browser prototype maps trend states to a local visual badge using `reaction-badge-0.1.0`. The badge appears on the user's own video surface and is not shared with the test peer. The UI uses abstract symbols and intensity dots so the product does not imply a specific emotion.
+The browser prototype maps trend states to a local visual badge using `reaction-badge-0.1.0`. The badge appears on the user's own video surface and is not shared with the test peer. The UI uses pulse-change labels, abstract symbols, and intensity dots so the product does not imply a specific emotion.
 
 The prototype samples camera frames at approximately 30 fps where the browser allows it and uses chromaticity-normalized RGB traces before CHROM/POS/FUSION estimation. This reduces common illumination changes but does not make the signal independent of all lighting conditions; low light, shadows, specular highlights, compression, and sudden illumination changes remain quality-gated failure modes.
 

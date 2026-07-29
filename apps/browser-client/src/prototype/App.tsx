@@ -56,7 +56,16 @@ interface PulseHistoryEntry {
   signalQuality: number;
 }
 
-type ReactionBadgeCode = "NO_SIGNAL" | "CALIBRATING" | "BASELINE" | "MILD_ACTIVATION" | "HIGH_ACTIVATION" | "RECOVERY";
+type ReactionBadgeCode =
+  | "STATIC"
+  | "TUNING"
+  | "STEADY"
+  | "SOFT_LIFT"
+  | "QUICK_LIFT"
+  | "SURGE"
+  | "PEAK"
+  | "SETTLING"
+  | "COOLDOWN";
 
 interface ReactionBadgeModel {
   code: ReactionBadgeCode;
@@ -414,41 +423,43 @@ function ReactionBadge({ badge, compact = false }: { badge: ReactionBadgeModel; 
 
 function reactionBadgeForTrend(trend: PulseTrendEstimate | undefined): ReactionBadgeModel {
   const state = trend?.state ?? "CALIBRATING_BASELINE";
+  const delta = trend?.deltaBpm ?? 0;
+  const slope = trend?.slopeBpmPerSecond ?? 0;
   const badgeByState: Record<PulseTrendState, ReactionBadgeModel> = {
     INSUFFICIENT_SIGNAL: {
-      code: "NO_SIGNAL",
+      code: "STATIC",
       symbol: "--",
-      title: "Insufficient signal",
+      title: "Signal unavailable",
       intensity: 0
     },
     CALIBRATING_BASELINE: {
-      code: "CALIBRATING",
+      code: "TUNING",
       symbol: "...",
-      title: "Calibrating baseline",
+      title: "Tuning signal",
       intensity: 1
     },
     NEAR_BASELINE: {
-      code: "BASELINE",
+      code: delta < -2 ? "COOLDOWN" : "STEADY",
       symbol: "O",
-      title: "Near baseline",
+      title: delta < -2 ? "Pulse easing down" : "Steady pulse pattern",
       intensity: 1
     },
     POSSIBLE_ACTIVATION: {
-      code: "MILD_ACTIVATION",
-      symbol: "o+",
-      title: "Mild activation relative to baseline",
+      code: slope > 0.8 ? "QUICK_LIFT" : "SOFT_LIFT",
+      symbol: slope > 0.8 ? "++" : "o+",
+      title: slope > 0.8 ? "Quick pulse lift" : "Soft pulse lift",
       intensity: 2
     },
     HIGH_ACTIVATION: {
-      code: "HIGH_ACTIVATION",
-      symbol: "*",
-      title: "Higher activation relative to baseline",
+      code: delta >= 20 ? "PEAK" : "SURGE",
+      symbol: delta >= 20 ? "**" : "^",
+      title: delta >= 20 ? "Pulse peak" : "Pulse surge",
       intensity: 3
     },
     RECOVERY: {
-      code: "RECOVERY",
-      symbol: "~",
-      title: "Recovery toward baseline",
+      code: slope < -0.8 ? "COOLDOWN" : "SETTLING",
+      symbol: slope < -0.8 ? "v" : "~",
+      title: slope < -0.8 ? "Pulse cooling down" : "Pulse settling",
       intensity: 1
     }
   };

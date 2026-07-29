@@ -6,7 +6,7 @@
   "properties": {
     "schemaVersion": {"const": "reaction-badge-0.1.0"},
     "code": {
-      "enum": ["NO_SIGNAL", "CALIBRATING", "BASELINE", "MILD_ACTIVATION", "HIGH_ACTIVATION", "RECOVERY"]
+      "enum": ["STATIC", "TUNING", "STEADY", "SOFT_LIFT", "QUICK_LIFT", "SURGE", "PEAK", "SETTLING", "COOLDOWN"]
     },
     "sourceState": {
       "enum": ["INSUFFICIENT_SIGNAL", "CALIBRATING_BASELINE", "NEAR_BASELINE", "POSSIBLE_ACTIVATION", "HIGH_ACTIVATION", "RECOVERY"]
