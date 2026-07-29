@@ -10,6 +10,7 @@ Current prototype:
 - zone-based skin sampling for forehead and cheek patches instead of averaging the full face rectangle;
 - chromaticity-normalized RGB sampling to reduce common lighting changes before CHROM/POS/FUSION estimation;
 - live FPS display for timestamp and low-frame-rate debugging;
+- requests up to 60 fps where the browser and camera allow it, while preserving FPS quality gates;
 - baseline-relative physiological trend panel with neutral states and alternative-explanation guardrails;
 - signal-quality and reason-code panel;
 - temporary bot peer;

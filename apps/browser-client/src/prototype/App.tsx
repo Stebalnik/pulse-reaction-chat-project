@@ -78,7 +78,7 @@ export function App(): JSX.Element {
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          frameRate: { ideal: 30 }
+          frameRate: { ideal: 60, max: 60 }
         },
         audio: false
       })
@@ -116,7 +116,7 @@ export function App(): JSX.Element {
     let lastSampleAt = 0;
     const loop = (timestamp: number): void => {
       const video = videoRef.current;
-      if (video && timestamp - lastSampleAt >= 33) {
+      if (video && timestamp - lastSampleAt >= 16) {
         lastSampleAt = timestamp;
         void roiTrackerRef.current.locate(video, timestamp).then((roi) => {
           const next = samplerRef.current.sample(video, roi.regions);

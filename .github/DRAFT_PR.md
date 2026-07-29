@@ -29,6 +29,7 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 - Added continuous local pulse monitoring while camera and local analysis consent are active.
 - Added face/skin ROI extraction with browser FaceDetector, forehead/cheek zone sampling, skin-cluster fallback, skin-pixel coverage, valid-zone counts, and visible ROI source status.
 - Added baseline-relative neutral physiological trend states with invalid-window abstention.
+- Added higher-rate browser capture request, 12-second live estimation window, launch HR search band, and spectral peak interpolation for more accurate live BPM estimates.
 - Added a temporary peer placeholder and chat composer for flow testing.
 - Added SynVibe branding for the browser prototype.
 - Added GitHub Pages workflow for `apps/browser-client/dist`.
@@ -47,6 +48,7 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 - Cloudflare DNS is ready to point `synvibe.app` at `165.232.145.239`.
 - Video panes stay within viewport width and height across desktop, tablet, and mobile layouts.
 - Pulse sampling uses face/skin ROI instead of the original fixed center ROI when browser support or skin fallback permits it.
+- Live pulse estimate avoids selecting low-frequency drift as pulse by using a 51-192 BPM launch search band and longer estimation window.
 - No reaction-state inference, medical claim, or unsupported product claim is introduced.
 
 ## Validation

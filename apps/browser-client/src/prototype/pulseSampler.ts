@@ -19,7 +19,7 @@ export interface PulseSamplerSnapshot {
   estimate: HeartRateEstimate;
 }
 
-const MAX_TRACE_MS = 18_000;
+const MAX_TRACE_MS = 24_000;
 
 export class PulseSampler {
   private readonly canvas = document.createElement("canvas");
@@ -65,14 +65,18 @@ export class PulseSampler {
 
     const estimate = estimateHeartRate(this.samples, {
       method: "FUSION",
-      minWindowMs: 8_000,
-      minSamples: 80,
+      minWindowMs: 12_000,
+      minSamples: 180,
       minRoiCoverage: 0.18,
       maxRoiCoverageStd: 0.22,
       minSpectralQuality: 0.18,
       maxMotionScore: 0.75,
       maxIlluminationInstability: 0.28,
-      maxFusionBpmSpread: 10
+      maxFusionBpmSpread: 10,
+      hrBandHz: {
+        min: 0.85,
+        max: 3.2
+      }
     });
 
     return {

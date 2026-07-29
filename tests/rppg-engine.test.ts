@@ -24,6 +24,16 @@ test("FUSION estimates pulse when CHROM and POS agree", () => {
   assert.equal(estimate.method, "FUSION");
 });
 
+test("spectral interpolation estimates off-bin pulse rates", () => {
+  const samples = syntheticTrace({ bpm: 73, seconds: 13, fps: 30, projection: "green" });
+  const estimate = estimateHeartRate(samples, { method: "GREEN", minWindowMs: 12_000, minSpectralQuality: 0.18 });
+
+  assert.equal(estimate.confidence !== "invalid", true);
+  assert.ok(estimate.bpm !== null);
+  assert.ok(Math.abs(estimate.bpm - 73) <= 3, `expected about 73 bpm, got ${estimate.bpm}`);
+});
+
+
 test("invalidates short windows instead of forcing BPM", () => {
   const samples = syntheticTrace({ bpm: 72, seconds: 4, fps: 30, projection: "rgb" });
   const estimate = estimateHeartRate(samples, { method: "FUSION" });
