@@ -7,6 +7,7 @@ Current prototype:
 - local camera preview;
 - continuous local-only pulse-rate estimate from face/skin ROI while camera and local analysis consent are active;
 - browser `FaceDetector` ROI when available, skin-cluster fallback otherwise;
+- zone-based skin sampling for forehead and cheek patches instead of averaging the full face rectangle;
 - chromaticity-normalized RGB sampling to reduce common lighting changes before CHROM/POS/FUSION estimation;
 - live FPS display for timestamp and low-frame-rate debugging;
 - baseline-relative physiological trend panel with neutral states and alternative-explanation guardrails;

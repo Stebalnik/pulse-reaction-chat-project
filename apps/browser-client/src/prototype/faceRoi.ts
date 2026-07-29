@@ -1,9 +1,10 @@
-import type { RoiRect } from "./pulseSampler.js";
+import type { PulseRoiRegion, RoiRect } from "./pulseSampler.js";
 
 type RoiSource = "face" | "skin" | "fallback";
 
 export interface FaceRoiResult {
   roi: RoiRect;
+  regions: PulseRoiRegion[];
   source: RoiSource;
   detectorSupported: boolean;
 }
@@ -34,7 +35,7 @@ export class FaceRoiTracker {
   async locate(video: HTMLVideoElement, timestampMs: number): Promise<FaceRoiResult> {
     if (video.videoWidth <= 0 || video.videoHeight <= 0) {
       return {
-        roi: fallbackRoi(1, 1),
+        ...fallbackGeometry(1, 1),
         source: "fallback",
         detectorSupported: this.detector !== null
       };
@@ -43,7 +44,7 @@ export class FaceRoiTracker {
     if (!this.detector) {
       const skin = this.skinFallback(video);
       this.lastResult = {
-        roi: skin ?? fallbackRoi(video.videoWidth, video.videoHeight),
+        ...(skin ? geometryFromRoi(skin, "skin") : fallbackGeometry(video.videoWidth, video.videoHeight)),
         source: skin ? "skin" : "fallback",
         detectorSupported: false
       };
@@ -75,7 +76,7 @@ export class FaceRoiTracker {
       if (!face) {
         const skin = this.skinFallback(video);
         this.lastResult = {
-          roi: skin ?? fallbackRoi(video.videoWidth, video.videoHeight),
+          ...(skin ? geometryFromRoi(skin, "skin") : fallbackGeometry(video.videoWidth, video.videoHeight)),
           source: skin ? "skin" : "fallback",
           detectorSupported: true
         };
@@ -86,6 +87,7 @@ export class FaceRoiTracker {
       const roi = this.lastResult?.source === "face" ? smoothRoi(this.lastResult.roi, next) : next;
       this.lastResult = {
         roi,
+        regions: pulseRegionsFromFaceRoi(roi),
         source: "face",
         detectorSupported: true
       };
@@ -93,7 +95,7 @@ export class FaceRoiTracker {
     } catch {
       const skin = this.skinFallback(video);
       this.lastResult = {
-        roi: skin ?? fallbackRoi(video.videoWidth, video.videoHeight),
+        ...(skin ? geometryFromRoi(skin, "skin") : fallbackGeometry(video.videoWidth, video.videoHeight)),
         source: skin ? "skin" : "fallback",
         detectorSupported: true
       };
@@ -159,15 +161,71 @@ function faceToPulseRoi(face: DOMRectReadOnly, frameWidth: number, frameHeight: 
   );
 }
 
-function fallbackRoi(frameWidth: number, frameHeight: number): RoiRect {
+function fallbackGeometry(frameWidth: number, frameHeight: number): { roi: RoiRect; regions: PulseRoiRegion[] } {
   const width = Math.max(1, frameWidth * 0.3);
   const height = Math.max(1, frameHeight * 0.32);
-  return {
+  const roi = {
     x: (frameWidth - width) / 2,
     y: frameHeight * 0.18,
     width,
     height
   };
+  return geometryFromRoi(roi, "fallback");
+}
+
+function geometryFromRoi(roi: RoiRect, prefix: string): { roi: RoiRect; regions: PulseRoiRegion[] } {
+  return {
+    roi,
+    regions: [
+      {
+        id: `${prefix}-upper`,
+        x: roi.x + roi.width * 0.18,
+        y: roi.y + roi.height * 0.06,
+        width: roi.width * 0.64,
+        height: roi.height * 0.28
+      },
+      {
+        id: `${prefix}-middle-left`,
+        x: roi.x + roi.width * 0.08,
+        y: roi.y + roi.height * 0.38,
+        width: roi.width * 0.34,
+        height: roi.height * 0.36
+      },
+      {
+        id: `${prefix}-middle-right`,
+        x: roi.x + roi.width * 0.58,
+        y: roi.y + roi.height * 0.38,
+        width: roi.width * 0.34,
+        height: roi.height * 0.36
+      }
+    ]
+  };
+}
+
+function pulseRegionsFromFaceRoi(roi: RoiRect): PulseRoiRegion[] {
+  return [
+    {
+      id: "forehead",
+      x: roi.x + roi.width * 0.22,
+      y: roi.y + roi.height * 0.02,
+      width: roi.width * 0.56,
+      height: roi.height * 0.22
+    },
+    {
+      id: "left-cheek",
+      x: roi.x + roi.width * 0.07,
+      y: roi.y + roi.height * 0.42,
+      width: roi.width * 0.32,
+      height: roi.height * 0.34
+    },
+    {
+      id: "right-cheek",
+      x: roi.x + roi.width * 0.61,
+      y: roi.y + roi.height * 0.42,
+      width: roi.width * 0.32,
+      height: roi.height * 0.34
+    }
+  ];
 }
 
 function smoothRoi(previous: RoiRect, next: RoiRect): RoiRect {

@@ -36,6 +36,7 @@ interface PulseSnapshot {
   sampleCount: number;
   sampleRateHz: number;
   skinCoverage: number;
+  validRegionCount: number;
   roi: FaceRoiResult;
   estimate: HeartRateEstimate;
   trend: PulseTrendEstimate;
@@ -118,7 +119,7 @@ export function App(): JSX.Element {
       if (video && timestamp - lastSampleAt >= 33) {
         lastSampleAt = timestamp;
         void roiTrackerRef.current.locate(video, timestamp).then((roi) => {
-          const next = samplerRef.current.sample(video, roi.roi);
+          const next = samplerRef.current.sample(video, roi.regions);
           if (next) {
             setSnapshot({
               ...next,
@@ -247,6 +248,7 @@ export function App(): JSX.Element {
                 <Metric label="Delta" value={trend?.deltaBpm === null || !trend ? "--" : formatDelta(trend.deltaBpm)} />
                 <Metric label="Maturity" value={`${Math.round((trend?.baselineMaturity ?? 0) * 100)}%`} />
                 <Metric label="FPS" value={snapshot ? `${Math.round(snapshot.sampleRateHz)}` : "--"} />
+                <Metric label="Zones" value={snapshot ? `${snapshot.validRegionCount}/${snapshot.roi.regions.length}` : "--"} />
               </div>
             </div>
             <div className="meterRows">

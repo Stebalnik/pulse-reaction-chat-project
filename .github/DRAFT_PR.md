@@ -27,7 +27,7 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 - Added `apps/browser-client` Vite/React prototype on local port `1059`.
 - Added local camera sampling from a center ROI into the on-device pulse engine.
 - Added continuous local pulse monitoring while camera and local analysis consent are active.
-- Added face/skin ROI extraction with browser FaceDetector, skin-cluster fallback, skin-pixel coverage, and visible ROI source status.
+- Added face/skin ROI extraction with browser FaceDetector, forehead/cheek zone sampling, skin-cluster fallback, skin-pixel coverage, valid-zone counts, and visible ROI source status.
 - Added baseline-relative neutral physiological trend states with invalid-window abstention.
 - Added a temporary peer placeholder and chat composer for flow testing.
 - Added SynVibe branding for the browser prototype.

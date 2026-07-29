@@ -7,10 +7,15 @@ export interface RoiRect {
   height: number;
 }
 
+export interface PulseRoiRegion extends RoiRect {
+  id: string;
+}
+
 export interface PulseSamplerSnapshot {
   sampleCount: number;
   sampleRateHz: number;
   skinCoverage: number;
+  validRegionCount: number;
   estimate: HeartRateEstimate;
 }
 
@@ -22,7 +27,7 @@ export class PulseSampler {
   private readonly samples: RgbTraceSample[] = [];
   private previousLuma: number | null = null;
 
-  sample(video: HTMLVideoElement, roi: RoiRect): PulseSamplerSnapshot | null {
+  sample(video: HTMLVideoElement, regions: readonly PulseRoiRegion[]): PulseSamplerSnapshot | null {
     if (!this.context || video.videoWidth <= 0 || video.videoHeight <= 0) {
       return null;
     }
@@ -31,13 +36,11 @@ export class PulseSampler {
     this.canvas.height = video.videoHeight;
     this.context.drawImage(video, 0, 0, this.canvas.width, this.canvas.height);
 
-    const rect = clampRoi(roi, this.canvas.width, this.canvas.height);
-    if (rect.width <= 0 || rect.height <= 0) {
+    if (regions.length === 0) {
       return null;
     }
 
-    const image = this.context.getImageData(rect.x, rect.y, rect.width, rect.height);
-    const skin = averageSkinChannels(image.data);
+    const skin = averageSkinRegions(this.context, regions, this.canvas.width, this.canvas.height);
     const channels = skin.channels;
     const illumination = (channels.r + channels.g + channels.b) / 3;
     const normalized = normalizeChromaticity(channels, illumination);
@@ -76,6 +79,7 @@ export class PulseSampler {
       sampleCount: this.samples.length,
       sampleRateHz: sampleRateHz(this.samples),
       skinCoverage: skin.coverage,
+      validRegionCount: skin.validRegionCount,
       estimate
     };
   }
@@ -119,41 +123,69 @@ function clampRoi(roi: RoiRect, width: number, height: number): RoiRect {
   };
 }
 
-function averageChannels(data: Uint8ClampedArray): { r: number; g: number; b: number } {
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  const pixels = data.length / 4;
-  for (let index = 0; index < data.length; index += 4) {
-    r += data[index]!;
-    g += data[index + 1]!;
-    b += data[index + 2]!;
+function averageSkinRegions(
+  context: CanvasRenderingContext2D,
+  regions: readonly PulseRoiRegion[],
+  width: number,
+  height: number
+): { channels: { r: number; g: number; b: number }; coverage: number; validRegionCount: number } {
+  let weightedR = 0;
+  let weightedG = 0;
+  let weightedB = 0;
+  let totalSkinPixels = 0;
+  let totalPixels = 0;
+  let validRegionCount = 0;
+
+  for (const region of regions) {
+    const rect = clampRoi(region, width, height);
+    if (rect.width <= 0 || rect.height <= 0) continue;
+    const image = context.getImageData(rect.x, rect.y, rect.width, rect.height);
+    const skin = averageSkinChannels(image.data);
+    totalPixels += skin.pixelCount;
+    totalSkinPixels += skin.skinPixelCount;
+    if (skin.coverage >= 0.08 && skin.skinPixelCount >= 24) {
+      weightedR += skin.channels.r * skin.skinPixelCount;
+      weightedG += skin.channels.g * skin.skinPixelCount;
+      weightedB += skin.channels.b * skin.skinPixelCount;
+      validRegionCount += 1;
+    }
+  }
+
+  if (totalSkinPixels === 0 || validRegionCount === 0) {
+    return {
+      channels: { r: 0, g: 0, b: 0 },
+      coverage: 0,
+      validRegionCount: 0
+    };
   }
 
   return {
-    r: r / pixels,
-    g: g / pixels,
-    b: b / pixels
+    channels: {
+      r: weightedR / totalSkinPixels,
+      g: weightedG / totalSkinPixels,
+      b: weightedB / totalSkinPixels
+    },
+    coverage: totalPixels > 0 ? totalSkinPixels / totalPixels : 0,
+    validRegionCount
   };
 }
 
-function averageSkinChannels(data: Uint8ClampedArray): { channels: { r: number; g: number; b: number }; coverage: number } {
+function averageSkinChannels(data: Uint8ClampedArray): {
+  channels: { r: number; g: number; b: number };
+  coverage: number;
+  pixelCount: number;
+  skinPixelCount: number;
+} {
   let skinR = 0;
   let skinG = 0;
   let skinB = 0;
   let skinPixels = 0;
-  let allR = 0;
-  let allG = 0;
-  let allB = 0;
   const pixels = data.length / 4;
 
   for (let index = 0; index < data.length; index += 4) {
     const r = data[index]!;
     const g = data[index + 1]!;
     const b = data[index + 2]!;
-    allR += r;
-    allG += g;
-    allB += b;
     if (isSkinLike(r, g, b)) {
       skinR += r;
       skinG += g;
@@ -164,12 +196,10 @@ function averageSkinChannels(data: Uint8ClampedArray): { channels: { r: number; 
 
   if (skinPixels === 0) {
     return {
-      channels: {
-        r: allR / pixels,
-        g: allG / pixels,
-        b: allB / pixels
-      },
-      coverage: 0
+      channels: { r: 0, g: 0, b: 0 },
+      coverage: 0,
+      pixelCount: pixels,
+      skinPixelCount: 0
     };
   }
 
@@ -179,7 +209,9 @@ function averageSkinChannels(data: Uint8ClampedArray): { channels: { r: number; 
       g: skinG / skinPixels,
       b: skinB / skinPixels
     },
-    coverage: skinPixels / pixels
+    coverage: skinPixels / pixels,
+    pixelCount: pixels,
+    skinPixelCount: skinPixels
   };
 }
 
