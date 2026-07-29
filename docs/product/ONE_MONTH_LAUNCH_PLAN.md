@@ -35,7 +35,7 @@ Exit criteria:
 
 ## Week 2 — First pulse pipeline
 
-- Face/ROI trace extraction prototype.
+- Face/skin ROI trace extraction prototype with explicit fallback and coverage metrics.
 - First transparent pulse estimator with versioned config.
 - Signal-quality score, reason codes, and invalid-window behavior.
 - Continuous local-only debug display for own signal quality, FPS, and own estimated pulse trend while camera and analysis consent are active.

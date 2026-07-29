@@ -27,6 +27,7 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 - Added `apps/browser-client` Vite/React prototype on local port `1059`.
 - Added local camera sampling from a center ROI into the on-device pulse engine.
 - Added continuous local pulse monitoring while camera and local analysis consent are active.
+- Added face/skin ROI extraction with browser FaceDetector, skin-cluster fallback, skin-pixel coverage, and visible ROI source status.
 - Added baseline-relative neutral physiological trend states with invalid-window abstention.
 - Added a temporary peer placeholder and chat composer for flow testing.
 - Added SynVibe branding for the browser prototype.
@@ -45,6 +46,7 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 - Server nginx serves the browser build for `synvibe.app` and `www.synvibe.app`.
 - Cloudflare DNS is ready to point `synvibe.app` at `165.232.145.239`.
 - Video panes stay within viewport width and height across desktop, tablet, and mobile layouts.
+- Pulse sampling uses face/skin ROI instead of the original fixed center ROI when browser support or skin fallback permits it.
 - No reaction-state inference, medical claim, or unsupported product claim is introduced.
 
 ## Validation

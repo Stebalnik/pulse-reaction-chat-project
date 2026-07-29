@@ -405,6 +405,12 @@ input {
   gap: 12px;
 }
 
+.roiSource {
+  margin-top: 12px;
+  color: #63736b;
+  font-size: 12px;
+}
+
 .meter {
   display: grid;
   gap: 6px;

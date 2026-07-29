@@ -14,6 +14,7 @@ import {
 import type { CSSProperties, JSX } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PulseTrendMonitor, type HeartRateEstimate, type PulseTrendEstimate } from "@pulse-reaction/rppg-engine";
+import { FaceRoiTracker, type FaceRoiResult } from "./faceRoi.js";
 import { PulseSampler, type RoiRect } from "./pulseSampler.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
@@ -34,6 +35,8 @@ const BOT_LINES = [
 interface PulseSnapshot {
   sampleCount: number;
   sampleRateHz: number;
+  skinCoverage: number;
+  roi: FaceRoiResult;
   estimate: HeartRateEstimate;
   trend: PulseTrendEstimate;
 }
@@ -41,6 +44,7 @@ interface PulseSnapshot {
 export function App(): JSX.Element {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const samplerRef = useRef(new PulseSampler());
+  const roiTrackerRef = useRef(new FaceRoiTracker());
   const trendMonitorRef = useRef(
     new PulseTrendMonitor({
       minBaselineSamples: 6,
@@ -61,6 +65,7 @@ export function App(): JSX.Element {
     if (!cameraEnabled) {
       stopCamera(videoRef.current);
       samplerRef.current.reset();
+      roiTrackerRef.current.reset();
       trendMonitorRef.current.reset();
       setSnapshot(null);
       return;
@@ -100,6 +105,7 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (!analysisEnabled || !cameraEnabled) {
       samplerRef.current.reset();
+      roiTrackerRef.current.reset();
       trendMonitorRef.current.reset();
       setSnapshot(null);
       return;
@@ -111,14 +117,16 @@ export function App(): JSX.Element {
       const video = videoRef.current;
       if (video && timestamp - lastSampleAt >= 33) {
         lastSampleAt = timestamp;
-        const roi = centerRoi(video.videoWidth, video.videoHeight);
-        const next = samplerRef.current.sample(video, roi);
-        if (next) {
-          setSnapshot({
-            ...next,
-            trend: trendMonitorRef.current.update(next.estimate)
-          });
-        }
+        void roiTrackerRef.current.locate(video, timestamp).then((roi) => {
+          const next = samplerRef.current.sample(video, roi.roi);
+          if (next) {
+            setSnapshot({
+              ...next,
+              roi,
+              trend: trendMonitorRef.current.update(next.estimate)
+            });
+          }
+        });
       }
       animationId = window.requestAnimationFrame(loop);
     };
@@ -141,7 +149,7 @@ export function App(): JSX.Element {
 
   const estimate = snapshot?.estimate;
   const trend = snapshot?.trend;
-  const roiStyle = useMemo(() => roiOverlayStyle(videoRef.current), [cameraEnabled, snapshot?.sampleCount]);
+  const roiStyle = useMemo(() => roiOverlayStyle(videoRef.current, snapshot?.roi.roi), [cameraEnabled, snapshot?.sampleCount]);
   const readiness = estimate ? readinessLabel(estimate) : "warming";
 
   function sendMessage(): void {
@@ -243,9 +251,12 @@ export function App(): JSX.Element {
             </div>
             <div className="meterRows">
               <Meter label="Quality" value={estimate?.signalQuality ?? 0} />
-              <Meter label="ROI" value={estimate?.roiCoverage ?? 0} />
+              <Meter label="Skin" value={snapshot?.skinCoverage ?? 0} />
               <Meter label="Motion" value={estimate?.motionScore ?? 0} invert />
               <Meter label="Light drift" value={estimate?.illuminationInstability ?? 0} invert />
+            </div>
+            <div className="roiSource">
+              {roiSourceText(snapshot?.roi)}
             </div>
             <div className="reasonList">
               {(estimate?.reasonCodes.length ? estimate.reasonCodes : ["collecting_window"]).map((reason) => (
@@ -313,22 +324,11 @@ function Meter({ label, value, invert = false }: { label: string; value: number;
   );
 }
 
-function centerRoi(videoWidth: number, videoHeight: number): RoiRect {
-  const width = Math.max(1, videoWidth * 0.28);
-  const height = Math.max(1, videoHeight * 0.28);
-  return {
-    x: (videoWidth - width) / 2,
-    y: videoHeight * 0.22,
-    width,
-    height
-  };
-}
-
-function roiOverlayStyle(video: HTMLVideoElement | null): CSSProperties {
+function roiOverlayStyle(video: HTMLVideoElement | null, roi: RoiRect | undefined): CSSProperties {
   if (!video || video.videoWidth <= 0 || video.videoHeight <= 0) {
     return { opacity: 0 };
   }
-  const roi = centerRoi(video.videoWidth, video.videoHeight);
+  if (!roi) return { opacity: 0 };
   return {
     left: `${(roi.x / video.videoWidth) * 100}%`,
     top: `${(roi.y / video.videoHeight) * 100}%`,
@@ -342,6 +342,13 @@ function readinessLabel(estimate: HeartRateEstimate): "good" | "warming" | "bloc
   if (estimate.confidence === "invalid") return "blocked";
   if (estimate.confidence === "high" || estimate.confidence === "medium") return "good";
   return "warming";
+}
+
+function roiSourceText(roi: FaceRoiResult | undefined): string {
+  if (!roi) return "ROI waiting";
+  if (roi.source === "face") return "Face skin ROI";
+  if (roi.source === "skin") return roi.detectorSupported ? "Skin ROI, face not found" : "Skin ROI fallback";
+  return roi.detectorSupported ? "Center ROI, face not found" : "Center ROI fallback";
 }
 
 function readinessText(readiness: "good" | "warming" | "blocked"): string {

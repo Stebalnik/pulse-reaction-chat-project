@@ -10,6 +10,7 @@ export interface RoiRect {
 export interface PulseSamplerSnapshot {
   sampleCount: number;
   sampleRateHz: number;
+  skinCoverage: number;
   estimate: HeartRateEstimate;
 }
 
@@ -36,7 +37,8 @@ export class PulseSampler {
     }
 
     const image = this.context.getImageData(rect.x, rect.y, rect.width, rect.height);
-    const channels = averageChannels(image.data);
+    const skin = averageSkinChannels(image.data);
+    const channels = skin.channels;
     const illumination = (channels.r + channels.g + channels.b) / 3;
     const normalized = normalizeChromaticity(channels, illumination);
     const motionScore =
@@ -49,7 +51,7 @@ export class PulseSampler {
       r: normalized.r,
       g: normalized.g,
       b: normalized.b,
-      roiCoverage: 0.85,
+      roiCoverage: skin.coverage,
       motionScore,
       illumination
     });
@@ -62,6 +64,8 @@ export class PulseSampler {
       method: "FUSION",
       minWindowMs: 8_000,
       minSamples: 80,
+      minRoiCoverage: 0.18,
+      maxRoiCoverageStd: 0.22,
       minSpectralQuality: 0.18,
       maxMotionScore: 0.75,
       maxIlluminationInstability: 0.28,
@@ -71,6 +75,7 @@ export class PulseSampler {
     return {
       sampleCount: this.samples.length,
       sampleRateHz: sampleRateHz(this.samples),
+      skinCoverage: skin.coverage,
       estimate
     };
   }
@@ -130,4 +135,69 @@ function averageChannels(data: Uint8ClampedArray): { r: number; g: number; b: nu
     g: g / pixels,
     b: b / pixels
   };
+}
+
+function averageSkinChannels(data: Uint8ClampedArray): { channels: { r: number; g: number; b: number }; coverage: number } {
+  let skinR = 0;
+  let skinG = 0;
+  let skinB = 0;
+  let skinPixels = 0;
+  let allR = 0;
+  let allG = 0;
+  let allB = 0;
+  const pixels = data.length / 4;
+
+  for (let index = 0; index < data.length; index += 4) {
+    const r = data[index]!;
+    const g = data[index + 1]!;
+    const b = data[index + 2]!;
+    allR += r;
+    allG += g;
+    allB += b;
+    if (isSkinLike(r, g, b)) {
+      skinR += r;
+      skinG += g;
+      skinB += b;
+      skinPixels += 1;
+    }
+  }
+
+  if (skinPixels === 0) {
+    return {
+      channels: {
+        r: allR / pixels,
+        g: allG / pixels,
+        b: allB / pixels
+      },
+      coverage: 0
+    };
+  }
+
+  return {
+    channels: {
+      r: skinR / skinPixels,
+      g: skinG / skinPixels,
+      b: skinB / skinPixels
+    },
+    coverage: skinPixels / pixels
+  };
+}
+
+function isSkinLike(r: number, g: number, b: number): boolean {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const sum = r + g + b;
+  if (sum < 45 || max - min < 8) return false;
+
+  const nr = r / sum;
+  const ng = g / sum;
+  const nb = b / sum;
+  const y = 0.299 * r + 0.587 * g + 0.114 * b;
+  const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+  const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+
+  const normalizedRgbSkin = nr > 0.32 && nr < 0.62 && ng > 0.22 && ng < 0.44 && nb > 0.12 && nb < 0.36;
+  const yCbCrSkin = y > 35 && cb >= 77 && cb <= 135 && cr >= 133 && cr <= 180;
+  const simpleRgbSkin = r > 35 && g > 20 && b > 15 && r > b && max - min > 12;
+  return (normalizedRgbSkin && yCbCrSkin) || (simpleRgbSkin && yCbCrSkin);
 }

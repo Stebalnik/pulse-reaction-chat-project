@@ -8,3 +8,8 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+declare class FaceDetector {
+  constructor(options?: { fastMode?: boolean; maxDetectedFaces?: number });
+  detect(image: HTMLVideoElement): Promise<Array<{ boundingBox: DOMRectReadOnly }>>;
+}
