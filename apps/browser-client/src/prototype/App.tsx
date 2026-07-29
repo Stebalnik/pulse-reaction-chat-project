@@ -80,9 +80,12 @@ export function App(): JSX.Element {
   const roiTrackerRef = useRef(new FaceRoiTracker());
   const trendMonitorRef = useRef(
     new PulseTrendMonitor({
-      minBaselineSamples: 6,
-      minBaselineSpanMs: 20_000,
-      minAcceptedEstimateSpacingMs: 1_500
+      minBaselineSamples: 4,
+      minBaselineSpanMs: 10_000,
+      minAcceptedEstimateSpacingMs: 1_250,
+      maxMotionForTrend: 0.65,
+      maxIlluminationForTrend: 0.28,
+      minSignalQualityForTrend: 0.22
     })
   );
   const [cameraEnabled, setCameraEnabled] = useState(false);
@@ -308,6 +311,8 @@ export function App(): JSX.Element {
                 <Metric label="Maturity" value={`${Math.round((trend?.baselineMaturity ?? 0) * 100)}%`} />
                 <Metric label="FPS" value={snapshot ? `${Math.round(snapshot.sampleRateHz)}` : "--"} />
                 <Metric label="Zones" value={snapshot ? `${snapshot.validRegionCount}/${snapshot.roi.regions.length}` : "--"} />
+                <Metric label="Accepted" value={trend ? `${trend.evidence.validEstimateCount}` : "--"} />
+                <Metric label="Span" value={trend ? `${Math.round(trend.evidence.baselineSpanMs / 1000)}s` : "--"} />
               </div>
             </div>
             <div className="diagnosticPanel">

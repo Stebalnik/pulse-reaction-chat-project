@@ -13,6 +13,7 @@ Current prototype:
 - requests up to 60 fps where the browser and camera allow it, while preserving FPS quality gates;
 - baseline-relative physiological trend panel with neutral states and alternative-explanation guardrails;
 - local-only reaction badge overlay with pulse-change visual states such as steady, soft lift, quick lift, surge, peak, settling, and cooldown;
+- launch-tuned local badge calibration with visible accepted baseline estimate count and baseline span;
 - signal-quality and reason-code panel;
 - live estimator diagnostics with CHROM/POS/GREEN method estimates, recent BPM history, median, and spread;
 - temporary bot peer;

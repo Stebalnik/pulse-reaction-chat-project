@@ -99,6 +99,8 @@ The browser prototype includes a local-only baseline-relative trend monitor as `
 
 The browser prototype maps trend states to a local visual badge using `reaction-badge-0.1.0`. The badge appears on the user's own video surface and is not shared with the test peer. The UI uses pulse-change labels, abstract symbols, and intensity dots so the product does not imply a specific emotion.
 
+For live launch testing, the browser trend monitor uses a shorter local calibration target than the package default: at least four accepted estimates spanning roughly 10 seconds, with trend acceptance starting at moderate signal quality. This is a usability setting for the prototype badge layer; invalid HR windows, estimator disagreement, high motion, and illumination instability still abstain.
+
 The prototype samples camera frames at approximately 30 fps where the browser allows it and uses chromaticity-normalized RGB traces before CHROM/POS/FUSION estimation. This reduces common illumination changes but does not make the signal independent of all lighting conditions; low light, shadows, specular highlights, compression, and sudden illumination changes remain quality-gated failure modes.
 
 The browser prototype now uses face/skin ROI extraction before trace averaging. It uses browser `FaceDetector` when available, then samples skin-like pixels from forehead and cheek zones instead of averaging the full face rectangle. When face detection is unavailable, it falls back to a skin-cluster ROI and finally to a conservative center ROI. These fallbacks and valid zone counts must remain visible in debug UI because ROI source affects estimate reliability.
