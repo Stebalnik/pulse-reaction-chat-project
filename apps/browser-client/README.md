@@ -12,6 +12,7 @@ Current prototype:
 - live FPS display for timestamp and low-frame-rate debugging;
 - requests up to 60 fps where the browser and camera allow it, while preserving FPS quality gates;
 - baseline-relative physiological trend panel with neutral states and alternative-explanation guardrails;
+- local-only reaction badge overlay with six neutral visual states: no signal, calibrating, baseline, mild activation, high activation, and recovery;
 - signal-quality and reason-code panel;
 - live estimator diagnostics with CHROM/POS/GREEN method estimates, recent BPM history, median, and spread;
 - temporary bot peer;

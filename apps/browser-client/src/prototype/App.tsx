@@ -14,7 +14,13 @@ import {
 } from "lucide-react";
 import type { CSSProperties, JSX } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PulseTrendMonitor, type HeartRateDiagnostics, type HeartRateEstimate, type PulseTrendEstimate } from "@pulse-reaction/rppg-engine";
+import {
+  PulseTrendMonitor,
+  type HeartRateDiagnostics,
+  type HeartRateEstimate,
+  type PulseTrendEstimate,
+  type PulseTrendState
+} from "@pulse-reaction/rppg-engine";
 import { FaceRoiTracker, type FaceRoiResult } from "./faceRoi.js";
 import { PulseSampler, type RoiRect } from "./pulseSampler.js";
 
@@ -48,6 +54,15 @@ interface PulseHistoryEntry {
   timestampMs: number;
   bpm: number;
   signalQuality: number;
+}
+
+type ReactionBadgeCode = "NO_SIGNAL" | "CALIBRATING" | "BASELINE" | "MILD_ACTIVATION" | "HIGH_ACTIVATION" | "RECOVERY";
+
+interface ReactionBadgeModel {
+  code: ReactionBadgeCode;
+  symbol: string;
+  title: string;
+  intensity: 0 | 1 | 2 | 3;
 }
 
 export function App(): JSX.Element {
@@ -176,6 +191,7 @@ export function App(): JSX.Element {
   const trend = snapshot?.trend;
   const diagnostics = snapshot?.diagnostics;
   const historyStats = useMemo(() => pulseHistoryStats(pulseHistory), [pulseHistory]);
+  const reactionBadge = reactionBadgeForTrend(trend);
   const roiStyle = useMemo(() => roiOverlayStyle(videoRef.current, snapshot?.roi.roi), [cameraEnabled, snapshot?.sampleCount]);
   const readiness = estimate ? readinessLabel(estimate) : "warming";
 
@@ -239,6 +255,7 @@ export function App(): JSX.Element {
               </div>
             )}
             {cameraError && <div className="statusBadge danger">{cameraError}</div>}
+            <ReactionBadge badge={reactionBadge} compact />
             <div className="videoLabel">You</div>
           </article>
 
@@ -258,6 +275,13 @@ export function App(): JSX.Element {
             <div className="panelHeader">
               <Activity aria-hidden="true" />
               <span>Pulse trend</span>
+            </div>
+            <div className="badgePanel">
+              <ReactionBadge badge={reactionBadge} />
+              <div className="badgeMeta">
+                <span>Reaction badge</span>
+                <strong>{reactionBadge.code}</strong>
+              </div>
             </div>
             <div className={`readiness ${readiness}`}>{readinessText(readiness)}</div>
             <div className={`bpmReadout ${estimate?.bpm === null || !estimate ? "empty" : ""}`}>
@@ -369,6 +393,66 @@ function Metric({ label, value }: { label: string; value: string }): JSX.Element
       <strong>{value}</strong>
     </div>
   );
+}
+
+function ReactionBadge({ badge, compact = false }: { badge: ReactionBadgeModel; compact?: boolean }): JSX.Element {
+  return (
+    <div
+      className={`reactionBadge ${compact ? "compact" : ""} ${badge.code.toLowerCase()}`}
+      title={badge.title}
+      aria-label={badge.title}
+    >
+      <span className="badgeSymbol">{badge.symbol}</span>
+      <span className="badgeDots" aria-hidden="true">
+        {Array.from({ length: 3 }, (_, index) => (
+          <span className={index < badge.intensity ? "on" : ""} key={index} />
+        ))}
+      </span>
+    </div>
+  );
+}
+
+function reactionBadgeForTrend(trend: PulseTrendEstimate | undefined): ReactionBadgeModel {
+  const state = trend?.state ?? "CALIBRATING_BASELINE";
+  const badgeByState: Record<PulseTrendState, ReactionBadgeModel> = {
+    INSUFFICIENT_SIGNAL: {
+      code: "NO_SIGNAL",
+      symbol: "--",
+      title: "Insufficient signal",
+      intensity: 0
+    },
+    CALIBRATING_BASELINE: {
+      code: "CALIBRATING",
+      symbol: "...",
+      title: "Calibrating baseline",
+      intensity: 1
+    },
+    NEAR_BASELINE: {
+      code: "BASELINE",
+      symbol: "O",
+      title: "Near baseline",
+      intensity: 1
+    },
+    POSSIBLE_ACTIVATION: {
+      code: "MILD_ACTIVATION",
+      symbol: "o+",
+      title: "Mild activation relative to baseline",
+      intensity: 2
+    },
+    HIGH_ACTIVATION: {
+      code: "HIGH_ACTIVATION",
+      symbol: "*",
+      title: "Higher activation relative to baseline",
+      intensity: 3
+    },
+    RECOVERY: {
+      code: "RECOVERY",
+      symbol: "~",
+      title: "Recovery toward baseline",
+      intensity: 1
+    }
+  };
+  return badgeByState[state];
 }
 
 function pulseHistoryStats(history: readonly PulseHistoryEntry[]): { medianBpm: number | null; spreadBpm: number | null } {

@@ -6,39 +6,39 @@ The application may display **physiological reaction patterns**, not exact emoti
 
 No label may imply attraction, dislike, truthfulness, consent, compatibility, or intent.
 
-## Proposed normalized states
+## Launch visual badges
 
-### 1. CALM_STABLE
+The launch UI should display a small local-only visual badge instead of user-facing interpretation copy. The badge is a coarse visualization of baseline-relative physiology and signal validity. It must not be described as an emotion, attraction, intent, truthfulness, compatibility, or medical state.
+
+The allowed launch badge codes are:
+
+1. `NO_SIGNAL`
+
+Invalid or unavailable estimate. Maps from `INSUFFICIENT_SIGNAL`.
+
+2. `CALIBRATING`
+
+Personal baseline is still being built. Maps from `CALIBRATING_BASELINE`.
+
+3. `BASELINE`
 
 Pulse dynamics remain near personal baseline with low short-term deviation and acceptable signal quality.
 
-### 2. ENGAGED_ACTIVATION
+4. `MILD_ACTIVATION`
 
-Sustained, moderate activation relative to baseline, temporally associated with the conversation and not sufficiently explained by motion or speech. This is neutral-valence engagement, not “interest” or attraction.
+Sustained, moderate activation relative to baseline and not sufficiently explained by visible motion or lighting. This is neutral-valence physiological activation, not “interest” or attraction.
 
-### 3. HIGH_ACTIVATION
+5. `HIGH_ACTIVATION`
 
 A larger sustained increase in activation. Possible explanations include excitement, stress, exertion, speaking, surprise, heat, or artifacts.
 
-### 4. TRANSIENT_REACTION
-
-A short event-aligned change followed by stabilization. The system must avoid assigning positive or negative meaning.
-
-### 5. TENSION_PATTERN
-
-Sustained activation with slow recovery or increased instability, only when signal quality is strong and movement confounds are low. Product copy should say “sustained activation” rather than “stress” until validated.
-
-### 6. RECOVERY
+6. `RECOVERY`
 
 Return toward baseline following a previously detected activation period.
 
-### 7. INSUFFICIENT_SIGNAL
-
-Motion, occlusion, poor illumination, insufficient skin ROI, low FPS, compression, tracking failure, or disagreement between estimators makes inference unreliable.
-
 ## Why these states
 
-They can be defined from time-series dynamics without pretending to recover emotional valence. Six physiological states plus an explicit insufficient-signal state are appropriate for an MVP. The taxonomy must remain versioned and experimentally revisable.
+They can be defined from time-series dynamics without pretending to recover emotional valence. Six visual badges are appropriate for the MVP because they cover invalid signal, calibration, baseline, two activation intensities, and recovery without creating a large unsupported taxonomy. The taxonomy must remain versioned and experimentally revisable.
 
 ## Required input features
 
@@ -84,6 +84,8 @@ Optional research features:
 ## Prototype implementation status
 
 The browser prototype includes a local-only baseline-relative trend monitor as `pulse-trend-rules-0.1.0`. It is a deterministic MVP rule set, not a validated interpretation model. It only emits neutral physiological trend states and must continue to abstain when HR estimates are invalid or signal quality, motion, illumination, FPS, or baseline maturity are insufficient.
+
+The browser prototype maps trend states to a local visual badge using `reaction-badge-0.1.0`. The badge appears on the user's own video surface and is not shared with the test peer. The UI uses abstract symbols and intensity dots so the product does not imply a specific emotion.
 
 The prototype samples camera frames at approximately 30 fps where the browser allows it and uses chromaticity-normalized RGB traces before CHROM/POS/FUSION estimation. This reduces common illumination changes but does not make the signal independent of all lighting conditions; low light, shadows, specular highlights, compression, and sudden illumination changes remain quality-gated failure modes.
 
