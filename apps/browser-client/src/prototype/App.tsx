@@ -157,7 +157,7 @@ export function App(): JSX.Element {
       if (video && timestamp - lastSampleAt >= 16) {
         lastSampleAt = timestamp;
         void roiTrackerRef.current.locate(video, timestamp).then((roi) => {
-          const next = samplerRef.current.sample(video, roi.regions);
+          const next = samplerRef.current.sample(video, roi.regions, timestamp);
           if (next) {
             setSnapshot({
               ...next,

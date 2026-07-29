@@ -28,7 +28,7 @@ export class PulseSampler {
   private readonly samples: RgbTraceSample[] = [];
   private previousLuma: number | null = null;
 
-  sample(video: HTMLVideoElement, regions: readonly PulseRoiRegion[]): PulseSamplerSnapshot | null {
+  sample(video: HTMLVideoElement, regions: readonly PulseRoiRegion[], timestampMs = performance.now()): PulseSamplerSnapshot | null {
     if (!this.context || video.videoWidth <= 0 || video.videoHeight <= 0) {
       return null;
     }
@@ -49,7 +49,12 @@ export class PulseSampler {
       this.previousLuma === null ? 0 : Math.min(1, Math.abs(illumination - this.previousLuma) / Math.max(illumination, 1));
     this.previousLuma = illumination;
 
-    const now = performance.now();
+    const lastSample = this.samples.at(-1);
+    if (lastSample && timestampMs <= lastSample.timestampMs) {
+      return null;
+    }
+
+    const now = timestampMs;
     this.samples.push({
       timestampMs: now,
       r: normalized.r,

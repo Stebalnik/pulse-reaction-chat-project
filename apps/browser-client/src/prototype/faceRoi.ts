@@ -54,6 +54,7 @@ export class FaceRoiTracker {
     if (this.lastResult && timestampMs - this.lastDetectionAt < DETECTION_INTERVAL_MS) {
       return this.lastResult;
     }
+    if (this.pending && this.lastResult) return this.lastResult;
     if (this.pending) return this.pending;
 
     this.lastDetectionAt = timestampMs;

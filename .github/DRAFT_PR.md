@@ -66,7 +66,7 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 - [x] Verified `apps/browser-client/dist/CNAME` contains `synvibe.app`.
 - [x] GitHub Pages site created with `build_type=workflow`.
 - [x] GitHub Pages custom domain set to `synvibe.app`.
-- [x] Deployed release `/var/www/synvibe.app/releases/20260729024234` to the project server.
+- [x] Deployed release `/var/www/synvibe.app/releases/20260729024757` to the project server.
 - [x] Verified `curl -H 'Host: synvibe.app' http://165.232.145.239/` returns the SynVibe browser build.
 - [x] Verified nginx config with `nginx -t` and reloaded nginx.
 - [x] Verified Cloudflare DNS resolves `synvibe.app` to `165.232.145.239`.
