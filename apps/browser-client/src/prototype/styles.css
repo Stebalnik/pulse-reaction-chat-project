@@ -655,6 +655,46 @@ input {
   font-size: 12px;
 }
 
+.debugLogPanel {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #d1ddd6;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfb;
+}
+
+.debugLogPanel > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.debugLogPanel span,
+.debugLogPanel small {
+  color: #63736b;
+  font-size: 12px;
+}
+
+.debugLogPanel strong {
+  color: #18231e;
+  font-size: 14px;
+}
+
+.debugLogPanel small {
+  overflow-wrap: anywhere;
+}
+
+.debugLogActions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
 .messages {
   min-height: 0;
   overflow: auto;

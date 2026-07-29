@@ -109,6 +109,8 @@ The live browser estimator requests up to 60 fps when available, samples frames 
 
 The live debug UI exposes recent local BPM estimates, median, spread, CHROM/POS/GREEN candidates, method spread, and the current selection or rejection reason. These diagnostics are for signal tuning and validation only; reaction states must continue to use valid baseline-relative windows and abstain when quality gates fail.
 
+The prototype also writes a local debug session log during analysis. The log is limited to cleaned frame-level metrics such as ROI source and area, quality gates, reason codes, method estimates, trend state, and badge code. It must not include raw video frames or raw RGB traces. Users can download the JSON log for debugging.
+
 Blood pressure or other cardiovascular parameters must remain `HYPOTHESIS` research outputs until there is dedicated evidence, consented validation data, and a separate safety review. The current product surface is limited to pulse-rate estimates and neutral pulse-trend changes.
 
 ## Gating rules

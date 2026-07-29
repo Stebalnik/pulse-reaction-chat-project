@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DebugSessionLog",
+  "type": "object",
+  "required": ["schemaVersion", "sessionId", "startedAtIso", "updatedAtIso", "eventCount", "assumptions", "events"],
+  "properties": {
+    "schemaVersion": {"const": "debug-session-log-0.1.0"},
+    "sessionId": {"type": "string"},
+    "startedAtIso": {"type": "string"},
+    "updatedAtIso": {"type": "string"},
+    "eventCount": {"type": "integer", "minimum": 0},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["timestampMs", "wallClockIso", "eventType", "roi", "estimate", "diagnostics", "trend", "badge", "sampling"],
+        "properties": {
+          "timestampMs": {"type": "number"},
+          "wallClockIso": {"type": "string"},
+          "eventType": {"const": "frame"},
+          "cameraEnabled": {"type": "boolean"},
+          "analysisEnabled": {"type": "boolean"},
+          "video": {
+            "type": "object",
+            "properties": {
+              "width": {"type": "integer"},
+              "height": {"type": "integer"}
+            }
+          },
+          "roi": {
+            "type": "object",
+            "required": ["source", "areaRatio", "validRegionCount", "regionCount", "skinCoverage"],
+            "properties": {
+              "source": {"enum": ["face", "skin", "fallback"]},
+              "detectorSupported": {"type": "boolean"},
+              "x": {"type": "number"},
+              "y": {"type": "number"},
+              "width": {"type": "number"},
+              "height": {"type": "number"},
+              "areaRatio": {"type": "number"},
+              "validRegionCount": {"type": "integer"},
+              "regionCount": {"type": "integer"},
+              "skinCoverage": {"type": "number", "minimum": 0, "maximum": 1}
+            }
+          },
+          "estimate": {"type": "object"},
+          "diagnostics": {"type": "object"},
+          "trend": {"type": "object"},
+          "badge": {"type": "object"},
+          "sampling": {"type": "object"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

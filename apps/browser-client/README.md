@@ -16,6 +16,7 @@ Current prototype:
 - launch-tuned local badge calibration with visible accepted baseline estimate count and baseline span;
 - signal-quality and reason-code panel;
 - live estimator diagnostics with CHROM/POS/GREEN method estimates, recent BPM history, median, and spread;
+- automatic local debug session logging with downloadable JSON metrics for ROI, quality gates, method estimates, and badge state;
 - temporary bot peer;
 - simple chat UI.
 

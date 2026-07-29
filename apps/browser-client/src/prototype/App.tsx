@@ -3,6 +3,7 @@ import {
   Bot,
   Camera,
   ChartNoAxesColumn,
+  Download,
   Gauge,
   MessageCircle,
   Mic,
@@ -10,6 +11,7 @@ import {
   Play,
   Send,
   ShieldCheck,
+  Trash2,
   Video
 } from "lucide-react";
 import type { CSSProperties, JSX } from "react";
@@ -38,6 +40,10 @@ const BOT_LINES = [
   "Try steady light and a still posture for a cleaner window.",
   "The chat flow is ready for a human peer later."
 ];
+
+const DEBUG_LOG_STORAGE_KEY = "synvibe.debug.latestSession";
+const DEBUG_LOG_MAX_EVENTS = 1_200;
+const DEBUG_LOG_INTERVAL_MS = 1_000;
 
 interface PulseSnapshot {
   sampleCount: number;
@@ -74,10 +80,84 @@ interface ReactionBadgeModel {
   intensity: 0 | 1 | 2 | 3;
 }
 
+interface DebugLogEvent {
+  timestampMs: number;
+  wallClockIso: string;
+  eventType: "frame";
+  cameraEnabled: boolean;
+  analysisEnabled: boolean;
+  video: {
+    width: number;
+    height: number;
+  };
+  roi: {
+    source: FaceRoiResult["source"];
+    detectorSupported: boolean;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    areaRatio: number;
+    validRegionCount: number;
+    regionCount: number;
+    skinCoverage: number;
+  };
+  estimate: {
+    bpm: number | null;
+    confidence: HeartRateEstimate["confidence"];
+    signalQuality: number;
+    reasonCodes: string[];
+    method: string;
+    motionScore: number;
+    illuminationInstability: number;
+  };
+  diagnostics: {
+    selectedMethod: string;
+    methodSpreadBpm: number | null;
+    methodEstimates: Array<{
+      method: string;
+      bpm: number | null;
+      signalQuality: number;
+      reasonCodes: string[];
+    }>;
+  };
+  trend: {
+    state: PulseTrendState;
+    confidence: number;
+    baselineBpm: number | null;
+    baselineMaturity: number;
+    deltaBpm: number | null;
+    acceptedCount: number;
+    baselineSpanMs: number;
+  };
+  badge: {
+    code: ReactionBadgeCode;
+    title: string;
+    intensity: number;
+  };
+  sampling: {
+    sampleCount: number;
+    sampleRateHz: number;
+  };
+}
+
+interface DebugSessionLog {
+  schemaVersion: "debug-session-log-0.1.0";
+  sessionId: string;
+  startedAtIso: string;
+  updatedAtIso: string;
+  eventCount: number;
+  assumptions: string[];
+  events: DebugLogEvent[];
+}
+
 export function App(): JSX.Element {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const samplerRef = useRef(new PulseSampler());
   const roiTrackerRef = useRef(new FaceRoiTracker());
+  const debugLogRef = useRef(createDebugSessionLog());
+  const debugLogSignatureRef = useRef<string | null>(null);
+  const lastDebugLogAtRef = useRef(0);
   const trendMonitorRef = useRef(
     new PulseTrendMonitor({
       minBaselineSamples: 4,
@@ -93,6 +173,8 @@ export function App(): JSX.Element {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<PulseSnapshot | null>(null);
   const [pulseHistory, setPulseHistory] = useState<PulseHistoryEntry[]>([]);
+  const [debugLogCount, setDebugLogCount] = useState(0);
+  const [debugLogStatus, setDebugLogStatus] = useState("local session log");
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 1, author: "bot", text: "Room opened. I am the temporary test peer." }
   ]);
@@ -106,6 +188,9 @@ export function App(): JSX.Element {
       trendMonitorRef.current.reset();
       setSnapshot(null);
       setPulseHistory([]);
+      resetDebugLog(debugLogRef.current);
+      setDebugLogCount(0);
+      setDebugLogStatus("camera off; log reset");
       return;
     }
 
@@ -147,6 +232,7 @@ export function App(): JSX.Element {
       trendMonitorRef.current.reset();
       setSnapshot(null);
       setPulseHistory([]);
+      setDebugLogStatus("analysis paused");
       return;
     }
 
@@ -159,11 +245,32 @@ export function App(): JSX.Element {
         void roiTrackerRef.current.locate(video, timestamp).then((roi) => {
           const next = samplerRef.current.sample(video, roi.regions, timestamp);
           if (next) {
+            const trend = trendMonitorRef.current.update(next.estimate);
             setSnapshot({
               ...next,
               roi,
-              trend: trendMonitorRef.current.update(next.estimate)
+              trend
             });
+            recordDebugFrame(
+              debugLogRef.current,
+              {
+                ...next,
+                roi,
+                trend
+              },
+              reactionBadgeForTrend(trend),
+              video,
+              {
+                cameraEnabled: true,
+                analysisEnabled: true,
+                lastSignature: debugLogSignatureRef.current,
+                lastLoggedAt: lastDebugLogAtRef.current
+              }
+            );
+            debugLogSignatureRef.current = latestDebugSignature(debugLogRef.current);
+            lastDebugLogAtRef.current = latestDebugTimestamp(debugLogRef.current);
+            setDebugLogCount(debugLogRef.current.eventCount);
+            setDebugLogStatus(debugSummary(debugLogRef.current));
             const bpm = next.estimate.bpm;
             if (bpm !== null && next.estimate.confidence !== "invalid") {
               setPulseHistory((current) =>
@@ -218,6 +325,26 @@ export function App(): JSX.Element {
         { id: Date.now() + 1, author: "bot" as const, text: "Received. Live peer matching will replace this test peer." }
       ].slice(-8)
     );
+  }
+
+  function downloadDebugLog(): void {
+    const log = debugLogRef.current;
+    const blob = new Blob([JSON.stringify(log, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `synvibe-debug-${log.sessionId}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setDebugLogStatus(`downloaded ${log.eventCount} events`);
+  }
+
+  function clearDebugLog(): void {
+    resetDebugLog(debugLogRef.current);
+    debugLogSignatureRef.current = null;
+    lastDebugLogAtRef.current = 0;
+    setDebugLogCount(0);
+    setDebugLogStatus("log cleared");
   }
 
   return (
@@ -363,6 +490,21 @@ export function App(): JSX.Element {
                 <span key={reason}>{reason}</span>
               ))}
             </div>
+            <div className="debugLogPanel">
+              <div>
+                <span>Session log</span>
+                <strong>{debugLogCount} events</strong>
+                <small>{debugLogStatus}</small>
+              </div>
+              <div className="debugLogActions">
+                <button className="iconButton small" type="button" onClick={downloadDebugLog} title="Download debug log">
+                  <Download aria-hidden="true" />
+                </button>
+                <button className="iconButton small" type="button" onClick={clearDebugLog} title="Clear debug log">
+                  <Trash2 aria-hidden="true" />
+                </button>
+              </div>
+            </div>
           </section>
 
           <section className="chatPanel" aria-label="Chat">
@@ -398,6 +540,169 @@ export function App(): JSX.Element {
       </section>
     </main>
   );
+}
+
+function createDebugSessionLog(): DebugSessionLog {
+  const nowIso = new Date().toISOString();
+  return {
+    schemaVersion: "debug-session-log-0.1.0",
+    sessionId: `${nowIso.replaceAll(/[:.]/g, "-")}-${Math.random().toString(16).slice(2, 8)}`,
+    startedAtIso: nowIso,
+    updatedAtIso: nowIso,
+    eventCount: 0,
+    assumptions: [
+      "Debug log is generated locally in the browser.",
+      "Raw video frames and RGB traces are not included.",
+      "Precise participant identity is not included.",
+      "Events are for signal-quality debugging, not emotion or attraction inference."
+    ],
+    events: []
+  };
+}
+
+function resetDebugLog(log: DebugSessionLog): void {
+  const next = createDebugSessionLog();
+  log.sessionId = next.sessionId;
+  log.startedAtIso = next.startedAtIso;
+  log.updatedAtIso = next.updatedAtIso;
+  log.eventCount = 0;
+  log.events = [];
+  persistDebugLog(log);
+}
+
+function recordDebugFrame(
+  log: DebugSessionLog,
+  snapshot: PulseSnapshot,
+  badge: ReactionBadgeModel,
+  video: HTMLVideoElement,
+  state: {
+    cameraEnabled: boolean;
+    analysisEnabled: boolean;
+    lastSignature: string | null;
+    lastLoggedAt: number;
+  }
+): void {
+  const event = debugEventFromSnapshot(snapshot, badge, video, state.cameraEnabled, state.analysisEnabled);
+  const signature = debugEventSignature(event);
+  const shouldRecord = event.timestampMs - state.lastLoggedAt >= DEBUG_LOG_INTERVAL_MS || signature !== state.lastSignature;
+  if (!shouldRecord) return;
+
+  log.events.push(event);
+  while (log.events.length > DEBUG_LOG_MAX_EVENTS) {
+    log.events.shift();
+  }
+  log.eventCount = log.events.length;
+  log.updatedAtIso = event.wallClockIso;
+  persistDebugLog(log);
+}
+
+function debugEventFromSnapshot(
+  snapshot: PulseSnapshot,
+  badge: ReactionBadgeModel,
+  video: HTMLVideoElement,
+  cameraEnabled: boolean,
+  analysisEnabled: boolean
+): DebugLogEvent {
+  const roi = snapshot.roi.roi;
+  const frameArea = Math.max(1, video.videoWidth * video.videoHeight);
+  return {
+    timestampMs: snapshot.estimate.timestampMs,
+    wallClockIso: new Date().toISOString(),
+    eventType: "frame",
+    cameraEnabled,
+    analysisEnabled,
+    video: {
+      width: video.videoWidth,
+      height: video.videoHeight
+    },
+    roi: {
+      source: snapshot.roi.source,
+      detectorSupported: snapshot.roi.detectorSupported,
+      x: roundForLog(roi.x),
+      y: roundForLog(roi.y),
+      width: roundForLog(roi.width),
+      height: roundForLog(roi.height),
+      areaRatio: roundForLog((roi.width * roi.height) / frameArea),
+      validRegionCount: snapshot.validRegionCount,
+      regionCount: snapshot.roi.regions.length,
+      skinCoverage: roundForLog(snapshot.skinCoverage)
+    },
+    estimate: {
+      bpm: snapshot.estimate.bpm,
+      confidence: snapshot.estimate.confidence,
+      signalQuality: snapshot.estimate.signalQuality,
+      reasonCodes: snapshot.estimate.reasonCodes,
+      method: snapshot.estimate.method,
+      motionScore: snapshot.estimate.motionScore,
+      illuminationInstability: snapshot.estimate.illuminationInstability
+    },
+    diagnostics: {
+      selectedMethod: snapshot.diagnostics.selectedMethod,
+      methodSpreadBpm: snapshot.diagnostics.methodSpreadBpm,
+      methodEstimates: snapshot.diagnostics.methodEstimates.map((estimate) => ({
+        method: estimate.method,
+        bpm: estimate.bpm,
+        signalQuality: estimate.signalQuality,
+        reasonCodes: estimate.reasonCodes
+      }))
+    },
+    trend: {
+      state: snapshot.trend.state,
+      confidence: snapshot.trend.confidence,
+      baselineBpm: snapshot.trend.baselineBpm,
+      baselineMaturity: snapshot.trend.baselineMaturity,
+      deltaBpm: snapshot.trend.deltaBpm,
+      acceptedCount: snapshot.trend.evidence.validEstimateCount,
+      baselineSpanMs: snapshot.trend.evidence.baselineSpanMs
+    },
+    badge: {
+      code: badge.code,
+      title: badge.title,
+      intensity: badge.intensity
+    },
+    sampling: {
+      sampleCount: snapshot.sampleCount,
+      sampleRateHz: roundForLog(snapshot.sampleRateHz)
+    }
+  };
+}
+
+function debugEventSignature(event: DebugLogEvent): string {
+  return [
+    event.roi.source,
+    Math.round(event.roi.areaRatio * 100),
+    event.estimate.confidence,
+    event.estimate.reasonCodes.join("|"),
+    event.badge.code
+  ].join(":");
+}
+
+function latestDebugSignature(log: DebugSessionLog): string | null {
+  const event = log.events.at(-1);
+  return event ? debugEventSignature(event) : null;
+}
+
+function latestDebugTimestamp(log: DebugSessionLog): number {
+  return log.events.at(-1)?.timestampMs ?? 0;
+}
+
+function debugSummary(log: DebugSessionLog): string {
+  const event = log.events.at(-1);
+  if (!event) return "waiting for frames";
+  const reason = event.estimate.reasonCodes[0] ?? "valid";
+  return `${event.roi.source} roi, ${reason}, fps ${Math.round(event.sampling.sampleRateHz)}`;
+}
+
+function persistDebugLog(log: DebugSessionLog): void {
+  try {
+    window.localStorage.setItem(DEBUG_LOG_STORAGE_KEY, JSON.stringify(log));
+  } catch {
+    // Local debug logging should never break sampling.
+  }
+}
+
+function roundForLog(value: number): number {
+  return Math.round(value * 1000) / 1000;
 }
 
 function Metric({ label, value }: { label: string; value: string }): JSX.Element {

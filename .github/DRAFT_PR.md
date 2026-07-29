@@ -33,6 +33,7 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 - Added live estimator diagnostics with per-method CHROM/POS/GREEN BPM candidates, method spread, recent BPM history, median, and selection/rejection reason text.
 - Added a local-only reaction badge overlay with product-facing pulse-change states and a shared schema for allowed badge codes.
 - Tuned local badge calibration for launch testing and exposed accepted baseline count/span in the UI.
+- Added automatic local debug session logging with downloadable cleaned metrics for ROI, quality gates, method estimates, and badge state.
 - Added a temporary peer placeholder and chat composer for flow testing.
 - Added SynVibe branding for the browser prototype.
 - Added GitHub Pages workflow for `apps/browser-client/dist`.
@@ -66,7 +67,7 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 - [x] Verified `apps/browser-client/dist/CNAME` contains `synvibe.app`.
 - [x] GitHub Pages site created with `build_type=workflow`.
 - [x] GitHub Pages custom domain set to `synvibe.app`.
-- [x] Deployed release `/var/www/synvibe.app/releases/20260729024757` to the project server.
+- [x] Deployed release `/var/www/synvibe.app/releases/20260729235028` to the project server.
 - [x] Verified `curl -H 'Host: synvibe.app' http://165.232.145.239/` returns the SynVibe browser build.
 - [x] Verified nginx config with `nginx -t` and reloaded nginx.
 - [x] Verified Cloudflare DNS resolves `synvibe.app` to `165.232.145.239`.
