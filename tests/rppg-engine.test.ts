@@ -58,6 +58,19 @@ test("invalidates high motion windows", () => {
   assert.ok(estimate.reasonCodes.includes("MOTION_HIGH"));
 });
 
+test("estimates pulse from chromaticity-normalized traces under smooth illumination drift", () => {
+  const samples = syntheticTrace({ bpm: 78, seconds: 15, fps: 30, projection: "rgb", normalizeChromaticity: true, illuminationDrift: 0.25 });
+  const estimate = estimateHeartRate(samples, {
+    method: "FUSION",
+    minSpectralQuality: 0.18,
+    maxIlluminationInstability: 0.4
+  });
+
+  assert.equal(estimate.confidence !== "invalid", true);
+  assert.ok(estimate.bpm !== null);
+  assert.ok(Math.abs(estimate.bpm - 78) <= 5, `expected about 78 bpm, got ${estimate.bpm}`);
+});
+
 function syntheticTrace(options: {
   bpm: number;
   seconds: number;
@@ -65,6 +78,8 @@ function syntheticTrace(options: {
   projection: "green" | "rgb";
   roiCoverage?: number;
   motionScore?: number;
+  normalizeChromaticity?: boolean;
+  illuminationDrift?: number;
 }): RgbTraceSample[] {
   const samples: RgbTraceSample[] = [];
   const frequencyHz = options.bpm / 60;
@@ -77,14 +92,28 @@ function syntheticTrace(options: {
     const rPulse = options.projection === "rgb" ? -0.45 * pulse : 0.15 * pulse;
     const gPulse = options.projection === "rgb" ? 1.0 * pulse : pulse;
     const bPulse = options.projection === "rgb" ? -0.55 * pulse : 0.1 * pulse;
+    const illuminationScale = 1 + (options.illuminationDrift ?? 0) * Math.sin(2 * Math.PI * 0.04 * t);
+    const raw = {
+      r: (100 + 1.2 * rPulse + drift) * illuminationScale,
+      g: (95 + 1.6 * gPulse + drift) * illuminationScale,
+      b: (85 + 1.1 * bPulse + drift) * illuminationScale
+    };
+    const illumination = (raw.r + raw.g + raw.b) / 3;
+    const channels = options.normalizeChromaticity
+      ? {
+          r: (raw.r / Math.max(illumination, 1)) * 100,
+          g: (raw.g / Math.max(illumination, 1)) * 100,
+          b: (raw.b / Math.max(illumination, 1)) * 100
+        }
+      : raw;
     samples.push({
       timestampMs,
-      r: 100 + 1.2 * rPulse + drift,
-      g: 95 + 1.6 * gPulse + drift,
-      b: 85 + 1.1 * bPulse + drift,
+      r: channels.r,
+      g: channels.g,
+      b: channels.b,
       roiCoverage: options.roiCoverage ?? 0.9,
       motionScore: options.motionScore ?? 0.05,
-      illumination: 95 + drift
+      illumination
     });
   }
   return samples;

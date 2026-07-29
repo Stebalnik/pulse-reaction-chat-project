@@ -6,6 +6,8 @@ Current prototype:
 
 - local camera preview;
 - continuous local-only pulse-rate estimate from a center ROI while camera and local analysis consent are active;
+- chromaticity-normalized RGB sampling to reduce common lighting changes before CHROM/POS/FUSION estimation;
+- live FPS display for timestamp and low-frame-rate debugging;
 - baseline-relative physiological trend panel with neutral states and alternative-explanation guardrails;
 - signal-quality and reason-code panel;
 - temporary bot peer;

@@ -9,6 +9,7 @@ export interface RoiRect {
 
 export interface PulseSamplerSnapshot {
   sampleCount: number;
+  sampleRateHz: number;
   estimate: HeartRateEstimate;
 }
 
@@ -37,6 +38,7 @@ export class PulseSampler {
     const image = this.context.getImageData(rect.x, rect.y, rect.width, rect.height);
     const channels = averageChannels(image.data);
     const illumination = (channels.r + channels.g + channels.b) / 3;
+    const normalized = normalizeChromaticity(channels, illumination);
     const motionScore =
       this.previousLuma === null ? 0 : Math.min(1, Math.abs(illumination - this.previousLuma) / Math.max(illumination, 1));
     this.previousLuma = illumination;
@@ -44,9 +46,9 @@ export class PulseSampler {
     const now = performance.now();
     this.samples.push({
       timestampMs: now,
-      r: channels.r,
-      g: channels.g,
-      b: channels.b,
+      r: normalized.r,
+      g: normalized.g,
+      b: normalized.b,
       roiCoverage: 0.85,
       motionScore,
       illumination
@@ -68,6 +70,7 @@ export class PulseSampler {
 
     return {
       sampleCount: this.samples.length,
+      sampleRateHz: sampleRateHz(this.samples),
       estimate
     };
   }
@@ -76,6 +79,26 @@ export class PulseSampler {
     this.samples.length = 0;
     this.previousLuma = null;
   }
+}
+
+function normalizeChromaticity(
+  channels: { r: number; g: number; b: number },
+  illumination: number
+): { r: number; g: number; b: number } {
+  const scale = 100 / Math.max(illumination, 1);
+  return {
+    r: channels.r * scale,
+    g: channels.g * scale,
+    b: channels.b * scale
+  };
+}
+
+function sampleRateHz(samples: readonly RgbTraceSample[]): number {
+  if (samples.length < 2) return 0;
+  const first = samples[0]!.timestampMs;
+  const last = samples[samples.length - 1]!.timestampMs;
+  const seconds = (last - first) / 1000;
+  return seconds > 0 ? (samples.length - 1) / seconds : 0;
 }
 
 function clampRoi(roi: RoiRect, width: number, height: number): RoiRect {

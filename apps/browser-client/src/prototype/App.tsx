@@ -33,6 +33,7 @@ const BOT_LINES = [
 
 interface PulseSnapshot {
   sampleCount: number;
+  sampleRateHz: number;
   estimate: HeartRateEstimate;
   trend: PulseTrendEstimate;
 }
@@ -108,7 +109,7 @@ export function App(): JSX.Element {
     let lastSampleAt = 0;
     const loop = (timestamp: number): void => {
       const video = videoRef.current;
-      if (video && timestamp - lastSampleAt >= 180) {
+      if (video && timestamp - lastSampleAt >= 33) {
         lastSampleAt = timestamp;
         const roi = centerRoi(video.videoWidth, video.videoHeight);
         const next = samplerRef.current.sample(video, roi);
@@ -237,6 +238,7 @@ export function App(): JSX.Element {
                 <Metric label="Baseline" value={trend?.baselineBpm === null || !trend ? "--" : `${Math.round(trend.baselineBpm)}`} />
                 <Metric label="Delta" value={trend?.deltaBpm === null || !trend ? "--" : formatDelta(trend.deltaBpm)} />
                 <Metric label="Maturity" value={`${Math.round((trend?.baselineMaturity ?? 0) * 100)}%`} />
+                <Metric label="FPS" value={snapshot ? `${Math.round(snapshot.sampleRateHz)}` : "--"} />
               </div>
             </div>
             <div className="meterRows">

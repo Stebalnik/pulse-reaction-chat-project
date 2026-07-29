@@ -38,7 +38,7 @@ Exit criteria:
 - Face/ROI trace extraction prototype.
 - First transparent pulse estimator with versioned config.
 - Signal-quality score, reason codes, and invalid-window behavior.
-- Continuous local-only debug display for own signal quality and own estimated pulse trend while camera and analysis consent are active.
+- Continuous local-only debug display for own signal quality, FPS, and own estimated pulse trend while camera and analysis consent are active.
 - Synthetic fixtures and basic regression tests.
 
 Initial estimator package:
