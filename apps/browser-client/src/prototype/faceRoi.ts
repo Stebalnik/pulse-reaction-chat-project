@@ -1,12 +1,14 @@
 import type { PulseRoiRegion, RoiRect } from "./pulseSampler.js";
+import { MediapipeFaceRoiTracker } from "./mediapipeFaceRoi.js";
 
-type RoiSource = "face" | "skin" | "fallback";
+type RoiSource = "mediapipe" | "face" | "skin" | "fallback";
 
 export interface FaceRoiResult {
   roi: RoiRect;
   regions: PulseRoiRegion[];
   source: RoiSource;
   detectorSupported: boolean;
+  landmarkCount: number;
 }
 
 interface DetectedFace {
@@ -26,6 +28,7 @@ const SMOOTHING = 0.72;
 const MAX_SKIN_FALLBACK_AREA_RATIO = 0.42;
 
 export class FaceRoiTracker {
+  private readonly mediapipe = new MediapipeFaceRoiTracker();
   private readonly detector: FaceDetectorLike | null = createDetector();
   private readonly canvas = document.createElement("canvas");
   private readonly context = this.canvas.getContext("2d", { willReadFrequently: true });
@@ -38,18 +41,9 @@ export class FaceRoiTracker {
       return {
         ...fallbackGeometry(1, 1),
         source: "fallback",
-        detectorSupported: this.detector !== null
+        detectorSupported: this.detector !== null,
+        landmarkCount: 0
       };
-    }
-
-    if (!this.detector) {
-      const skin = this.skinFallback(video);
-      this.lastResult = {
-        ...(skin ? geometryFromRoi(skin, "skin") : fallbackGeometry(video.videoWidth, video.videoHeight)),
-        source: skin ? "skin" : "fallback",
-        detectorSupported: false
-      };
-      return this.lastResult;
     }
 
     if (this.lastResult && timestampMs - this.lastDetectionAt < DETECTION_INTERVAL_MS) {
@@ -59,30 +53,42 @@ export class FaceRoiTracker {
     if (this.pending) return this.pending;
 
     this.lastDetectionAt = timestampMs;
-    this.pending = this.detect(video, this.detector).finally(() => {
+    this.pending = this.detect(video).finally(() => {
       this.pending = null;
     });
     return this.pending;
   }
 
   reset(): void {
+    this.mediapipe.reset();
     this.lastDetectionAt = 0;
     this.lastResult = null;
     this.pending = null;
   }
 
-  private async detect(video: HTMLVideoElement, detector: FaceDetectorLike): Promise<FaceRoiResult> {
+  private async detect(video: HTMLVideoElement): Promise<FaceRoiResult> {
+    const mediapipe = await this.mediapipe.locate(video, this.lastDetectionAt);
+    if (mediapipe) {
+      const roi = this.lastResult?.source === "mediapipe" ? smoothRoi(this.lastResult.roi, mediapipe.roi) : mediapipe.roi;
+      this.lastResult = {
+        roi,
+        regions: mediapipe.regions,
+        source: "mediapipe",
+        detectorSupported: this.detector !== null,
+        landmarkCount: mediapipe.landmarkCount
+      };
+      return this.lastResult;
+    }
+
+    if (!this.detector) {
+      return this.skinOrFallback(video, false);
+    }
+
     try {
-      const faces = await detector.detect(video);
+      const faces = await this.detector.detect(video);
       const face = largestFace(faces);
       if (!face) {
-        const skin = this.skinFallback(video);
-        this.lastResult = {
-          ...(skin ? geometryFromRoi(skin, "skin") : fallbackGeometry(video.videoWidth, video.videoHeight)),
-          source: skin ? "skin" : "fallback",
-          detectorSupported: true
-        };
-        return this.lastResult;
+        return this.skinOrFallback(video, true);
       }
 
       const next = faceToPulseRoi(face.boundingBox, video.videoWidth, video.videoHeight);
@@ -91,18 +97,24 @@ export class FaceRoiTracker {
         roi,
         regions: pulseRegionsFromFaceRoi(roi),
         source: "face",
-        detectorSupported: true
+        detectorSupported: true,
+        landmarkCount: 0
       };
       return this.lastResult;
     } catch {
-      const skin = this.skinFallback(video);
-      this.lastResult = {
-        ...(skin ? geometryFromRoi(skin, "skin") : fallbackGeometry(video.videoWidth, video.videoHeight)),
-        source: skin ? "skin" : "fallback",
-        detectorSupported: true
-      };
-      return this.lastResult;
+      return this.skinOrFallback(video, true);
     }
+  }
+
+  private skinOrFallback(video: HTMLVideoElement, detectorSupported: boolean): FaceRoiResult {
+    const skin = this.skinFallback(video);
+    this.lastResult = {
+      ...(skin ? geometryFromRoi(skin, "skin") : fallbackGeometry(video.videoWidth, video.videoHeight)),
+      source: skin ? "skin" : "fallback",
+      detectorSupported,
+      landmarkCount: 0
+    };
+    return this.lastResult;
   }
 
   private skinFallback(video: HTMLVideoElement): RoiRect | null {

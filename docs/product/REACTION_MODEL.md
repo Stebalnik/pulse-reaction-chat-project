@@ -105,6 +105,8 @@ The prototype samples camera frames at approximately 30 fps where the browser al
 
 The browser prototype now uses face/skin ROI extraction before trace averaging. It uses browser `FaceDetector` when available, then samples skin-like pixels from forehead and cheek zones instead of averaging the full face rectangle. When face detection is unavailable, it falls back to a skin-cluster ROI and finally to a conservative center ROI. These fallbacks and valid zone counts must remain visible in debug UI because ROI source affects estimate reliability.
 
+The browser prototype now attempts on-device MediaPipe Face Landmarker ROI before the browser `FaceDetector` path. The MediaPipe model and wasm runtime are served from the app's own `/vendor/mediapipe/` assets. Camera frames are processed in the browser and are not sent to MediaPipe or any external service.
+
 The live browser estimator requests up to 60 fps when available, samples frames at display cadence, and uses a 12-second minimum window for the first visible estimate. The launch UI constrains the live HR search band to 51-192 BPM to reduce low-frequency drift being selected as pulse; wider ranges require separate validation and user-specific configuration.
 
 The live debug UI exposes recent local BPM estimates, median, spread, CHROM/POS/GREEN candidates, method spread, and the current selection or rejection reason. These diagnostics are for signal tuning and validation only; reaction states must continue to use valid baseline-relative windows and abstain when quality gates fail.

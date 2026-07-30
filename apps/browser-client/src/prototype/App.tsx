@@ -101,6 +101,7 @@ interface DebugLogEvent {
     validRegionCount: number;
     regionCount: number;
     skinCoverage: number;
+    landmarkCount: number;
   };
   estimate: {
     bpm: number | null;
@@ -625,7 +626,8 @@ function debugEventFromSnapshot(
       areaRatio: roundForLog((roi.width * roi.height) / frameArea),
       validRegionCount: snapshot.validRegionCount,
       regionCount: snapshot.roi.regions.length,
-      skinCoverage: roundForLog(snapshot.skinCoverage)
+      skinCoverage: roundForLog(snapshot.skinCoverage),
+      landmarkCount: snapshot.roi.landmarkCount
     },
     estimate: {
       bpm: snapshot.estimate.bpm,
@@ -690,7 +692,8 @@ function debugSummary(log: DebugSessionLog): string {
   const event = log.events.at(-1);
   if (!event) return "waiting for frames";
   const reason = event.estimate.reasonCodes[0] ?? "valid";
-  return `${event.roi.source} roi, ${reason}, fps ${Math.round(event.sampling.sampleRateHz)}`;
+  const landmarks = event.roi.landmarkCount > 0 ? `, ${event.roi.landmarkCount} landmarks` : "";
+  return `${event.roi.source} roi${landmarks}, ${reason}, fps ${Math.round(event.sampling.sampleRateHz)}`;
 }
 
 function persistDebugLog(log: DebugSessionLog): void {
@@ -839,6 +842,7 @@ function readinessLabel(estimate: HeartRateEstimate): "good" | "warming" | "bloc
 
 function roiSourceText(roi: FaceRoiResult | undefined): string {
   if (!roi) return "ROI waiting";
+  if (roi.source === "mediapipe") return `MediaPipe landmarks (${roi.landmarkCount})`;
   if (roi.source === "face") return "Face skin ROI";
   if (roi.source === "skin") return roi.detectorSupported ? "Skin ROI, face not found" : "Skin ROI fallback";
   return roi.detectorSupported ? "Center ROI, face not found" : "Center ROI fallback";

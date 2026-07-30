@@ -28,6 +28,7 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 - Added local camera sampling from a center ROI into the on-device pulse engine.
 - Added continuous local pulse monitoring while camera and local analysis consent are active.
 - Added face/skin ROI extraction with browser FaceDetector, forehead/cheek zone sampling, skin-cluster fallback, skin-pixel coverage, valid-zone counts, and visible ROI source status.
+- Added on-device MediaPipe Face Landmarker ROI with local model/wasm assets before browser FaceDetector and skin fallback paths.
 - Added baseline-relative neutral physiological trend states with invalid-window abstention.
 - Added higher-rate browser capture request, 12-second live estimation window, launch HR search band, and spectral peak interpolation for more accurate live BPM estimates.
 - Added live estimator diagnostics with per-method CHROM/POS/GREEN BPM candidates, method spread, recent BPM history, median, and selection/rejection reason text.
@@ -68,7 +69,7 @@ Add the first local-only pulse-rate estimation engine and a browser test chat pr
 - [x] Verified `apps/browser-client/dist/CNAME` contains `synvibe.app`.
 - [x] GitHub Pages site created with `build_type=workflow`.
 - [x] GitHub Pages custom domain set to `synvibe.app`.
-- [x] Deployed release `/var/www/synvibe.app/releases/20260730013728` to the project server.
+- [x] Deployed release `/var/www/synvibe.app/releases/20260730021425` to the project server.
 - [x] Verified `curl -H 'Host: synvibe.app' http://165.232.145.239/` returns the SynVibe browser build.
 - [x] Verified nginx config with `nginx -t` and reloaded nginx.
 - [x] Verified Cloudflare DNS resolves `synvibe.app` to `165.232.145.239`.

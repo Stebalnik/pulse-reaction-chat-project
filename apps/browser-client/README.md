@@ -6,6 +6,7 @@ Current prototype:
 
 - local camera preview;
 - continuous local-only pulse-rate estimate from face/skin ROI while camera and local analysis consent are active;
+- on-device MediaPipe Face Landmarker ROI when the model loads successfully;
 - browser `FaceDetector` ROI when available, skin-cluster fallback otherwise;
 - zone-based skin sampling for forehead and cheek patches instead of averaging the full face rectangle;
 - chromaticity-normalized RGB sampling to reduce common lighting changes before CHROM/POS/FUSION estimation;
