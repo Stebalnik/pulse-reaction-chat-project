@@ -36,9 +36,10 @@ export function prepareWindow(inputSamples: readonly RgbTraceSample[], config: R
   const sampleRateHz = medianDelta > 0 ? 1000 / medianDelta : 0;
   const deltaStd = std(deltas);
   const jitterRatio = medianDelta > 0 ? deltaStd / medianDelta : 1;
+  const severeGapMs = Math.max(300, medianDelta * 8);
 
   if (sampleRateHz < config.minFps) reasonCodes.push("LOW_FPS");
-  if (medianDelta <= 0 || jitterRatio > 0.35 || deltas.some((delta) => delta <= 0 || delta > medianDelta * 2.5)) {
+  if (medianDelta <= 0 || jitterRatio > 1.25 || deltas.some((delta) => delta <= 0 || delta > severeGapMs)) {
     reasonCodes.push("TIMESTAMP_UNRELIABLE");
   }
 

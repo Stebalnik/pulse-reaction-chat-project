@@ -23,6 +23,7 @@ interface FaceDetectorConstructor {
 
 const DETECTION_INTERVAL_MS = 500;
 const SMOOTHING = 0.72;
+const MAX_SKIN_FALLBACK_AREA_RATIO = 0.42;
 
 export class FaceRoiTracker {
   private readonly detector: FaceDetectorLike | null = createDetector();
@@ -115,14 +116,15 @@ export class FaceRoiTracker {
     const image = this.context.getImageData(0, 0, targetWidth, targetHeight);
     const bounds = skinBounds(image.data, targetWidth, targetHeight);
     if (!bounds) return null;
-    const paddingX = bounds.width * 0.16;
-    const paddingY = bounds.height * 0.12;
+    const bounded = constrainSkinFallbackBounds(bounds, targetWidth, targetHeight);
+    const paddingX = bounded.width * 0.16;
+    const paddingY = bounded.height * 0.12;
     return clampRoi(
       {
-        x: (bounds.x - paddingX) / scale,
-        y: (bounds.y - paddingY) / scale,
-        width: (bounds.width + paddingX * 2) / scale,
-        height: (bounds.height + paddingY * 2) / scale
+        x: (bounded.x - paddingX) / scale,
+        y: (bounded.y - paddingY) / scale,
+        width: (bounded.width + paddingX * 2) / scale,
+        height: (bounded.height + paddingY * 2) / scale
       },
       video.videoWidth,
       video.videoHeight
@@ -172,6 +174,30 @@ function fallbackGeometry(frameWidth: number, frameHeight: number): { roi: RoiRe
     height
   };
   return geometryFromRoi(roi, "fallback");
+}
+
+function constrainSkinFallbackBounds(
+  bounds: { x: number; y: number; width: number; height: number },
+  frameWidth: number,
+  frameHeight: number
+): RoiRect {
+  const areaRatio = (bounds.width * bounds.height) / Math.max(1, frameWidth * frameHeight);
+  if (areaRatio <= MAX_SKIN_FALLBACK_AREA_RATIO) return bounds;
+
+  const width = frameWidth * 0.36;
+  const height = frameHeight * 0.42;
+  const centerX = bounds.x + bounds.width / 2;
+  const upperCenterY = bounds.y + bounds.height * 0.34;
+  return clampRoi(
+    {
+      x: centerX - width / 2,
+      y: upperCenterY - height / 2,
+      width,
+      height
+    },
+    frameWidth,
+    frameHeight
+  );
 }
 
 function geometryFromRoi(roi: RoiRect, prefix: string): { roi: RoiRect; regions: PulseRoiRegion[] } {

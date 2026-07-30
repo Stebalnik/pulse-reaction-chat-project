@@ -84,6 +84,19 @@ test("invalidates timestamp gaps", () => {
   assert.ok(estimate.reasonCodes.includes("TIMESTAMP_UNRELIABLE"));
 });
 
+test("tolerates browser-frame jitter when timestamps remain mostly continuous", () => {
+  const samples = syntheticTrace({ bpm: 72, seconds: 15, fps: 55, projection: "rgb" });
+  const jittered = samples.map((sample, index) => ({
+    ...sample,
+    timestampMs: sample.timestampMs + (index % 41 === 0 ? 24 : index % 17 === 0 ? 11 : 0)
+  }));
+  const estimate = estimateHeartRate(jittered, { method: "FUSION", minSpectralQuality: 0.18 });
+
+  assert.equal(estimate.reasonCodes.includes("TIMESTAMP_UNRELIABLE"), false);
+  assert.ok(estimate.bpm !== null);
+  assert.ok(Math.abs(estimate.bpm - 72) <= 5, `expected about 72 bpm, got ${estimate.bpm}`);
+});
+
 test("invalidates high motion windows", () => {
   const samples = syntheticTrace({ bpm: 72, seconds: 15, fps: 30, projection: "rgb", motionScore: 0.9 });
   const estimate = estimateHeartRate(samples, { method: "FUSION" });

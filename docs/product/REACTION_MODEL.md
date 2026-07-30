@@ -111,6 +111,8 @@ The live debug UI exposes recent local BPM estimates, median, spread, CHROM/POS/
 
 The prototype also writes a local debug session log during analysis. The log is limited to cleaned frame-level metrics such as ROI source and area, quality gates, reason codes, method estimates, trend state, and badge code. It must not include raw video frames or raw RGB traces. Users can download the JSON log for debugging.
 
+The timestamp reliability gate should reject true capture interruptions while tolerating normal browser frame jitter that can be corrected by uniform resampling. Skin fallback ROI must also avoid full-frame capture when skin-like pixels cover most of the frame; in that case the fallback is constrained to an upper-center face-candidate region.
+
 Blood pressure or other cardiovascular parameters must remain `HYPOTHESIS` research outputs until there is dedicated evidence, consented validation data, and a separate safety review. The current product surface is limited to pulse-rate estimates and neutral pulse-trend changes.
 
 ## Gating rules
