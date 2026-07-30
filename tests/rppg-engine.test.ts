@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { estimateHeartRate, estimateHeartRateDiagnostics, type RgbTraceSample } from "../packages/rppg-engine/src/index.js";
+import { selectFusionGroup } from "../packages/rppg-engine/src/engine.js";
+import { resolveConfig } from "../packages/rppg-engine/src/config.js";
 
 test("GREEN estimates a clean synthetic pulse rate", () => {
   const samples = syntheticTrace({ bpm: 72, seconds: 15, fps: 30, projection: "green" });
@@ -30,11 +32,42 @@ test("diagnostics exposes per-method estimates and fusion spread", () => {
 
   assert.equal(diagnostics.estimate.confidence !== "invalid", true);
   assert.ok(diagnostics.estimate.bpm !== null);
-  assert.equal(diagnostics.selectedMethod, "FUSION");
+  assert.ok(diagnostics.selectedMethod.startsWith("FUSION"));
   assert.equal(diagnostics.methodEstimates.length, 3);
   assert.ok(diagnostics.methodEstimates.some((estimate) => estimate.method === "CHROM" && estimate.bpm !== null));
   assert.ok(diagnostics.methodEstimates.some((estimate) => estimate.method === "POS" && estimate.bpm !== null));
   assert.ok(diagnostics.methodSpreadBpm !== null);
+});
+
+test("fusion selects an agreeing method pair when the third method is an outlier", () => {
+  const config = resolveConfig({ maxFusionBpmSpread: 10, minSpectralQuality: 0.18 });
+  const group = selectFusionGroup(
+    [
+      { method: "CHROM", bpm: 95.8, signalQuality: 0.34, reasonCodes: [] },
+      { method: "POS", bpm: 52.5, signalQuality: 0.35, reasonCodes: [] },
+      { method: "GREEN", bpm: 52.7, signalQuality: 0.38, reasonCodes: [] }
+    ],
+    config
+  );
+
+  assert.ok(group);
+  assert.deepEqual(group.methods, ["POS", "GREEN"]);
+  assert.ok(Math.abs(group.bpm - 52.6) < 1, `expected POS/GREEN pair near 52.6 bpm, got ${group.bpm}`);
+  assert.ok(group.spreadBpm < 1);
+});
+
+test("fusion rejects when no method pair agrees", () => {
+  const config = resolveConfig({ maxFusionBpmSpread: 10, minSpectralQuality: 0.18 });
+  const group = selectFusionGroup(
+    [
+      { method: "CHROM", bpm: 52, signalQuality: 0.34, reasonCodes: [] },
+      { method: "POS", bpm: 75, signalQuality: 0.35, reasonCodes: [] },
+      { method: "GREEN", bpm: 96, signalQuality: 0.38, reasonCodes: [] }
+    ],
+    config
+  );
+
+  assert.equal(group, null);
 });
 
 test("diagnostics preserves invalid window reason without method estimates", () => {

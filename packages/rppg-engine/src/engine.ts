@@ -53,6 +53,7 @@ export function estimateHeartRateDiagnostics(
   }
 
   const methodEstimates = (["CHROM", "POS", "GREEN"] as const).map((method) => estimateSingleMethod(prepared, method, config));
+  const fusionGroup = selectFusionGroup(methodEstimates, config);
   return {
     estimate: estimateFusionFromMethods(prepared, config, methodEstimates),
     methodEstimates: methodEstimates.map((estimate) => ({
@@ -61,8 +62,8 @@ export function estimateHeartRateDiagnostics(
       signalQuality: round(clamp(estimate.signalQuality, 0, 1), 4),
       reasonCodes: [...new Set(estimate.reasonCodes)]
     })),
-    selectedMethod: config.method,
-    methodSpreadBpm: methodSpread(methodEstimates, config)
+    selectedMethod: fusionGroup ? `${config.method}:${fusionGroup.methods.join("+")}` : config.method,
+    methodSpreadBpm: fusionGroup ? round(fusionGroup.spreadBpm, 2) : methodSpread(methodEstimates, config)
   };
 }
 
@@ -72,29 +73,93 @@ function estimateFusion(prepared: PreparedWindow, config: RppgEngineConfig): Hea
 }
 
 function estimateFusionFromMethods(prepared: PreparedWindow, config: RppgEngineConfig, estimates: InternalEstimate[]): HeartRateEstimate {
+  const fusionGroup = selectFusionGroup(estimates, config);
+  if (!fusionGroup) {
+    return invalidEstimate(prepared, config, collectReasons(estimates, ["ESTIMATORS_DISAGREE"]));
+  }
+
+  return validEstimate(prepared, config, fusionGroup.bpm, fusionGroup.signalQuality, "FUSION", []);
+}
+
+interface FusionGroup {
+  methods: Array<Exclude<RppgMethod, "FUSION">>;
+  bpm: number;
+  signalQuality: number;
+  spreadBpm: number;
+}
+
+export function selectFusionGroup(estimates: readonly InternalEstimate[], config: RppgEngineConfig): FusionGroup | null {
   const valid = estimates.filter(
     (estimate) => estimate.bpm !== null && estimate.signalQuality >= config.minSpectralQuality && estimate.reasonCodes.length === 0
   );
+  if (valid.length < 2) return null;
 
-  const chrom = valid.find((estimate) => estimate.method === "CHROM");
-  const pos = valid.find((estimate) => estimate.method === "POS");
-  if (!chrom || !pos || chrom.bpm === null || pos.bpm === null) {
-    return invalidEstimate(prepared, config, collectReasons(estimates, ["SPECTRAL_PEAK_WEAK"]));
+  const pairs = pairsOf(valid).filter(([left, right]) => Math.abs((left.bpm ?? 0) - (right.bpm ?? 0)) <= config.maxFusionBpmSpread);
+  if (pairs.length === 0) return null;
+
+  const best = pairs
+    .map(([left, right]) => {
+      const spreadBpm = Math.abs((left.bpm ?? 0) - (right.bpm ?? 0));
+      const meanQuality = mean([left.signalQuality, right.signalQuality]);
+      const preferredPairBonus = pairPreferenceBonus(left.method, right.method);
+      return {
+        estimates: [left, right],
+        score: meanQuality - spreadBpm / Math.max(config.maxFusionBpmSpread * 4, 1) + preferredPairBonus,
+        spreadBpm
+      };
+    })
+    .sort((left, right) => right.score - left.score)[0]!;
+
+  const included = includeNearbyEstimates(best.estimates, valid, config);
+  const spreadBpm = Math.max(...included.map((estimate) => estimate.bpm ?? 0)) - Math.min(...included.map((estimate) => estimate.bpm ?? 0));
+  const qualityValues = included.map((estimate) => estimate.signalQuality);
+  const qualitySum = qualityValues.reduce((sum, value) => sum + value, 0);
+  const bpm =
+    qualitySum > 0
+      ? included.reduce((sum, estimate) => sum + (estimate.bpm ?? 0) * estimate.signalQuality, 0) / qualitySum
+      : mean(included.map((estimate) => estimate.bpm ?? 0));
+  const signalQuality = clamp(mean(qualityValues) * (1 - spreadBpm / Math.max(config.maxFusionBpmSpread * 3, 1)), 0, 1);
+
+  return {
+    methods: included.map((estimate) => estimate.method),
+    bpm,
+    signalQuality,
+    spreadBpm
+  };
+}
+
+function pairsOf<T>(values: readonly T[]): Array<[T, T]> {
+  const result: Array<[T, T]> = [];
+  for (let left = 0; left < values.length; left += 1) {
+    for (let right = left + 1; right < values.length; right += 1) {
+      result.push([values[left]!, values[right]!]);
+    }
   }
+  return result;
+}
 
-  const spread = Math.abs(chrom.bpm - pos.bpm);
-  if (spread > config.maxFusionBpmSpread) {
-    return invalidEstimate(prepared, config, ["ESTIMATORS_DISAGREE"]);
-  }
+function pairPreferenceBonus(left: Exclude<RppgMethod, "FUSION">, right: Exclude<RppgMethod, "FUSION">): number {
+  const methods = new Set([left, right]);
+  if (methods.has("CHROM") && methods.has("POS")) return 0.03;
+  if (methods.has("POS") && methods.has("GREEN")) return 0.02;
+  return 0.01;
+}
 
-  const bpmValues = [chrom.bpm, pos.bpm];
-  const green = valid.find((estimate) => estimate.method === "GREEN");
-  if (green && green.bpm !== null && green.signalQuality >= config.minSpectralQuality + 0.1) {
-    bpmValues.push(green.bpm);
-  }
-
-  const signalQuality = clamp(mean([chrom.signalQuality, pos.signalQuality]) * (1 - spread / 30), 0, 1);
-  return validEstimate(prepared, config, mean(bpmValues), signalQuality, "FUSION", []);
+function includeNearbyEstimates(
+  selected: readonly InternalEstimate[],
+  valid: readonly InternalEstimate[],
+  config: RppgEngineConfig
+): InternalEstimate[] {
+  const selectedMethods = new Set(selected.map((estimate) => estimate.method));
+  const centerBpm = mean(selected.map((estimate) => estimate.bpm ?? 0));
+  const nearby = valid.filter(
+    (estimate) =>
+      !selectedMethods.has(estimate.method) &&
+      estimate.bpm !== null &&
+      Math.abs(estimate.bpm - centerBpm) <= config.maxFusionBpmSpread / 2 &&
+      estimate.signalQuality >= config.minSpectralQuality + 0.05
+  );
+  return [...selected, ...nearby];
 }
 
 function methodSpread(estimates: InternalEstimate[], config: RppgEngineConfig): number | null {
