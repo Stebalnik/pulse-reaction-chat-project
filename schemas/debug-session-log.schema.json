@@ -14,7 +14,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["timestampMs", "wallClockIso", "eventType", "roi", "estimate", "diagnostics", "trend", "badge", "sampling"],
+        "required": ["timestampMs", "wallClockIso", "eventType", "roi", "estimate", "diagnostics", "trend", "badge", "sampling", "calibration"],
         "properties": {
           "timestampMs": {"type": "number"},
           "wallClockIso": {"type": "string"},
@@ -49,7 +49,29 @@
           "diagnostics": {"type": "object"},
           "trend": {"type": "object"},
           "badge": {"type": "object"},
-          "sampling": {"type": "object"}
+          "sampling": {"type": "object"},
+          "calibration": {
+            "type": "object",
+            "required": ["groundTruthBpm", "selectedReferenceMethod", "closestMethod", "methodErrors"],
+            "properties": {
+              "groundTruthBpm": {"type": ["number", "null"], "minimum": 35, "maximum": 220},
+              "selectedReferenceMethod": {"type": ["string", "null"], "enum": ["GREEN", "CHROM", "POS", null]},
+              "closestMethod": {"type": ["string", "null"], "enum": ["GREEN", "CHROM", "POS", null]},
+              "methodErrors": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["method", "errorBpm"],
+                  "properties": {
+                    "method": {"enum": ["GREEN", "CHROM", "POS"]},
+                    "errorBpm": {"type": ["number", "null"], "minimum": 0}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          }
         },
         "additionalProperties": false
       }

@@ -11,6 +11,7 @@ import {
   Play,
   Send,
   ShieldCheck,
+  Target,
   Trash2,
   Video
 } from "lucide-react";
@@ -20,11 +21,12 @@ import {
   PulseTrendMonitor,
   type HeartRateDiagnostics,
   type HeartRateEstimate,
+  type MethodEstimateDiagnostic,
   type PulseTrendEstimate,
   type PulseTrendState
 } from "@pulse-reaction/rppg-engine";
 import { FaceRoiTracker, type FaceRoiResult } from "./faceRoi.js";
-import { PulseSampler, type RoiRect } from "./pulseSampler.js";
+import { PulseSampler, type PulseMethodSignal, type RoiRect } from "./pulseSampler.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
 
@@ -54,6 +56,7 @@ interface PulseSnapshot {
   estimate: HeartRateEstimate;
   diagnostics: HeartRateDiagnostics;
   trend: PulseTrendEstimate;
+  signals: PulseMethodSignal[];
 }
 
 interface PulseHistoryEntry {
@@ -140,6 +143,15 @@ interface DebugLogEvent {
     sampleCount: number;
     sampleRateHz: number;
   };
+  calibration: {
+    groundTruthBpm: number | null;
+    selectedReferenceMethod: string | null;
+    closestMethod: string | null;
+    methodErrors: Array<{
+      method: string;
+      errorBpm: number | null;
+    }>;
+  };
 }
 
 interface DebugSessionLog {
@@ -152,6 +164,11 @@ interface DebugSessionLog {
   events: DebugLogEvent[];
 }
 
+interface CalibrationDebugState {
+  groundTruthBpm: number | null;
+  selectedReferenceMethod: string | null;
+}
+
 export function App(): JSX.Element {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const samplerRef = useRef(new PulseSampler());
@@ -159,6 +176,7 @@ export function App(): JSX.Element {
   const debugLogRef = useRef(createDebugSessionLog());
   const debugLogSignatureRef = useRef<string | null>(null);
   const lastDebugLogAtRef = useRef(0);
+  const calibrationRef = useRef<CalibrationDebugState>({ groundTruthBpm: null, selectedReferenceMethod: null });
   const trendMonitorRef = useRef(
     new PulseTrendMonitor({
       minBaselineSamples: 4,
@@ -176,10 +194,19 @@ export function App(): JSX.Element {
   const [pulseHistory, setPulseHistory] = useState<PulseHistoryEntry[]>([]);
   const [debugLogCount, setDebugLogCount] = useState(0);
   const [debugLogStatus, setDebugLogStatus] = useState("local session log");
+  const [groundTruthInput, setGroundTruthInput] = useState("");
+  const [selectedReferenceMethod, setSelectedReferenceMethod] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 1, author: "bot", text: "Room opened. I am the temporary test peer." }
   ]);
   const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    calibrationRef.current = {
+      groundTruthBpm: parseGroundTruthBpm(groundTruthInput),
+      selectedReferenceMethod
+    };
+  }, [groundTruthInput, selectedReferenceMethod]);
 
   useEffect(() => {
     if (!cameraEnabled) {
@@ -261,6 +288,7 @@ export function App(): JSX.Element {
               },
               reactionBadgeForTrend(trend),
               video,
+              calibrationRef.current,
               {
                 cameraEnabled: true,
                 analysisEnabled: true,
@@ -311,6 +339,12 @@ export function App(): JSX.Element {
   const trend = snapshot?.trend;
   const diagnostics = snapshot?.diagnostics;
   const historyStats = useMemo(() => pulseHistoryStats(pulseHistory), [pulseHistory]);
+  const groundTruthBpm = parseGroundTruthBpm(groundTruthInput);
+  const methodComparisons = useMemo(
+    () => methodComparisonRows(diagnostics?.methodEstimates ?? [], groundTruthBpm),
+    [diagnostics?.methodEstimates, groundTruthBpm]
+  );
+  const closestMethod = methodComparisons.find((comparison) => comparison.isClosest)?.method ?? null;
   const reactionBadge = reactionBadgeForTrend(trend);
   const roiStyle = useMemo(() => roiOverlayStyle(videoRef.current, snapshot?.roi.roi), [cameraEnabled, snapshot?.sampleCount]);
   const readiness = estimate ? readinessLabel(estimate) : "warming";
@@ -477,6 +511,60 @@ export function App(): JSX.Element {
               </div>
               <div className="selectionReason">{selectionReasonText(diagnostics)}</div>
             </div>
+            <div className="oscilloscopePanel">
+              <div className="diagnosticTitle">
+                <Target aria-hidden="true" />
+                <span>Ground truth check</span>
+              </div>
+              <div className="groundTruthControls">
+                <label>
+                  <span>Reference BPM</span>
+                  <input
+                    value={groundTruthInput}
+                    inputMode="numeric"
+                    type="number"
+                    min="35"
+                    max="220"
+                    placeholder="75"
+                    onChange={(event) => setGroundTruthInput(event.target.value)}
+                  />
+                </label>
+                <button
+                  className="textButton"
+                  type="button"
+                  onClick={() => {
+                    setGroundTruthInput("");
+                    setSelectedReferenceMethod(null);
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="methodScopes" aria-label="Method signal previews">
+                {(["GREEN", "CHROM", "POS"] as const).map((method) => {
+                  const signal = snapshot?.signals.find((entry) => entry.method === method);
+                  const comparison = methodComparisons.find((entry) => entry.method === method);
+                  return (
+                    <MethodScope
+                      key={method}
+                      method={method}
+                      signal={signal}
+                      comparison={comparison}
+                      selected={selectedReferenceMethod === method}
+                      closest={closestMethod === method}
+                      onSelect={() => setSelectedReferenceMethod(method)}
+                    />
+                  );
+                })}
+              </div>
+              <div className="selectionReason">
+                {groundTruthBpm === null
+                  ? "Enter a pulse oximeter or watch BPM to compare methods."
+                  : closestMethod
+                    ? `${closestMethod} is closest to the current reference; manual selection is ${selectedReferenceMethod ?? "not set"}.`
+                    : "Waiting for valid method candidates."}
+              </div>
+            </div>
             <div className="meterRows">
               <Meter label="Quality" value={estimate?.signalQuality ?? 0} />
               <Meter label="Skin" value={snapshot?.skinCoverage ?? 0} />
@@ -554,6 +642,8 @@ function createDebugSessionLog(): DebugSessionLog {
     assumptions: [
       "Debug log is generated locally in the browser.",
       "Raw video frames and RGB traces are not included.",
+      "Live method waveforms are rendered transiently and are not persisted in the debug log.",
+      "Manual reference BPM is optional user-provided ground truth for local estimator debugging.",
       "Precise participant identity is not included.",
       "Events are for signal-quality debugging, not emotion or attraction inference."
     ],
@@ -576,6 +666,7 @@ function recordDebugFrame(
   snapshot: PulseSnapshot,
   badge: ReactionBadgeModel,
   video: HTMLVideoElement,
+  calibration: CalibrationDebugState,
   state: {
     cameraEnabled: boolean;
     analysisEnabled: boolean;
@@ -583,7 +674,7 @@ function recordDebugFrame(
     lastLoggedAt: number;
   }
 ): void {
-  const event = debugEventFromSnapshot(snapshot, badge, video, state.cameraEnabled, state.analysisEnabled);
+  const event = debugEventFromSnapshot(snapshot, badge, video, calibration, state.cameraEnabled, state.analysisEnabled);
   const signature = debugEventSignature(event);
   const shouldRecord = event.timestampMs - state.lastLoggedAt >= DEBUG_LOG_INTERVAL_MS || signature !== state.lastSignature;
   if (!shouldRecord) return;
@@ -601,11 +692,13 @@ function debugEventFromSnapshot(
   snapshot: PulseSnapshot,
   badge: ReactionBadgeModel,
   video: HTMLVideoElement,
+  calibration: CalibrationDebugState,
   cameraEnabled: boolean,
   analysisEnabled: boolean
 ): DebugLogEvent {
   const roi = snapshot.roi.roi;
   const frameArea = Math.max(1, video.videoWidth * video.videoHeight);
+  const comparisons = methodComparisonRows(snapshot.diagnostics.methodEstimates, calibration.groundTruthBpm);
   return {
     timestampMs: snapshot.estimate.timestampMs,
     wallClockIso: new Date().toISOString(),
@@ -665,6 +758,15 @@ function debugEventFromSnapshot(
     sampling: {
       sampleCount: snapshot.sampleCount,
       sampleRateHz: roundForLog(snapshot.sampleRateHz)
+    },
+    calibration: {
+      groundTruthBpm: calibration.groundTruthBpm,
+      selectedReferenceMethod: calibration.selectedReferenceMethod,
+      closestMethod: comparisons.find((comparison) => comparison.isClosest)?.method ?? null,
+      methodErrors: comparisons.map((comparison) => ({
+        method: comparison.method,
+        errorBpm: comparison.errorBpm === null ? null : roundForLog(comparison.errorBpm)
+      }))
     }
   };
 }
@@ -706,6 +808,85 @@ function persistDebugLog(log: DebugSessionLog): void {
 
 function roundForLog(value: number): number {
   return Math.round(value * 1000) / 1000;
+}
+
+interface MethodComparisonRow {
+  method: MethodEstimateDiagnostic["method"];
+  bpm: number | null;
+  errorBpm: number | null;
+  isClosest: boolean;
+}
+
+function parseGroundTruthBpm(value: string): number | null {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 35 || parsed > 220) return null;
+  return parsed;
+}
+
+function methodComparisonRows(
+  estimates: readonly MethodEstimateDiagnostic[],
+  groundTruthBpm: number | null
+): MethodComparisonRow[] {
+  const rows = estimates.map((estimate) => ({
+    method: estimate.method,
+    bpm: estimate.bpm,
+    errorBpm: groundTruthBpm === null || estimate.bpm === null ? null : Math.abs(estimate.bpm - groundTruthBpm),
+    isClosest: false
+  }));
+  const validRows = rows.filter((row) => row.errorBpm !== null);
+  const closestError = validRows.length === 0 ? null : Math.min(...validRows.map((row) => row.errorBpm ?? Number.POSITIVE_INFINITY));
+  return rows.map((row) => ({
+    ...row,
+    isClosest: closestError !== null && row.errorBpm === closestError
+  }));
+}
+
+function MethodScope({
+  method,
+  signal,
+  comparison,
+  selected,
+  closest,
+  onSelect
+}: {
+  method: PulseMethodSignal["method"];
+  signal: PulseMethodSignal | undefined;
+  comparison: MethodComparisonRow | undefined;
+  selected: boolean;
+  closest: boolean;
+  onSelect: () => void;
+}): JSX.Element {
+  const points = signal?.points ?? [];
+  const path = sparklinePath(points, 184, 42);
+  return (
+    <button
+      className={`scopeButton ${method.toLowerCase()} ${selected ? "selected" : ""} ${closest ? "closest" : ""}`}
+      type="button"
+      onClick={onSelect}
+      title={`Use ${method} as manual closest method`}
+    >
+      <div className="scopeMeta">
+        <span>{method}</span>
+        <strong>{comparison?.bpm === null || !comparison ? "--" : Math.round(comparison.bpm)}</strong>
+        <small>{comparison?.errorBpm === null || !comparison ? "delta --" : `delta ${Math.round(comparison.errorBpm)}`}</small>
+      </div>
+      <svg className="scopeGraph" viewBox="0 0 184 42" role="img" aria-label={`${method} waveform preview`}>
+        <line x1="0" y1="21" x2="184" y2="21" />
+        {path ? <path d={path} /> : <text x="92" y="25">waiting</text>}
+      </svg>
+    </button>
+  );
+}
+
+function sparklinePath(points: readonly number[], width: number, height: number): string {
+  if (points.length < 2) return "";
+  return points
+    .map((value, index) => {
+      const x = (index / (points.length - 1)) * width;
+      const y = height / 2 - Math.max(-1, Math.min(1, value)) * (height * 0.42);
+      return `${index === 0 ? "M" : "L"} ${roundForLog(x)} ${roundForLog(y)}`;
+    })
+    .join(" ");
 }
 
 function Metric({ label, value }: { label: string; value: string }): JSX.Element {

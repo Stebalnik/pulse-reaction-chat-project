@@ -1,5 +1,6 @@
 export { DEFAULT_RPPG_ENGINE_CONFIG, resolveConfig } from "./config.js";
 export { estimateHeartRate, estimateHeartRateDiagnostics } from "./engine.js";
+export { projectChrom, projectGreen, projectPos } from "./projections.js";
 export { DEFAULT_PULSE_TREND_CONFIG, PulseTrendMonitor } from "./trend.js";
 export type {
   ConfidenceCategory,

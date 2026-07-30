@@ -1,4 +1,12 @@
-import { estimateHeartRateDiagnostics, type HeartRateDiagnostics, type HeartRateEstimate, type RgbTraceSample } from "@pulse-reaction/rppg-engine";
+import {
+  estimateHeartRateDiagnostics,
+  projectChrom,
+  projectGreen,
+  projectPos,
+  type HeartRateDiagnostics,
+  type HeartRateEstimate,
+  type RgbTraceSample
+} from "@pulse-reaction/rppg-engine";
 
 export interface RoiRect {
   x: number;
@@ -18,6 +26,13 @@ export interface PulseSamplerSnapshot {
   validRegionCount: number;
   estimate: HeartRateEstimate;
   diagnostics: HeartRateDiagnostics;
+  signals: PulseMethodSignal[];
+}
+
+export interface PulseMethodSignal {
+  method: "GREEN" | "CHROM" | "POS";
+  points: number[];
+  latest: number | null;
 }
 
 const MAX_TRACE_MS = 24_000;
@@ -91,7 +106,8 @@ export class PulseSampler {
       skinCoverage: skin.coverage,
       validRegionCount: skin.validRegionCount,
       estimate: diagnostics.estimate,
-      diagnostics
+      diagnostics,
+      signals: methodSignals(this.samples)
     };
   }
 
@@ -99,6 +115,39 @@ export class PulseSampler {
     this.samples.length = 0;
     this.previousLuma = null;
   }
+}
+
+function methodSignals(samples: readonly RgbTraceSample[]): PulseMethodSignal[] {
+  const green = projectGreen(samples).signal;
+  const chrom = projectChrom(samples).signal;
+  const pos = projectPos(samples).signal;
+  return [
+    { method: "GREEN", points: previewPoints(green), latest: latestCentered(green) },
+    { method: "CHROM", points: previewPoints(chrom), latest: latestCentered(chrom) },
+    { method: "POS", points: previewPoints(pos), latest: latestCentered(pos) }
+  ];
+}
+
+function previewPoints(signal: readonly number[], outputCount = 64): number[] {
+  const source = signal.slice(-240);
+  if (source.length < 3) return [];
+  const centered = centerSignal(source);
+  if (centered.length <= outputCount) return centered;
+  const stride = centered.length / outputCount;
+  return Array.from({ length: outputCount }, (_, index) => centered[Math.min(centered.length - 1, Math.floor(index * stride))]!);
+}
+
+function latestCentered(signal: readonly number[]): number | null {
+  const centered = centerSignal(signal.slice(-240));
+  return centered.at(-1) ?? null;
+}
+
+function centerSignal(signal: readonly number[]): number[] {
+  if (signal.length === 0) return [];
+  const meanValue = signal.reduce((sum, value) => sum + value, 0) / signal.length;
+  const centered = signal.map((value) => value - meanValue);
+  const maxAbs = Math.max(...centered.map((value) => Math.abs(value)), 1e-9);
+  return centered.map((value) => Math.max(-1, Math.min(1, value / maxAbs)));
 }
 
 function normalizeChromaticity(
