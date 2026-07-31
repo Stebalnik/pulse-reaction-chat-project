@@ -59,13 +59,13 @@ export class MediapipeFaceRoiTracker {
 }
 
 function faceRoiFromLandmarks(landmarks: readonly NormalizedLandmark[], frameWidth: number, frameHeight: number): MediapipeFaceRoiResult {
-  const faceBox = boundingRect(landmarks, frameWidth, frameHeight);
+  const visibleLandmarks = landmarks.filter(isUsableLandmark);
+  const faceBox = expandRoi(boundingRect(visibleLandmarks, frameWidth, frameHeight), frameWidth, frameHeight, 0.04);
   const leftCheek = regionFromLandmarks("left-cheek", landmarks, LEFT_CHEEK, frameWidth, frameHeight, 0.24);
   const rightCheek = regionFromLandmarks("right-cheek", landmarks, RIGHT_CHEEK, frameWidth, frameHeight, 0.24);
   const forehead = foreheadRegion(landmarks, faceBox, frameWidth, frameHeight);
-  const roi = mergeRects([leftCheek, rightCheek, forehead], frameWidth, frameHeight);
   return {
-    roi,
+    roi: faceBox,
     regions: [forehead, leftCheek, rightCheek],
     landmarkCount: landmarks.length
   };
@@ -79,7 +79,9 @@ function regionFromLandmarks(
   frameHeight: number,
   paddingRatio: number
 ): PulseRoiRegion {
-  const points = indices.map((index) => landmarks[index]).filter((landmark): landmark is NormalizedLandmark => Boolean(landmark));
+  const points = indices
+    .map((index) => landmarks[index])
+    .filter((landmark): landmark is NormalizedLandmark => landmark !== undefined && isUsableLandmark(landmark));
   const rect = boundingRect(points, frameWidth, frameHeight);
   const paddingX = rect.width * paddingRatio;
   const paddingY = rect.height * paddingRatio;
@@ -123,6 +125,10 @@ function foreheadRegion(
 }
 
 function boundingRect(landmarks: readonly NormalizedLandmark[], frameWidth: number, frameHeight: number): RoiRect {
+  if (landmarks.length === 0) {
+    return clampRoi({ x: frameWidth * 0.35, y: frameHeight * 0.16, width: frameWidth * 0.3, height: frameHeight * 0.42 }, frameWidth, frameHeight);
+  }
+
   let minX = frameWidth;
   let minY = frameHeight;
   let maxX = 0;
@@ -138,12 +144,24 @@ function boundingRect(landmarks: readonly NormalizedLandmark[], frameWidth: numb
   return clampRoi({ x: minX, y: minY, width: maxX - minX, height: maxY - minY }, frameWidth, frameHeight);
 }
 
-function mergeRects(rects: readonly RoiRect[], frameWidth: number, frameHeight: number): RoiRect {
-  const minX = Math.min(...rects.map((rect) => rect.x));
-  const minY = Math.min(...rects.map((rect) => rect.y));
-  const maxX = Math.max(...rects.map((rect) => rect.x + rect.width));
-  const maxY = Math.max(...rects.map((rect) => rect.y + rect.height));
-  return clampRoi({ x: minX, y: minY, width: maxX - minX, height: maxY - minY }, frameWidth, frameHeight);
+function expandRoi(roi: RoiRect, frameWidth: number, frameHeight: number, paddingRatio: number): RoiRect {
+  const paddingX = roi.width * paddingRatio;
+  const paddingY = roi.height * paddingRatio;
+  return clampRoi(
+    {
+      x: roi.x - paddingX,
+      y: roi.y - paddingY,
+      width: roi.width + paddingX * 2,
+      height: roi.height + paddingY * 2
+    },
+    frameWidth,
+    frameHeight
+  );
+}
+
+function isUsableLandmark(landmark: NormalizedLandmark): boolean {
+  const visibility = landmark.visibility ?? 1;
+  return landmark.x >= -0.05 && landmark.x <= 1.05 && landmark.y >= -0.05 && landmark.y <= 1.05 && visibility >= 0.5;
 }
 
 function clampRoi(roi: RoiRect, frameWidth: number, frameHeight: number): RoiRect {

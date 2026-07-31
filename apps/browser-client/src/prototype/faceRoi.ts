@@ -23,7 +23,8 @@ interface FaceDetectorConstructor {
   new (options?: { fastMode?: boolean; maxDetectedFaces?: number }): FaceDetectorLike;
 }
 
-const DETECTION_INTERVAL_MS = 500;
+const DETECTION_INTERVAL_MS = 120;
+const MEDIAPIPE_HOLD_MS = 1_500;
 const SMOOTHING = 0.72;
 const MAX_SKIN_FALLBACK_AREA_RATIO = 0.42;
 
@@ -33,6 +34,8 @@ export class FaceRoiTracker {
   private readonly canvas = document.createElement("canvas");
   private readonly context = this.canvas.getContext("2d", { willReadFrequently: true });
   private lastDetectionAt = 0;
+  private lastMediapipeAt = 0;
+  private lastMediapipeResult: FaceRoiResult | null = null;
   private lastResult: FaceRoiResult | null = null;
   private pending: Promise<FaceRoiResult> | null = null;
 
@@ -62,6 +65,8 @@ export class FaceRoiTracker {
   reset(): void {
     this.mediapipe.reset();
     this.lastDetectionAt = 0;
+    this.lastMediapipeAt = 0;
+    this.lastMediapipeResult = null;
     this.lastResult = null;
     this.pending = null;
   }
@@ -69,14 +74,23 @@ export class FaceRoiTracker {
   private async detect(video: HTMLVideoElement): Promise<FaceRoiResult> {
     const mediapipe = await this.mediapipe.locate(video, this.lastDetectionAt);
     if (mediapipe) {
-      const roi = this.lastResult?.source === "mediapipe" ? smoothRoi(this.lastResult.roi, mediapipe.roi) : mediapipe.roi;
+      const previous = this.lastResult?.source === "mediapipe" ? this.lastResult : null;
+      const roi = previous ? smoothRoi(previous.roi, mediapipe.roi) : mediapipe.roi;
+      const regions = previous ? smoothRegions(previous.regions, mediapipe.regions) : mediapipe.regions;
       this.lastResult = {
         roi,
-        regions: mediapipe.regions,
+        regions,
         source: "mediapipe",
         detectorSupported: this.detector !== null,
         landmarkCount: mediapipe.landmarkCount
       };
+      this.lastMediapipeAt = this.lastDetectionAt;
+      this.lastMediapipeResult = this.lastResult;
+      return this.lastResult;
+    }
+
+    if (this.lastMediapipeResult && this.lastDetectionAt - this.lastMediapipeAt <= MEDIAPIPE_HOLD_MS) {
+      this.lastResult = this.lastMediapipeResult;
       return this.lastResult;
     }
 
@@ -274,6 +288,13 @@ function smoothRoi(previous: RoiRect, next: RoiRect): RoiRect {
     width: previous.width * SMOOTHING + next.width * (1 - SMOOTHING),
     height: previous.height * SMOOTHING + next.height * (1 - SMOOTHING)
   };
+}
+
+function smoothRegions(previous: readonly PulseRoiRegion[], next: readonly PulseRoiRegion[]): PulseRoiRegion[] {
+  return next.map((region) => {
+    const matching = previous.find((candidate) => candidate.id === region.id);
+    return matching ? { ...region, ...smoothRoi(matching, region) } : region;
+  });
 }
 
 function clampRoi(roi: RoiRect, frameWidth: number, frameHeight: number): RoiRect {
