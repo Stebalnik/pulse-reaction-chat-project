@@ -25,8 +25,10 @@ interface FaceDetectorConstructor {
 
 const DETECTION_INTERVAL_MS = 120;
 const MEDIAPIPE_HOLD_MS = 3_000;
-const SMOOTHING = 0.72;
-const MAX_FACE_JUMP_RATIO = 0.42;
+const SLOW_SMOOTHING = 0.58;
+const FAST_SMOOTHING = 0.34;
+const FAST_MOVE_RATIO = 0.18;
+const MAX_FACE_JUMP_RATIO = 0.85;
 const MAX_FACE_SIZE_RATIO = 1.75;
 const MIN_FACE_SIZE_RATIO = 0.55;
 const MAX_SKIN_FALLBACK_AREA_RATIO = 0.42;
@@ -298,12 +300,21 @@ function pulseRegionsFromFaceRoi(roi: RoiRect): PulseRoiRegion[] {
 }
 
 function smoothRoi(previous: RoiRect, next: RoiRect): RoiRect {
+  const smoothing = smoothingForTransition(previous, next);
   return {
-    x: previous.x * SMOOTHING + next.x * (1 - SMOOTHING),
-    y: previous.y * SMOOTHING + next.y * (1 - SMOOTHING),
-    width: previous.width * SMOOTHING + next.width * (1 - SMOOTHING),
-    height: previous.height * SMOOTHING + next.height * (1 - SMOOTHING)
+    x: previous.x * smoothing + next.x * (1 - smoothing),
+    y: previous.y * smoothing + next.y * (1 - smoothing),
+    width: previous.width * smoothing + next.width * (1 - smoothing),
+    height: previous.height * smoothing + next.height * (1 - smoothing)
   };
+}
+
+function smoothingForTransition(previous: RoiRect, next: RoiRect): number {
+  const previousCenter = roiCenter(previous);
+  const nextCenter = roiCenter(next);
+  const centerDistance = Math.hypot(nextCenter.x - previousCenter.x, nextCenter.y - previousCenter.y);
+  const previousScale = Math.max(previous.width, previous.height, 1);
+  return centerDistance > previousScale * FAST_MOVE_RATIO ? FAST_SMOOTHING : SLOW_SMOOTHING;
 }
 
 function isPlausibleFaceTransition(previous: RoiRect, next: RoiRect): boolean {
@@ -335,8 +346,8 @@ function smoothPolygon(previous: readonly RoiPoint[] | undefined, next: readonly
   if (!next) return undefined;
   if (!previous || previous.length !== next.length) return [...next];
   return next.map((point, index) => ({
-    x: previous[index]!.x * SMOOTHING + point.x * (1 - SMOOTHING),
-    y: previous[index]!.y * SMOOTHING + point.y * (1 - SMOOTHING)
+    x: previous[index]!.x * SLOW_SMOOTHING + point.x * (1 - SLOW_SMOOTHING),
+    y: previous[index]!.y * SLOW_SMOOTHING + point.y * (1 - SLOW_SMOOTHING)
   }));
 }
 
