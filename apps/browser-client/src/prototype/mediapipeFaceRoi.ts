@@ -223,8 +223,7 @@ function expandRoi(roi: RoiRect, frameWidth: number, frameHeight: number, paddin
 }
 
 function isUsableLandmark(landmark: NormalizedLandmark): boolean {
-  const visibility = landmark.visibility ?? 1;
-  return landmark.x >= -0.05 && landmark.x <= 1.05 && landmark.y >= -0.05 && landmark.y <= 1.05 && visibility >= 0.5;
+  return landmark.x >= -0.05 && landmark.x <= 1.05 && landmark.y >= -0.05 && landmark.y <= 1.05;
 }
 
 function clampRoi(roi: RoiRect, frameWidth: number, frameHeight: number): RoiRect {
