@@ -60,7 +60,7 @@ export class MediapipeFaceRoiTracker {
 
 function faceRoiFromLandmarks(landmarks: readonly NormalizedLandmark[], frameWidth: number, frameHeight: number): MediapipeFaceRoiResult {
   const visibleLandmarks = landmarks.filter(isUsableLandmark);
-  const faceBox = expandRoi(boundingRect(visibleLandmarks, frameWidth, frameHeight), frameWidth, frameHeight, 0.04);
+  const faceBox = expandRoi(robustBoundingRect(visibleLandmarks, frameWidth, frameHeight), frameWidth, frameHeight, 0.06);
   const leftCheek = regionFromLandmarks("left-cheek", landmarks, LEFT_CHEEK, frameWidth, frameHeight, 0.24);
   const rightCheek = regionFromLandmarks("right-cheek", landmarks, RIGHT_CHEEK, frameWidth, frameHeight, 0.24);
   const forehead = foreheadRegion(landmarks, faceBox, frameWidth, frameHeight);
@@ -205,6 +205,25 @@ function boundingRect(landmarks: readonly NormalizedLandmark[], frameWidth: numb
     maxY = Math.max(maxY, y);
   }
   return clampRoi({ x: minX, y: minY, width: maxX - minX, height: maxY - minY }, frameWidth, frameHeight);
+}
+
+function robustBoundingRect(landmarks: readonly NormalizedLandmark[], frameWidth: number, frameHeight: number): RoiRect {
+  if (landmarks.length < 12) {
+    return boundingRect(landmarks, frameWidth, frameHeight);
+  }
+
+  const xs = landmarks.map((landmark) => landmark.x * frameWidth).sort((left, right) => left - right);
+  const ys = landmarks.map((landmark) => landmark.y * frameHeight).sort((left, right) => left - right);
+  const minX = percentile(xs, 0.04);
+  const maxX = percentile(xs, 0.96);
+  const minY = percentile(ys, 0.03);
+  const maxY = percentile(ys, 0.98);
+  return clampRoi({ x: minX, y: minY, width: maxX - minX, height: maxY - minY }, frameWidth, frameHeight);
+}
+
+function percentile(sortedValues: readonly number[], ratio: number): number {
+  const index = Math.max(0, Math.min(sortedValues.length - 1, Math.round((sortedValues.length - 1) * ratio)));
+  return sortedValues[index] ?? 0;
 }
 
 function expandRoi(roi: RoiRect, frameWidth: number, frameHeight: number, paddingRatio: number): RoiRect {
