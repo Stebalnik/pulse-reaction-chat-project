@@ -1006,8 +1006,9 @@ function roiOverlayStyle(video: HTMLVideoElement | null, roi: RoiRect | undefine
     return { opacity: 0 };
   }
   if (!roi) return { opacity: 0 };
+  const mirroredX = video.videoWidth - roi.x - roi.width;
   return {
-    left: `${(roi.x / video.videoWidth) * 100}%`,
+    left: `${(mirroredX / video.videoWidth) * 100}%`,
     top: `${(roi.y / video.videoHeight) * 100}%`,
     width: `${(roi.width / video.videoWidth) * 100}%`,
     height: `${(roi.height / video.videoHeight) * 100}%`,
