@@ -1,4 +1,4 @@
-import type { PulseRoiRegion, RoiRect } from "./pulseSampler.js";
+import type { PulseRoiRegion, RoiPoint, RoiRect } from "./pulseSampler.js";
 import { MediapipeFaceRoiTracker } from "./mediapipeFaceRoi.js";
 
 type RoiSource = "mediapipe" | "face" | "skin" | "fallback";
@@ -293,8 +293,19 @@ function smoothRoi(previous: RoiRect, next: RoiRect): RoiRect {
 function smoothRegions(previous: readonly PulseRoiRegion[], next: readonly PulseRoiRegion[]): PulseRoiRegion[] {
   return next.map((region) => {
     const matching = previous.find((candidate) => candidate.id === region.id);
-    return matching ? { ...region, ...smoothRoi(matching, region) } : region;
+    if (!matching) return region;
+    const polygon = smoothPolygon(matching.polygon, region.polygon);
+    return polygon ? { ...region, ...smoothRoi(matching, region), polygon } : { ...region, ...smoothRoi(matching, region) };
   });
+}
+
+function smoothPolygon(previous: readonly RoiPoint[] | undefined, next: readonly RoiPoint[] | undefined): RoiPoint[] | undefined {
+  if (!next) return undefined;
+  if (!previous || previous.length !== next.length) return [...next];
+  return next.map((point, index) => ({
+    x: previous[index]!.x * SMOOTHING + point.x * (1 - SMOOTHING),
+    y: previous[index]!.y * SMOOTHING + point.y * (1 - SMOOTHING)
+  }));
 }
 
 function clampRoi(roi: RoiRect, frameWidth: number, frameHeight: number): RoiRect {

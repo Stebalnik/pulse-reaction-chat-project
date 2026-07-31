@@ -107,6 +107,8 @@ The browser prototype now uses face/skin ROI extraction before trace averaging. 
 
 The browser prototype now attempts on-device MediaPipe Face Landmarker ROI before the browser `FaceDetector` path. The MediaPipe model and wasm runtime are served from the app's own `/vendor/mediapipe/` assets. Camera frames are processed in the browser and are not sent to MediaPipe or any external service.
 
+The MediaPipe path is treated as an AR-style face mesh tracker for ROI stability. The visible overlay is a smoothed full-face box, while pulse traces are sampled from landmark-derived polygon masks for forehead and cheek zones rather than from the full rectangular box. Brief landmark dropouts reuse the last valid MediaPipe track before falling back to skin or center candidates.
+
 The live browser estimator requests up to 60 fps when available, samples frames at display cadence, and uses a 12-second minimum window for the first visible estimate. The launch UI constrains the live HR search band to 51-192 BPM to reduce low-frequency drift being selected as pulse; wider ranges require separate validation and user-specific configuration.
 
 The live debug UI exposes recent local BPM estimates, median, spread, CHROM/POS/GREEN candidates, method spread, and the current selection or rejection reason. These diagnostics are for signal tuning and validation only; reaction states must continue to use valid baseline-relative windows and abstain when quality gates fail.

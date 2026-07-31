@@ -15,8 +15,14 @@ export interface RoiRect {
   height: number;
 }
 
+export interface RoiPoint {
+  x: number;
+  y: number;
+}
+
 export interface PulseRoiRegion extends RoiRect {
   id: string;
+  polygon?: RoiPoint[];
 }
 
 export interface PulseSamplerSnapshot {
@@ -200,7 +206,7 @@ function averageSkinRegions(
     const rect = clampRoi(region, width, height);
     if (rect.width <= 0 || rect.height <= 0) continue;
     const image = context.getImageData(rect.x, rect.y, rect.width, rect.height);
-    const skin = averageSkinChannels(image.data);
+    const skin = averageSkinChannels(image.data, rect, region.polygon);
     totalPixels += skin.pixelCount;
     totalSkinPixels += skin.skinPixelCount;
     if (skin.coverage >= 0.08 && skin.skinPixelCount >= 24) {
@@ -230,7 +236,11 @@ function averageSkinRegions(
   };
 }
 
-function averageSkinChannels(data: Uint8ClampedArray): {
+function averageSkinChannels(
+  data: Uint8ClampedArray,
+  rect: RoiRect,
+  polygon: readonly RoiPoint[] | undefined
+): {
   channels: { r: number; g: number; b: number };
   coverage: number;
   pixelCount: number;
@@ -240,9 +250,18 @@ function averageSkinChannels(data: Uint8ClampedArray): {
   let skinG = 0;
   let skinB = 0;
   let skinPixels = 0;
+  const rectWidth = Math.round(rect.width);
   const pixels = data.length / 4;
+  let maskPixels = 0;
 
   for (let index = 0; index < data.length; index += 4) {
+    const pixelIndex = index / 4;
+    const localX = pixelIndex % rectWidth;
+    const localY = Math.floor(pixelIndex / rectWidth);
+    if (polygon && !pointInPolygon(rect.x + localX + 0.5, rect.y + localY + 0.5, polygon)) {
+      continue;
+    }
+    maskPixels += 1;
     const r = data[index]!;
     const g = data[index + 1]!;
     const b = data[index + 2]!;
@@ -258,7 +277,7 @@ function averageSkinChannels(data: Uint8ClampedArray): {
     return {
       channels: { r: 0, g: 0, b: 0 },
       coverage: 0,
-      pixelCount: pixels,
+      pixelCount: polygon ? maskPixels : pixels,
       skinPixelCount: 0
     };
   }
@@ -269,10 +288,21 @@ function averageSkinChannels(data: Uint8ClampedArray): {
       g: skinG / skinPixels,
       b: skinB / skinPixels
     },
-    coverage: skinPixels / pixels,
-    pixelCount: pixels,
+    coverage: skinPixels / Math.max(1, polygon ? maskPixels : pixels),
+    pixelCount: polygon ? maskPixels : pixels,
     skinPixelCount: skinPixels
   };
+}
+
+function pointInPolygon(x: number, y: number, polygon: readonly RoiPoint[]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const current = polygon[i]!;
+    const previous = polygon[j]!;
+    const intersects = current.y > y !== previous.y > y && x < ((previous.x - current.x) * (y - current.y)) / (previous.y - current.y) + current.x;
+    if (intersects) inside = !inside;
+  }
+  return inside;
 }
 
 function isSkinLike(r: number, g: number, b: number): boolean {
