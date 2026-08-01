@@ -176,8 +176,9 @@ function estimateSingleMethod(
   method: Exclude<RppgMethod, "FUSION">,
   config: RppgEngineConfig
 ): InternalEstimate {
+  const samples = illuminationCorrectedSamples(prepared.samples, config.illuminationCorrectionStrength);
   const projection =
-    method === "GREEN" ? projectGreen(prepared.samples) : method === "CHROM" ? projectChrom(prepared.samples) : projectPos(prepared.samples);
+    method === "GREEN" ? projectGreen(samples) : method === "CHROM" ? projectChrom(samples) : projectPos(samples);
 
   if (projection.reasonCodes.length > 0) {
     return { bpm: null, signalQuality: 0, method, reasonCodes: projection.reasonCodes };
@@ -206,6 +207,58 @@ function estimateSingleMethod(
     method,
     reasonCodes
   };
+}
+
+function illuminationCorrectedSamples(samples: readonly RgbTraceSample[], strength: number): readonly RgbTraceSample[] {
+  const correctionStrength = clamp(strength, 0, 1);
+  if (correctionStrength <= 0 || samples.length < 4) return samples;
+
+  const illumination = samples.map((sample) => sample.illumination ?? (sample.r + sample.g + sample.b) / 3);
+  const illuminationMean = mean(illumination);
+  const illuminationVariance = mean(illumination.map((value) => (value - illuminationMean) ** 2));
+  if (!Number.isFinite(illuminationVariance) || illuminationVariance < 1e-9) return samples;
+
+  const r = removeIlluminationComponent(
+    samples.map((sample) => sample.r),
+    illumination,
+    illuminationMean,
+    illuminationVariance,
+    correctionStrength
+  );
+  const g = removeIlluminationComponent(
+    samples.map((sample) => sample.g),
+    illumination,
+    illuminationMean,
+    illuminationVariance,
+    correctionStrength
+  );
+  const b = removeIlluminationComponent(
+    samples.map((sample) => sample.b),
+    illumination,
+    illuminationMean,
+    illuminationVariance,
+    correctionStrength
+  );
+
+  return samples.map((sample, index) => ({
+    ...sample,
+    r: r[index]!,
+    g: g[index]!,
+    b: b[index]!
+  }));
+}
+
+function removeIlluminationComponent(
+  values: readonly number[],
+  illumination: readonly number[],
+  illuminationMean: number,
+  illuminationVariance: number,
+  strength: number
+): number[] {
+  const valueMean = mean(values);
+  const covariance = mean(values.map((value, index) => (value - valueMean) * (illumination[index]! - illuminationMean)));
+  const slope = covariance / illuminationVariance;
+  return values.map((value, index) => value - slope * (illumination[index]! - illuminationMean) * strength);
 }
 
 function validEstimate(

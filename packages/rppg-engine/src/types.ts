@@ -68,6 +68,7 @@ export interface RppgEngineConfig {
   maxRoiCoverageStd: number;
   maxMotionScore: number;
   maxIlluminationInstability: number;
+  illuminationCorrectionStrength: number;
   minSpectralQuality: number;
   maxFusionBpmSpread: number;
   hrBandHz: {

@@ -103,6 +103,8 @@ For live launch testing, the browser trend monitor uses a shorter local calibrat
 
 The prototype samples camera frames at approximately 30 fps where the browser allows it and uses chromaticity-normalized RGB traces before CHROM/POS/FUSION estimation. This reduces common illumination changes but does not make the signal independent of all lighting conditions; low light, shadows, specular highlights, compression, and sudden illumination changes remain quality-gated failure modes.
 
+The rPPG engine also applies a configurable monochrome illumination correction before projection: the per-window brightness trace is treated as a common-mode reference and the RGB traces remove the component linearly associated with that brightness change. This is intended to reduce lighting-induced color changes, not to make pulse estimation reliable under arbitrary illumination.
+
 The browser prototype now uses face/skin ROI extraction before trace averaging. It uses browser `FaceDetector` when available, then samples skin-like pixels from forehead and cheek zones instead of averaging the full face rectangle. When face detection is unavailable, it falls back to a skin-cluster ROI and finally to a conservative center ROI. These fallbacks and valid zone counts must remain visible in debug UI because ROI source affects estimate reliability.
 
 The browser prototype now attempts on-device MediaPipe Face Landmarker ROI before the browser `FaceDetector` path. The MediaPipe model and wasm runtime are served from the app's own `/vendor/mediapipe/` assets. Camera frames are processed in the browser and are not sent to MediaPipe or any external service.

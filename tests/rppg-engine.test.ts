@@ -165,6 +165,36 @@ test("estimates pulse from chromaticity-normalized traces under smooth illuminat
   assert.ok(Math.abs(estimate.bpm - 78) <= 5, `expected about 78 bpm, got ${estimate.bpm}`);
 });
 
+test("uses monochrome illumination trace to suppress common-mode color changes", () => {
+  const samples = syntheticTrace({
+    bpm: 72,
+    seconds: 18,
+    fps: 30,
+    projection: "rgb",
+    illuminationArtifactBpm: 108,
+    illuminationArtifactAmplitude: 0.08
+  });
+  const uncorrected = estimateHeartRate(samples, {
+    method: "GREEN",
+    illuminationCorrectionStrength: 0,
+    maxIlluminationInstability: 1,
+    minSpectralQuality: 0.18,
+    hrBandHz: { min: 0.85, max: 3.2 }
+  });
+  const corrected = estimateHeartRate(samples, {
+    method: "GREEN",
+    illuminationCorrectionStrength: 1,
+    maxIlluminationInstability: 1,
+    minSpectralQuality: 0.18,
+    hrBandHz: { min: 0.85, max: 3.2 }
+  });
+
+  assert.ok(uncorrected.bpm !== null);
+  assert.ok(Math.abs(uncorrected.bpm - 108) <= 5, `expected uncorrected estimate near light artifact, got ${uncorrected.bpm}`);
+  assert.ok(corrected.bpm !== null);
+  assert.ok(Math.abs(corrected.bpm - 72) <= 5, `expected corrected estimate near pulse, got ${corrected.bpm}`);
+});
+
 function syntheticTrace(options: {
   bpm: number;
   seconds: number;
@@ -175,6 +205,8 @@ function syntheticTrace(options: {
   normalizeChromaticity?: boolean;
   illuminationDrift?: number;
   harmonicAmplitude?: number;
+  illuminationArtifactBpm?: number;
+  illuminationArtifactAmplitude?: number;
 }): RgbTraceSample[] {
   const samples: RgbTraceSample[] = [];
   const frequencyHz = options.bpm / 60;
@@ -189,7 +221,10 @@ function syntheticTrace(options: {
     const rPulse = options.projection === "rgb" ? -0.45 * combinedPulse : 0.15 * combinedPulse;
     const gPulse = options.projection === "rgb" ? 1.0 * combinedPulse : combinedPulse;
     const bPulse = options.projection === "rgb" ? -0.55 * combinedPulse : 0.1 * combinedPulse;
-    const illuminationScale = 1 + (options.illuminationDrift ?? 0) * Math.sin(2 * Math.PI * 0.04 * t);
+    const illuminationArtifact =
+      (options.illuminationArtifactAmplitude ?? 0) *
+      Math.sin(2 * Math.PI * ((options.illuminationArtifactBpm ?? 0) / 60) * t);
+    const illuminationScale = 1 + (options.illuminationDrift ?? 0) * Math.sin(2 * Math.PI * 0.04 * t) + illuminationArtifact;
     const raw = {
       r: (100 + 1.2 * rPulse + drift) * illuminationScale,
       g: (95 + 1.6 * gPulse + drift) * illuminationScale,
