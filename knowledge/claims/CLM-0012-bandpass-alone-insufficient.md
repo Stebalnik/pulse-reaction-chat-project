@@ -14,6 +14,7 @@ SUPPORTED
 - `knowledge/papers/PAPER-2014-LEE-RGB-REFLECTION-PPG-MOTION.md`: measures motion-related SNR changes by wavelength.
 - `knowledge/papers/PAPER-2013-DE-HAAN-CHROMINANCE-RPPG.md`: develops chrominance methods specifically due to motion limitations of BSS/RGB approaches.
 - `knowledge/papers/PAPER-2015-KIEHL-MULTI-IMAGER-PRV-MOTION.md`: motion severity changes remote PRV performance.
+- `knowledge/papers/PAPER-2021-FINE-PPG-INACCURACY.md`: reports motion artifacts from 0.1-20 Hz, overlapping the HR-relevant range cited as 1-4 Hz.
 
 ## contradicting_papers
 
@@ -33,4 +34,4 @@ Implement motion score, spectral motion overlap checks, and abstention; do not r
 
 ## last_reviewed
 
-2026-07-26
+2026-08-01

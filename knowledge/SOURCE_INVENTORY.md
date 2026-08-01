@@ -1,6 +1,6 @@
 # Source inventory
 
-Date: 2026-07-26
+Date: 2026-08-01
 
 | Source | Record | Relevance | Use |
 |---|---|---:|---|
@@ -32,6 +32,7 @@ Date: 2026-07-26
 | `Robust_Pulse_Rate_From_Chrominance_Based.pdf` | `PAPER-2013-DE-HAAN-CHROMINANCE-RPPG` | 10 | CHROM launch candidate |
 | `Self_contained_passive_non_contact_photo.pdf` | `PAPER-2015-DIETZ-CANON-POWERSHOT-RPPG` | 5 | on-device feasibility |
 | `Signal_processing_techniques_for_cardiov.pdf` | `PAPER-2018-FALLET-SIGNAL-PROCESSING-CARDIOVASCULAR` | 7 | SQI/adaptive tracking |
+| `Sources_of_Inaccuracy_in_Photoplethysmog.pdf` | `PAPER-2021-FINE-PPG-INACCURACY` | 6 | PPG noise taxonomy, motion/illumination/SQI gates |
 | `Use_of_ambient_light_in_remote_photoplet.pdf` | `PAPER-2012-SUN-AMBIENT-LIGHT-WEBCAM` | 7 | ambient light/webcam feasibility |
 
 ## Reading paths
@@ -48,8 +49,9 @@ For quality and tests:
 
 1. Gudibandi 2016 motion artifacts.
 2. Fallet 2018 SQI.
-3. Sun 2012 ambient light.
-4. Lee 2014 wavelength/motion background.
+3. Fine 2021 PPG inaccuracy taxonomy.
+4. Sun 2012 ambient light.
+5. Lee 2014 wavelength/motion background.
 
 For deferred research:
 

@@ -107,6 +107,7 @@ Useful evidence:
 - Zhang 2021: low/changing illumination and lost/small ROI can break POS/Project_ICA.
 - Chari VITAL: skin-tone, lighting, shadows, specular highlights, talking, and camera viewpoint affect performance.
 - Fallet 2018 thesis: SQI-based rejection is essential in realistic iPPG.
+- Fine 2021: broader PPG noise taxonomy reinforces motion, illumination, skin-tone, respiration, temperature, and waveform-quality gates; transfer numeric wearable/contact results to rPPG only after validation.
 
 ### 6. Baseline and reactions
 
@@ -121,6 +122,7 @@ Useful evidence:
 - Current Sources support pulse-rate estimation and quality gating.
 - They do not validate attraction, intent, honesty, compatibility, or exact emotion inference.
 - HR/PR changes can be caused by motion, speech, posture, temperature, caffeine, illness, medication, anxiety, exercise, or lighting artifacts.
+- Fine 2021 reinforces that waveform-derived cardiovascular parameters require high waveform quality and are affected by many confounds; do not ship BP/PRV-like interpretations from webcam traces during the MVP.
 
 ## One-month desktop recommendation
 
