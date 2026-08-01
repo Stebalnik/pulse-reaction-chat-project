@@ -5,6 +5,7 @@ import {
   projectPos,
   type HeartRateDiagnostics,
   type HeartRateEstimate,
+  type ReasonCode,
   type RgbTraceSample
 } from "@pulse-reaction/rppg-engine";
 
@@ -42,11 +43,33 @@ export interface PulseMethodSignal {
 }
 
 const MAX_TRACE_MS = 24_000;
+const TEMPORAL_HISTORY_MS = 24_000;
+const TEMPORAL_HISTORY_SIZE = 12;
+const MIN_TEMPORAL_HISTORY = 5;
+const MAX_LOW_CONFIDENCE_JUMP_BPM = 16;
+const TEMPORAL_OUTLIER_QUALITY_GATE = 0.5;
+const TEMPORAL_OUTLIER_CONFIRM_MS = 8_000;
+const TEMPORAL_OUTLIER_CONFIRM_COUNT = 8;
+const TEMPORAL_OUTLIER_CLUSTER_BPM = 8;
+
+interface BpmHistoryEntry {
+  timestampMs: number;
+  bpm: number;
+}
+
+interface PendingTemporalJump {
+  startedAtMs: number;
+  lastSeenAtMs: number;
+  centerBpm: number;
+  count: number;
+}
 
 export class PulseSampler {
   private readonly canvas = document.createElement("canvas");
   private readonly context = this.canvas.getContext("2d", { willReadFrequently: true });
   private readonly samples: RgbTraceSample[] = [];
+  private readonly acceptedBpmHistory: BpmHistoryEntry[] = [];
+  private pendingTemporalJump: PendingTemporalJump | null = null;
   private previousLuma: number | null = null;
 
   sample(video: HTMLVideoElement, regions: readonly PulseRoiRegion[], timestampMs = performance.now()): PulseSamplerSnapshot | null {
@@ -90,37 +113,136 @@ export class PulseSampler {
       this.samples.shift();
     }
 
-    const diagnostics = estimateHeartRateDiagnostics(this.samples, {
-      method: "FUSION",
-      minWindowMs: 12_000,
-      minSamples: 180,
-      minRoiCoverage: 0.18,
-      maxRoiCoverageStd: 0.22,
-      minSpectralQuality: 0.18,
-      maxMotionScore: 0.75,
-      maxIlluminationInstability: 0.28,
-      maxFusionBpmSpread: 10,
-      hrBandHz: {
-        min: 0.85,
-        max: 3.2
-      }
-    });
+    const diagnostics = stabilizeDiagnostics(
+      estimateHeartRateDiagnostics(this.samples, {
+        method: "FUSION",
+        minWindowMs: 12_000,
+        minSamples: 180,
+        minRoiCoverage: 0.18,
+        maxRoiCoverageStd: 0.22,
+        minSpectralQuality: 0.18,
+        maxMotionScore: 0.75,
+        maxIlluminationInstability: 0.28,
+        maxFusionBpmSpread: 10,
+        hrBandHz: {
+          min: 0.85,
+          max: 3.2
+        }
+      }),
+      this.acceptedBpmHistory,
+      this.pendingTemporalJump
+    );
+    this.pendingTemporalJump = diagnostics.pendingTemporalJump;
 
     return {
       sampleCount: this.samples.length,
       sampleRateHz: sampleRateHz(this.samples),
       skinCoverage: skin.coverage,
       validRegionCount: skin.validRegionCount,
-      estimate: diagnostics.estimate,
-      diagnostics,
+      estimate: diagnostics.diagnostics.estimate,
+      diagnostics: diagnostics.diagnostics,
       signals: methodSignals(this.samples)
     };
   }
 
   reset(): void {
     this.samples.length = 0;
+    this.acceptedBpmHistory.length = 0;
+    this.pendingTemporalJump = null;
     this.previousLuma = null;
   }
+}
+
+function stabilizeDiagnostics(
+  diagnostics: HeartRateDiagnostics,
+  acceptedHistory: BpmHistoryEntry[],
+  pendingTemporalJump: PendingTemporalJump | null
+): { diagnostics: HeartRateDiagnostics; pendingTemporalJump: PendingTemporalJump | null } {
+  const estimate = diagnostics.estimate;
+  if (estimate.bpm === null || estimate.confidence === "invalid") {
+    return { diagnostics, pendingTemporalJump };
+  }
+
+  const recent = recentHistory(acceptedHistory, estimate.timestampMs);
+  if (recent.length >= MIN_TEMPORAL_HISTORY && isLowConfidenceJump(estimate, recent)) {
+    const nextPending = updatePendingTemporalJump(pendingTemporalJump, estimate);
+    if (!isConfirmedTemporalJump(nextPending, estimate.timestampMs)) {
+      return {
+        diagnostics: {
+          ...diagnostics,
+          estimate: temporalOutlierEstimate(estimate)
+        },
+        pendingTemporalJump: nextPending
+      };
+    }
+  } else {
+    pendingTemporalJump = null;
+  }
+
+  acceptedHistory.push({ timestampMs: estimate.timestampMs, bpm: estimate.bpm });
+  while (
+    acceptedHistory.length > TEMPORAL_HISTORY_SIZE ||
+    (acceptedHistory.length > 0 && estimate.timestampMs - acceptedHistory[0]!.timestampMs > TEMPORAL_HISTORY_MS)
+  ) {
+    acceptedHistory.shift();
+  }
+
+  return { diagnostics, pendingTemporalJump: null };
+}
+
+function recentHistory(history: readonly BpmHistoryEntry[], timestampMs: number): BpmHistoryEntry[] {
+  return history.filter((entry) => timestampMs - entry.timestampMs <= TEMPORAL_HISTORY_MS);
+}
+
+function isLowConfidenceJump(estimate: HeartRateEstimate, recent: readonly BpmHistoryEntry[]): boolean {
+  if (estimate.bpm === null || estimate.signalQuality >= TEMPORAL_OUTLIER_QUALITY_GATE) return false;
+  const baselineBpm = median(recent.map((entry) => entry.bpm));
+  return Math.abs(estimate.bpm - baselineBpm) > MAX_LOW_CONFIDENCE_JUMP_BPM;
+}
+
+function updatePendingTemporalJump(pending: PendingTemporalJump | null, estimate: HeartRateEstimate): PendingTemporalJump {
+  const bpm = estimate.bpm ?? 0;
+  if (!pending || Math.abs(bpm - pending.centerBpm) > TEMPORAL_OUTLIER_CLUSTER_BPM) {
+    return {
+      startedAtMs: estimate.timestampMs,
+      lastSeenAtMs: estimate.timestampMs,
+      centerBpm: bpm,
+      count: 1
+    };
+  }
+
+  const count = pending.count + 1;
+  return {
+    startedAtMs: pending.startedAtMs,
+    lastSeenAtMs: estimate.timestampMs,
+    centerBpm: pending.centerBpm + (bpm - pending.centerBpm) / count,
+    count
+  };
+}
+
+function isConfirmedTemporalJump(pending: PendingTemporalJump, timestampMs: number): boolean {
+  return timestampMs - pending.startedAtMs >= TEMPORAL_OUTLIER_CONFIRM_MS && pending.count >= TEMPORAL_OUTLIER_CONFIRM_COUNT;
+}
+
+function temporalOutlierEstimate(estimate: HeartRateEstimate): HeartRateEstimate {
+  return {
+    ...estimate,
+    bpm: null,
+    signalQuality: 0,
+    confidence: "invalid",
+    reasonCodes: uniqueReasonCodes([...estimate.reasonCodes, "TEMPORAL_OUTLIER"])
+  };
+}
+
+function uniqueReasonCodes(reasonCodes: readonly ReasonCode[]): ReasonCode[] {
+  return [...new Set(reasonCodes)];
+}
+
+function median(values: readonly number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1]! + sorted[mid]!) / 2 : sorted[mid]!;
 }
 
 function methodSignals(samples: readonly RgbTraceSample[]): PulseMethodSignal[] {
