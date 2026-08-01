@@ -90,6 +90,20 @@ test("spectral interpolation estimates off-bin pulse rates", () => {
   assert.ok(Math.abs(estimate.bpm - 73) <= 3, `expected about 73 bpm, got ${estimate.bpm}`);
 });
 
+test("prefers fundamental pulse peak over a stronger harmonic", () => {
+  const samples = syntheticTrace({ bpm: 72, seconds: 18, fps: 30, projection: "green", harmonicAmplitude: 1.35 });
+  const estimate = estimateHeartRate(samples, {
+    method: "GREEN",
+    minWindowMs: 12_000,
+    minSpectralQuality: 0.18,
+    hrBandHz: { min: 0.85, max: 3.2 }
+  });
+
+  assert.equal(estimate.confidence !== "invalid", true);
+  assert.ok(estimate.bpm !== null);
+  assert.ok(Math.abs(estimate.bpm - 72) <= 4, `expected fundamental near 72 bpm, got ${estimate.bpm}`);
+});
+
 
 test("invalidates short windows instead of forcing BPM", () => {
   const samples = syntheticTrace({ bpm: 72, seconds: 4, fps: 30, projection: "rgb" });
@@ -160,6 +174,7 @@ function syntheticTrace(options: {
   motionScore?: number;
   normalizeChromaticity?: boolean;
   illuminationDrift?: number;
+  harmonicAmplitude?: number;
 }): RgbTraceSample[] {
   const samples: RgbTraceSample[] = [];
   const frequencyHz = options.bpm / 60;
@@ -168,10 +183,12 @@ function syntheticTrace(options: {
     const timestampMs = (i * 1000) / options.fps;
     const t = timestampMs / 1000;
     const pulse = Math.sin(2 * Math.PI * frequencyHz * t);
+    const harmonic = (options.harmonicAmplitude ?? 0) * Math.sin(2 * Math.PI * frequencyHz * 2 * t);
+    const combinedPulse = pulse + harmonic;
     const drift = 0.02 * Math.sin(2 * Math.PI * 0.08 * t);
-    const rPulse = options.projection === "rgb" ? -0.45 * pulse : 0.15 * pulse;
-    const gPulse = options.projection === "rgb" ? 1.0 * pulse : pulse;
-    const bPulse = options.projection === "rgb" ? -0.55 * pulse : 0.1 * pulse;
+    const rPulse = options.projection === "rgb" ? -0.45 * combinedPulse : 0.15 * combinedPulse;
+    const gPulse = options.projection === "rgb" ? 1.0 * combinedPulse : combinedPulse;
+    const bPulse = options.projection === "rgb" ? -0.55 * combinedPulse : 0.1 * combinedPulse;
     const illuminationScale = 1 + (options.illuminationDrift ?? 0) * Math.sin(2 * Math.PI * 0.04 * t);
     const raw = {
       r: (100 + 1.2 * rPulse + drift) * illuminationScale,

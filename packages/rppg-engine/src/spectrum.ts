@@ -48,7 +48,7 @@ export function estimateDominantFrequency(
     return { bpm: null, frequencyHz: null, quality: 0, peakPower: 0 };
   }
 
-  const peakIndex = maxPowerIndex(powers);
+  const peakIndex = selectPhysiologicalPeakIndex(powers, maxPowerIndex(powers));
   const peak = powers[peakIndex]!;
   const interpolatedFrequencyHz = interpolatePeakFrequency(powers, peakIndex, sampleRateHz, prepared.length);
   const avgPower = mean(powers.map((entry) => entry.power));
@@ -71,6 +71,51 @@ function maxPowerIndex(powers: Array<{ power: number }>): number {
     if (powers[index]!.power > powers[selected]!.power) selected = index;
   }
   return selected;
+}
+
+function selectPhysiologicalPeakIndex(
+  powers: Array<{ frequencyHz: number; power: number }>,
+  dominantIndex: number
+): number {
+  const dominant = powers[dominantIndex]!;
+  const subharmonic = [2, 3]
+    .map((factor) => subharmonicCandidate(powers, dominant, factor))
+    .filter((candidate): candidate is { index: number; score: number } => candidate !== null)
+    .sort((left, right) => right.score - left.score)[0];
+  return subharmonic?.index ?? dominantIndex;
+}
+
+function subharmonicCandidate(
+  powers: Array<{ frequencyHz: number; power: number }>,
+  dominant: { frequencyHz: number; power: number },
+  factor: number
+): { index: number; score: number } | null {
+  const targetFrequencyHz = dominant.frequencyHz / factor;
+  const binWidthHz = powers.length > 1 ? Math.abs(powers[1]!.frequencyHz - powers[0]!.frequencyHz) : 0;
+  const toleranceHz = Math.max(binWidthHz * 1.6, 0.08);
+  let selectedIndex = -1;
+  let selectedPower = 0;
+  for (let index = 0; index < powers.length; index += 1) {
+    const entry = powers[index]!;
+    if (Math.abs(entry.frequencyHz - targetFrequencyHz) > toleranceHz) continue;
+    if (entry.power > selectedPower) {
+      selectedIndex = index;
+      selectedPower = entry.power;
+    }
+  }
+
+  if (selectedIndex < 0) return null;
+  const powerRatio = selectedPower / Math.max(dominant.power, 1e-12);
+  const requiredRatio = factor === 2 ? 0.28 : 0.22;
+  if (powerRatio < requiredRatio || !isLocalPeak(powers, selectedIndex)) return null;
+  return { index: selectedIndex, score: powerRatio / factor };
+}
+
+function isLocalPeak(powers: Array<{ power: number }>, index: number): boolean {
+  const current = powers[index]!;
+  const left = powers[index - 1]?.power ?? -Infinity;
+  const right = powers[index + 1]?.power ?? -Infinity;
+  return current.power >= left && current.power >= right;
 }
 
 function interpolatePeakFrequency(

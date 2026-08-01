@@ -2,7 +2,7 @@ import type { RppgEngineConfig } from "./types.js";
 
 export const DEFAULT_RPPG_ENGINE_CONFIG: RppgEngineConfig = {
   method: "FUSION",
-  methodVersion: "rppg-engine-0.1.0",
+  methodVersion: "rppg-engine-0.1.1",
   minWindowMs: 10_000,
   minSamples: 90,
   minFps: 12,
