@@ -51,6 +51,11 @@ const TEMPORAL_OUTLIER_QUALITY_GATE = 0.5;
 const TEMPORAL_OUTLIER_CONFIRM_MS = 8_000;
 const TEMPORAL_OUTLIER_CONFIRM_COUNT = 8;
 const TEMPORAL_OUTLIER_CLUSTER_BPM = 8;
+const METHOD_AGREEMENT_FAST_CONFIRM_MS = 3_000;
+const METHOD_AGREEMENT_FAST_CONFIRM_COUNT = 3;
+const METHOD_AGREEMENT_FAST_CONFIRM_SPREAD_BPM = 2;
+const METHOD_AGREEMENT_FAST_CONFIRM_MIN_METHODS = 3;
+const METHOD_AGREEMENT_FAST_CONFIRM_MIN_QUALITY = 0.32;
 const MIN_REGION_SKIN_COVERAGE = 0.08;
 const MIN_REGION_SKIN_PIXELS = 24;
 const MAX_REGION_LUMA_DEVIATION = 0.38;
@@ -169,7 +174,8 @@ function stabilizeDiagnostics(
   const recent = recentHistory(acceptedHistory, estimate.timestampMs);
   if (recent.length >= MIN_TEMPORAL_HISTORY && isLowConfidenceJump(estimate, recent)) {
     const nextPending = updatePendingTemporalJump(pendingTemporalJump, estimate);
-    if (!isConfirmedTemporalJump(nextPending, estimate.timestampMs)) {
+    const strongMethodAgreement = hasStrongMethodAgreement(diagnostics);
+    if (!isConfirmedTemporalJump(nextPending, estimate.timestampMs, strongMethodAgreement)) {
       return {
         diagnostics: {
           ...diagnostics,
@@ -223,8 +229,22 @@ function updatePendingTemporalJump(pending: PendingTemporalJump | null, estimate
   };
 }
 
-function isConfirmedTemporalJump(pending: PendingTemporalJump, timestampMs: number): boolean {
-  return timestampMs - pending.startedAtMs >= TEMPORAL_OUTLIER_CONFIRM_MS && pending.count >= TEMPORAL_OUTLIER_CONFIRM_COUNT;
+function isConfirmedTemporalJump(pending: PendingTemporalJump, timestampMs: number, strongMethodAgreement: boolean): boolean {
+  const confirmMs = strongMethodAgreement ? METHOD_AGREEMENT_FAST_CONFIRM_MS : TEMPORAL_OUTLIER_CONFIRM_MS;
+  const confirmCount = strongMethodAgreement ? METHOD_AGREEMENT_FAST_CONFIRM_COUNT : TEMPORAL_OUTLIER_CONFIRM_COUNT;
+  return timestampMs - pending.startedAtMs >= confirmMs && pending.count >= confirmCount;
+}
+
+function hasStrongMethodAgreement(diagnostics: HeartRateDiagnostics): boolean {
+  const validMethods = diagnostics.methodEstimates.filter(
+    (estimate) =>
+      estimate.bpm !== null &&
+      estimate.signalQuality >= METHOD_AGREEMENT_FAST_CONFIRM_MIN_QUALITY &&
+      estimate.reasonCodes.length === 0
+  );
+  if (validMethods.length < METHOD_AGREEMENT_FAST_CONFIRM_MIN_METHODS) return false;
+  const bpms = validMethods.map((estimate) => estimate.bpm ?? 0);
+  return Math.max(...bpms) - Math.min(...bpms) <= METHOD_AGREEMENT_FAST_CONFIRM_SPREAD_BPM;
 }
 
 function temporalOutlierEstimate(estimate: HeartRateEstimate): HeartRateEstimate {

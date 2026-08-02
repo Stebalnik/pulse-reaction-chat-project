@@ -113,6 +113,8 @@ The MediaPipe path is treated as an AR-style face mesh tracker for ROI stability
 
 The live ROI sampler now uses multiple forehead and cheek candidate zones. Zones must pass skin-coverage checks and local brightness-consistency checks before contributing to the aggregate RGB trace, so a localized shadow, highlight, hair occlusion, or weak skin patch is less likely to dominate the pulse estimate.
 
+The browser prototype also applies a temporal outlier gate to low-confidence BPM jumps relative to the accepted local history. A jump can be accepted faster only when GREEN, CHROM, and POS all provide tightly agreeing candidates for several consecutive samples; otherwise the window remains `TEMPORAL_OUTLIER` and must not emit a reaction state.
+
 The live browser estimator requests up to 60 fps when available, samples frames at display cadence, and uses a 12-second minimum window for the first visible estimate. The launch UI constrains the live HR search band to 51-192 BPM to reduce low-frequency drift being selected as pulse; wider ranges require separate validation and user-specific configuration.
 
 The live debug UI exposes recent local BPM estimates, median, spread, CHROM/POS/GREEN candidates, method spread, and the current selection or rejection reason. These diagnostics are for signal tuning and validation only; reaction states must continue to use valid baseline-relative windows and abstain when quality gates fail.
