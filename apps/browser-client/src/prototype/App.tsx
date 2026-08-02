@@ -26,7 +26,7 @@ import {
   type PulseTrendState
 } from "@pulse-reaction/rppg-engine";
 import { FaceRoiTracker, type FaceRoiResult } from "./faceRoi.js";
-import { PulseSampler, type PulseMethodSignal, type RoiRect } from "./pulseSampler.js";
+import { PulseSampler, type PulseMethodSignal, type PulseRegionAgreement, type RoiRect } from "./pulseSampler.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
 
@@ -57,6 +57,7 @@ interface PulseSnapshot {
   diagnostics: HeartRateDiagnostics;
   trend: PulseTrendEstimate;
   signals: PulseMethodSignal[];
+  regionAgreement: PulseRegionAgreement;
 }
 
 interface PulseHistoryEntry {
@@ -125,6 +126,18 @@ interface DebugLogEvent {
       reasonCodes: string[];
     }>;
   };
+  regionAgreement: {
+    validGroupCount: number;
+    spreadBpm: number | null;
+    stable: boolean | null;
+    estimates: Array<{
+      groupId: string;
+      bpm: number | null;
+      signalQuality: number;
+      sampleCount: number;
+      reasonCodes: string[];
+    }>;
+  };
   trend: {
     state: PulseTrendState;
     confidence: number;
@@ -155,7 +168,7 @@ interface DebugLogEvent {
 }
 
 interface DebugSessionLog {
-  schemaVersion: "debug-session-log-0.1.0";
+  schemaVersion: "debug-session-log-0.1.1";
   sessionId: string;
   startedAtIso: string;
   updatedAtIso: string;
@@ -509,6 +522,22 @@ export function App(): JSX.Element {
                 ))}
                 {!diagnostics?.methodEstimates.length && <div className="methodEmpty">method estimates pending</div>}
               </div>
+              <div className="regionAgreement">
+                <div className="regionAgreementHeader">
+                  <span>Region groups</span>
+                  <strong>{regionAgreementText(snapshot?.regionAgreement)}</strong>
+                </div>
+                <div className="methodRows">
+                  {(snapshot?.regionAgreement.estimates ?? []).map((regionEstimate) => (
+                    <div className="regionRow" key={regionEstimate.groupId}>
+                      <span>{regionLabel(regionEstimate.groupId)}</span>
+                      <strong>{regionEstimate.bpm === null ? "--" : Math.round(regionEstimate.bpm)}</strong>
+                      <small>{methodStatusText(regionEstimate.signalQuality, regionEstimate.reasonCodes)}</small>
+                    </div>
+                  ))}
+                  {!snapshot?.regionAgreement.estimates.length && <div className="methodEmpty">region estimates pending</div>}
+                </div>
+              </div>
               <div className="selectionReason">{selectionReasonText(diagnostics)}</div>
             </div>
             <div className="oscilloscopePanel">
@@ -634,7 +663,7 @@ export function App(): JSX.Element {
 function createDebugSessionLog(): DebugSessionLog {
   const nowIso = new Date().toISOString();
   return {
-    schemaVersion: "debug-session-log-0.1.0",
+    schemaVersion: "debug-session-log-0.1.1",
     sessionId: `${nowIso.replaceAll(/[:.]/g, "-")}-${Math.random().toString(16).slice(2, 8)}`,
     startedAtIso: nowIso,
     updatedAtIso: nowIso,
@@ -643,6 +672,7 @@ function createDebugSessionLog(): DebugSessionLog {
       "Debug log is generated locally in the browser.",
       "Raw video frames and RGB traces are not included.",
       "Live method waveforms are rendered transiently and are not persisted in the debug log.",
+      "Region-group diagnostics are aggregated BPM/quality summaries; per-frame region traces are not persisted.",
       "Manual reference BPM is optional user-provided ground truth for local estimator debugging.",
       "Precise participant identity is not included.",
       "Events are for signal-quality debugging, not emotion or attraction inference."
@@ -738,6 +768,18 @@ function debugEventFromSnapshot(
         method: estimate.method,
         bpm: estimate.bpm,
         signalQuality: estimate.signalQuality,
+        reasonCodes: estimate.reasonCodes
+      }))
+    },
+    regionAgreement: {
+      validGroupCount: snapshot.regionAgreement.validGroupCount,
+      spreadBpm: snapshot.regionAgreement.spreadBpm,
+      stable: snapshot.regionAgreement.stable,
+      estimates: snapshot.regionAgreement.estimates.map((estimate) => ({
+        groupId: estimate.groupId,
+        bpm: estimate.bpm,
+        signalQuality: estimate.signalQuality,
+        sampleCount: estimate.sampleCount,
         reasonCodes: estimate.reasonCodes
       }))
     },
@@ -974,6 +1016,18 @@ function pulseHistoryStats(history: readonly PulseHistoryEntry[]): { medianBpm: 
 function methodStatusText(signalQuality: number, reasonCodes: readonly string[]): string {
   if (reasonCodes.length > 0) return reasonCodes[0]!;
   return `q ${Math.round(signalQuality * 100)}%`;
+}
+
+function regionAgreementText(agreement: PulseRegionAgreement | undefined): string {
+  if (!agreement || agreement.stable === null) return "waiting";
+  const spread = agreement.spreadBpm === null ? "--" : `${Math.round(agreement.spreadBpm)}`;
+  return agreement.stable ? `${agreement.validGroupCount}/3 stable, spread ${spread}` : `${agreement.validGroupCount}/3 disagree, spread ${spread}`;
+}
+
+function regionLabel(groupId: string): string {
+  if (groupId === "left-cheek") return "L cheek";
+  if (groupId === "right-cheek") return "R cheek";
+  return "Forehead";
 }
 
 function selectionReasonText(diagnostics: HeartRateDiagnostics | undefined): string {

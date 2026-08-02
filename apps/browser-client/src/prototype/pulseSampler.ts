@@ -34,6 +34,7 @@ export interface PulseSamplerSnapshot {
   estimate: HeartRateEstimate;
   diagnostics: HeartRateDiagnostics;
   signals: PulseMethodSignal[];
+  regionAgreement: PulseRegionAgreement;
 }
 
 export interface PulseMethodSignal {
@@ -42,7 +43,27 @@ export interface PulseMethodSignal {
   latest: number | null;
 }
 
+export interface PulseRegionEstimate {
+  groupId: PulseRegionGroupId;
+  bpm: number | null;
+  signalQuality: number;
+  sampleCount: number;
+  reasonCodes: ReasonCode[];
+}
+
+export interface PulseRegionAgreement {
+  estimates: PulseRegionEstimate[];
+  validGroupCount: number;
+  spreadBpm: number | null;
+  stable: boolean | null;
+}
+
+type PulseRegionGroupId = "forehead" | "left-cheek" | "right-cheek";
+
 const MAX_TRACE_MS = 24_000;
+const MIN_REGION_AGREEMENT_GROUPS = 2;
+const MAX_REGION_AGREEMENT_SPREAD_BPM = 14;
+const REGION_AGREEMENT_MIN_QUALITY = 0.2;
 const TEMPORAL_HISTORY_MS = 24_000;
 const TEMPORAL_HISTORY_SIZE = 12;
 const MIN_TEMPORAL_HISTORY = 5;
@@ -76,6 +97,7 @@ export class PulseSampler {
   private readonly canvas = document.createElement("canvas");
   private readonly context = this.canvas.getContext("2d", { willReadFrequently: true });
   private readonly samples: RgbTraceSample[] = [];
+  private readonly regionSamples = new Map<PulseRegionGroupId, RgbTraceSample[]>();
   private readonly acceptedBpmHistory: BpmHistoryEntry[] = [];
   private pendingTemporalJump: PendingTemporalJump | null = null;
   private previousLuma: number | null = null;
@@ -116,27 +138,21 @@ export class PulseSampler {
       motionScore,
       illumination
     });
+    this.pushRegionSamples(skin.groupSamples, now, motionScore);
 
     while (this.samples.length > 0 && now - this.samples[0]!.timestampMs > MAX_TRACE_MS) {
       this.samples.shift();
     }
+    for (const samples of this.regionSamples.values()) {
+      while (samples.length > 0 && now - samples[0]!.timestampMs > MAX_TRACE_MS) {
+        samples.shift();
+      }
+    }
 
+    const engineConfig = browserEngineConfig();
+    const regionAgreement = estimateRegionAgreement(this.regionSamples, engineConfig);
     const diagnostics = stabilizeDiagnostics(
-      estimateHeartRateDiagnostics(this.samples, {
-        method: "FUSION",
-        minWindowMs: 12_000,
-        minSamples: 180,
-        minRoiCoverage: 0.18,
-        maxRoiCoverageStd: 0.22,
-        minSpectralQuality: 0.18,
-        maxMotionScore: 0.75,
-        maxIlluminationInstability: 0.28,
-        maxFusionBpmSpread: 10,
-        hrBandHz: {
-          min: 0.85,
-          max: 3.2
-        }
-      }),
+      applyRegionAgreementGate(estimateHeartRateDiagnostics(this.samples, engineConfig), regionAgreement),
       this.acceptedBpmHistory,
       this.pendingTemporalJump
     );
@@ -149,16 +165,103 @@ export class PulseSampler {
       validRegionCount: skin.validRegionCount,
       estimate: diagnostics.diagnostics.estimate,
       diagnostics: diagnostics.diagnostics,
-      signals: methodSignals(this.samples)
+      signals: methodSignals(this.samples),
+      regionAgreement
     };
   }
 
   reset(): void {
     this.samples.length = 0;
+    this.regionSamples.clear();
     this.acceptedBpmHistory.length = 0;
     this.pendingTemporalJump = null;
     this.previousLuma = null;
   }
+
+  private pushRegionSamples(groupSamples: readonly PulseRegionGroupSample[], timestampMs: number, motionScore: number): void {
+    for (const group of groupSamples) {
+      const illumination = (group.channels.r + group.channels.g + group.channels.b) / 3;
+      const normalized = normalizeChromaticity(group.channels, illumination);
+      const samples = this.regionSamples.get(group.groupId) ?? [];
+      samples.push({
+        timestampMs,
+        r: normalized.r,
+        g: normalized.g,
+        b: normalized.b,
+        roiCoverage: group.coverage,
+        motionScore,
+        illumination
+      });
+      this.regionSamples.set(group.groupId, samples);
+    }
+  }
+}
+
+function browserEngineConfig() {
+  return {
+    method: "FUSION" as const,
+    minWindowMs: 12_000,
+    minSamples: 180,
+    minRoiCoverage: 0.18,
+    maxRoiCoverageStd: 0.22,
+    minSpectralQuality: 0.18,
+    maxMotionScore: 0.75,
+    maxIlluminationInstability: 0.28,
+    maxFusionBpmSpread: 10,
+    hrBandHz: {
+      min: 0.85,
+      max: 3.2
+    }
+  };
+}
+
+function estimateRegionAgreement(
+  regionSamples: ReadonlyMap<PulseRegionGroupId, readonly RgbTraceSample[]>,
+  engineConfig: ReturnType<typeof browserEngineConfig>
+): PulseRegionAgreement {
+  const estimates = (["forehead", "left-cheek", "right-cheek"] as const).map((groupId) => {
+    const samples = regionSamples.get(groupId) ?? [];
+    const diagnostics = estimateHeartRateDiagnostics(samples, {
+      ...engineConfig,
+      minRoiCoverage: 0.05,
+      maxRoiCoverageStd: 0.32,
+      minSpectralQuality: REGION_AGREEMENT_MIN_QUALITY
+    });
+    return {
+      groupId,
+      bpm: diagnostics.estimate.bpm === null ? null : Math.round(diagnostics.estimate.bpm * 100) / 100,
+      signalQuality: Math.round(diagnostics.estimate.signalQuality * 10_000) / 10_000,
+      sampleCount: samples.length,
+      reasonCodes: diagnostics.estimate.reasonCodes
+    };
+  });
+  const valid = estimates.filter(
+    (estimate) => estimate.bpm !== null && estimate.signalQuality >= REGION_AGREEMENT_MIN_QUALITY && estimate.reasonCodes.length === 0
+  );
+  const spreadBpm =
+    valid.length >= MIN_REGION_AGREEMENT_GROUPS
+      ? Math.max(...valid.map((estimate) => estimate.bpm ?? 0)) - Math.min(...valid.map((estimate) => estimate.bpm ?? 0))
+      : null;
+  return {
+    estimates,
+    validGroupCount: valid.length,
+    spreadBpm: spreadBpm === null ? null : Math.round(spreadBpm * 100) / 100,
+    stable: spreadBpm === null ? null : spreadBpm <= MAX_REGION_AGREEMENT_SPREAD_BPM
+  };
+}
+
+function applyRegionAgreementGate(diagnostics: HeartRateDiagnostics, agreement: PulseRegionAgreement): HeartRateDiagnostics {
+  if (diagnostics.estimate.bpm === null || agreement.stable !== false) return diagnostics;
+  return {
+    ...diagnostics,
+    estimate: {
+      ...diagnostics.estimate,
+      bpm: null,
+      signalQuality: 0,
+      confidence: "invalid",
+      reasonCodes: uniqueReasonCodes([...diagnostics.estimate.reasonCodes, "ROI_REGIONS_DISAGREE"])
+    }
+  };
 }
 
 function stabilizeDiagnostics(
@@ -339,11 +442,13 @@ function averageSkinRegions(
   regions: readonly PulseRoiRegion[],
   width: number,
   height: number
-): { channels: { r: number; g: number; b: number }; coverage: number; validRegionCount: number } {
+): { channels: { r: number; g: number; b: number }; coverage: number; validRegionCount: number; groupSamples: PulseRegionGroupSample[] } {
   let totalPixels = 0;
   let totalSkinPixels = 0;
   const validRegions: Array<{
+    groupId: PulseRegionGroupId;
     channels: { r: number; g: number; b: number };
+    pixelCount: number;
     skinPixelCount: number;
     luma: number;
   }> = [];
@@ -357,7 +462,9 @@ function averageSkinRegions(
     totalSkinPixels += skin.skinPixelCount;
     if (skin.coverage >= MIN_REGION_SKIN_COVERAGE && skin.skinPixelCount >= MIN_REGION_SKIN_PIXELS) {
       validRegions.push({
+        groupId: regionGroupId(region.id),
         channels: skin.channels,
+        pixelCount: skin.pixelCount,
         skinPixelCount: skin.skinPixelCount,
         luma: luma(skin.channels)
       });
@@ -368,7 +475,8 @@ function averageSkinRegions(
     return {
       channels: { r: 0, g: 0, b: 0 },
       coverage: 0,
-      validRegionCount: 0
+      validRegionCount: 0,
+      groupSamples: []
     };
   }
 
@@ -382,8 +490,44 @@ function averageSkinRegions(
   return {
     channels: weighted,
     coverage: totalPixels > 0 ? totalSkinPixels / totalPixels : 0,
-    validRegionCount: regionsForAverage.length
+    validRegionCount: regionsForAverage.length,
+    groupSamples: groupRegionSamples(regionsForAverage)
   };
+}
+
+interface PulseRegionGroupSample {
+  groupId: PulseRegionGroupId;
+  channels: { r: number; g: number; b: number };
+  coverage: number;
+}
+
+function groupRegionSamples(
+  regions: ReadonlyArray<{
+    groupId: PulseRegionGroupId;
+    channels: { r: number; g: number; b: number };
+    pixelCount: number;
+    skinPixelCount: number;
+  }>
+): PulseRegionGroupSample[] {
+  return (["forehead", "left-cheek", "right-cheek"] as const)
+    .map((groupId) => {
+      const groupRegions = regions.filter((region) => region.groupId === groupId);
+      if (groupRegions.length === 0) return null;
+      const pixelCount = groupRegions.reduce((sum, region) => sum + region.pixelCount, 0);
+      const skinPixelCount = groupRegions.reduce((sum, region) => sum + region.skinPixelCount, 0);
+      return {
+        groupId,
+        channels: weightedAverageRegions(groupRegions),
+        coverage: pixelCount > 0 ? skinPixelCount / pixelCount : 0
+      };
+    })
+    .filter((group): group is PulseRegionGroupSample => group !== null);
+}
+
+function regionGroupId(regionId: string): PulseRegionGroupId {
+  if (regionId.includes("left-cheek")) return "left-cheek";
+  if (regionId.includes("right-cheek")) return "right-cheek";
+  return "forehead";
 }
 
 function weightedAverageRegions(

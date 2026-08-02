@@ -612,12 +612,56 @@ input {
   font-size: 12px;
 }
 
+.regionAgreement {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #dbe5df;
+}
+
+.regionAgreementHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #34443d;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.regionAgreementHeader strong {
+  min-width: 0;
+  color: #63736b;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.regionRow {
+  display: grid;
+  grid-template-columns: 68px 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: #34443d;
+  font-size: 12px;
+}
+
 .methodRow strong {
   color: #18231e;
   font-size: 14px;
 }
 
+.regionRow strong {
+  color: #18231e;
+  font-size: 14px;
+}
+
 .methodRow small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #63736b;
+}
+
+.regionRow small {
   min-width: 0;
   overflow-wrap: anywhere;
   color: #63736b;
