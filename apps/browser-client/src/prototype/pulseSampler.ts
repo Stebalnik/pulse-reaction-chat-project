@@ -51,6 +51,9 @@ const TEMPORAL_OUTLIER_QUALITY_GATE = 0.5;
 const TEMPORAL_OUTLIER_CONFIRM_MS = 8_000;
 const TEMPORAL_OUTLIER_CONFIRM_COUNT = 8;
 const TEMPORAL_OUTLIER_CLUSTER_BPM = 8;
+const MIN_REGION_SKIN_COVERAGE = 0.08;
+const MIN_REGION_SKIN_PIXELS = 24;
+const MAX_REGION_LUMA_DEVIATION = 0.38;
 
 interface BpmHistoryEntry {
   timestampMs: number;
@@ -317,12 +320,13 @@ function averageSkinRegions(
   width: number,
   height: number
 ): { channels: { r: number; g: number; b: number }; coverage: number; validRegionCount: number } {
-  let weightedR = 0;
-  let weightedG = 0;
-  let weightedB = 0;
-  let totalSkinPixels = 0;
   let totalPixels = 0;
-  let validRegionCount = 0;
+  let totalSkinPixels = 0;
+  const validRegions: Array<{
+    channels: { r: number; g: number; b: number };
+    skinPixelCount: number;
+    luma: number;
+  }> = [];
 
   for (const region of regions) {
     const rect = clampRoi(region, width, height);
@@ -331,15 +335,16 @@ function averageSkinRegions(
     const skin = averageSkinChannels(image.data, rect, region.polygon);
     totalPixels += skin.pixelCount;
     totalSkinPixels += skin.skinPixelCount;
-    if (skin.coverage >= 0.08 && skin.skinPixelCount >= 24) {
-      weightedR += skin.channels.r * skin.skinPixelCount;
-      weightedG += skin.channels.g * skin.skinPixelCount;
-      weightedB += skin.channels.b * skin.skinPixelCount;
-      validRegionCount += 1;
+    if (skin.coverage >= MIN_REGION_SKIN_COVERAGE && skin.skinPixelCount >= MIN_REGION_SKIN_PIXELS) {
+      validRegions.push({
+        channels: skin.channels,
+        skinPixelCount: skin.skinPixelCount,
+        luma: luma(skin.channels)
+      });
     }
   }
 
-  if (totalSkinPixels === 0 || validRegionCount === 0) {
+  if (totalSkinPixels === 0 || validRegions.length === 0) {
     return {
       channels: { r: 0, g: 0, b: 0 },
       coverage: 0,
@@ -347,15 +352,34 @@ function averageSkinRegions(
     };
   }
 
+  const medianLuma = median(validRegions.map((region) => region.luma));
+  const acceptedRegions = validRegions.filter(
+    (region) => medianLuma <= 0 || Math.abs(region.luma - medianLuma) / medianLuma <= MAX_REGION_LUMA_DEVIATION
+  );
+  const regionsForAverage = acceptedRegions.length > 0 ? acceptedRegions : validRegions;
+  const weighted = weightedAverageRegions(regionsForAverage);
+
   return {
-    channels: {
-      r: weightedR / totalSkinPixels,
-      g: weightedG / totalSkinPixels,
-      b: weightedB / totalSkinPixels
-    },
+    channels: weighted,
     coverage: totalPixels > 0 ? totalSkinPixels / totalPixels : 0,
-    validRegionCount
+    validRegionCount: regionsForAverage.length
   };
+}
+
+function weightedAverageRegions(
+  regions: ReadonlyArray<{ channels: { r: number; g: number; b: number }; skinPixelCount: number }>
+): { r: number; g: number; b: number } {
+  const totalWeight = regions.reduce((sum, region) => sum + region.skinPixelCount, 0);
+  if (totalWeight <= 0) return { r: 0, g: 0, b: 0 };
+  return {
+    r: regions.reduce((sum, region) => sum + region.channels.r * region.skinPixelCount, 0) / totalWeight,
+    g: regions.reduce((sum, region) => sum + region.channels.g * region.skinPixelCount, 0) / totalWeight,
+    b: regions.reduce((sum, region) => sum + region.channels.b * region.skinPixelCount, 0) / totalWeight
+  };
+}
+
+function luma(channels: { r: number; g: number; b: number }): number {
+  return 0.299 * channels.r + 0.587 * channels.g + 0.114 * channels.b;
 }
 
 function averageSkinChannels(

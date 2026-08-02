@@ -9,8 +9,10 @@ export interface MediapipeFaceRoiResult {
 
 const MODEL_ASSET_PATH = "/vendor/mediapipe/face_landmarker.task";
 const WASM_BASE_PATH = "/vendor/mediapipe";
-const LEFT_CHEEK = [36, 205, 206, 207, 187, 123, 116, 117, 118, 119, 100, 47];
-const RIGHT_CHEEK = [266, 425, 426, 427, 411, 352, 345, 346, 347, 348, 329, 277];
+const LEFT_CHEEK_UPPER = [36, 205, 187, 123, 116, 117, 100, 47];
+const LEFT_CHEEK_LOWER = [205, 206, 207, 187, 123, 118, 119, 100];
+const RIGHT_CHEEK_UPPER = [266, 425, 411, 352, 345, 346, 329, 277];
+const RIGHT_CHEEK_LOWER = [425, 426, 427, 411, 352, 347, 348, 329];
 const FOREHEAD_ANCHORS = [10, 67, 69, 104, 108, 151, 299, 333, 337, 338];
 const FACE_OVAL = [
   10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58,
@@ -66,12 +68,16 @@ function faceRoiFromLandmarks(landmarks: readonly NormalizedLandmark[], frameWid
   const faceOval = landmarkSubset(landmarks, FACE_OVAL);
   const visibleLandmarks = faceOval.length >= 12 ? faceOval : landmarks.filter(isUsableLandmark);
   const faceBox = expandRoi(robustBoundingRect(visibleLandmarks, frameWidth, frameHeight), frameWidth, frameHeight, 0.08);
-  const leftCheek = regionFromLandmarks("left-cheek", landmarks, LEFT_CHEEK, frameWidth, frameHeight, 0.24);
-  const rightCheek = regionFromLandmarks("right-cheek", landmarks, RIGHT_CHEEK, frameWidth, frameHeight, 0.24);
-  const forehead = foreheadRegion(landmarks, faceBox, frameWidth, frameHeight);
+  const cheeks = [
+    regionFromLandmarks("left-cheek-upper", landmarks, LEFT_CHEEK_UPPER, frameWidth, frameHeight, 0.22),
+    regionFromLandmarks("left-cheek-lower", landmarks, LEFT_CHEEK_LOWER, frameWidth, frameHeight, 0.22),
+    regionFromLandmarks("right-cheek-upper", landmarks, RIGHT_CHEEK_UPPER, frameWidth, frameHeight, 0.22),
+    regionFromLandmarks("right-cheek-lower", landmarks, RIGHT_CHEEK_LOWER, frameWidth, frameHeight, 0.22)
+  ];
+  const forehead = foreheadRegions(landmarks, faceBox, frameWidth, frameHeight);
   return {
     roi: faceBox,
-    regions: [forehead, leftCheek, rightCheek],
+    regions: [...forehead, ...cheeks],
     landmarkCount: landmarks.length
   };
 }
@@ -111,30 +117,34 @@ function regionFromLandmarks(
   };
 }
 
-function foreheadRegion(
+function foreheadRegions(
   landmarks: readonly NormalizedLandmark[],
   faceBox: RoiRect,
   frameWidth: number,
   frameHeight: number
-): PulseRoiRegion {
+): PulseRoiRegion[] {
   const anchorBox = regionFromLandmarks("forehead", landmarks, FOREHEAD_ANCHORS, frameWidth, frameHeight, 0.12);
-  const width = Math.max(anchorBox.width, faceBox.width * 0.34);
+  const totalWidth = Math.max(anchorBox.width, faceBox.width * 0.5);
   const height = Math.max(anchorBox.height, faceBox.height * 0.14);
-  const rect = clampRoi(
-    {
-      x: faceBox.x + faceBox.width * 0.33,
-      y: Math.max(0, anchorBox.y - faceBox.height * 0.08),
-      width,
-      height
-    },
-    frameWidth,
-    frameHeight
-  );
-  return {
-    id: "forehead",
-    ...rect,
-    polygon: rectToPolygon(rect)
-  };
+  const x = faceBox.x + (faceBox.width - totalWidth) / 2;
+  const y = Math.max(0, anchorBox.y - faceBox.height * 0.08);
+  return ["left", "center", "right"].map((position, index) => {
+    const rect = clampRoi(
+      {
+        x: x + (totalWidth * index) / 3,
+        y,
+        width: totalWidth / 3,
+        height
+      },
+      frameWidth,
+      frameHeight
+    );
+    return {
+      id: `forehead-${position}`,
+      ...rect,
+      polygon: rectToPolygon(rect)
+    };
+  });
 }
 
 function landmarkToPoint(landmark: NormalizedLandmark, frameWidth: number, frameHeight: number): RoiPoint {

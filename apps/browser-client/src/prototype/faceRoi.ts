@@ -249,25 +249,53 @@ function geometryFromRoi(roi: RoiRect, prefix: string): { roi: RoiRect; regions:
     roi,
     regions: [
       {
-        id: `${prefix}-upper`,
-        x: roi.x + roi.width * 0.18,
+        id: `${prefix}-forehead-left`,
+        x: roi.x + roi.width * 0.2,
         y: roi.y + roi.height * 0.06,
-        width: roi.width * 0.64,
+        width: roi.width * 0.2,
         height: roi.height * 0.28
       },
       {
-        id: `${prefix}-middle-left`,
+        id: `${prefix}-forehead-center`,
+        x: roi.x + roi.width * 0.4,
+        y: roi.y + roi.height * 0.06,
+        width: roi.width * 0.2,
+        height: roi.height * 0.28
+      },
+      {
+        id: `${prefix}-forehead-right`,
+        x: roi.x + roi.width * 0.6,
+        y: roi.y + roi.height * 0.06,
+        width: roi.width * 0.2,
+        height: roi.height * 0.28
+      },
+      {
+        id: `${prefix}-left-cheek-upper`,
         x: roi.x + roi.width * 0.08,
         y: roi.y + roi.height * 0.38,
         width: roi.width * 0.34,
-        height: roi.height * 0.36
+        height: roi.height * 0.2
       },
       {
-        id: `${prefix}-middle-right`,
+        id: `${prefix}-left-cheek-lower`,
+        x: roi.x + roi.width * 0.08,
+        y: roi.y + roi.height * 0.58,
+        width: roi.width * 0.34,
+        height: roi.height * 0.18
+      },
+      {
+        id: `${prefix}-right-cheek-upper`,
         x: roi.x + roi.width * 0.58,
         y: roi.y + roi.height * 0.38,
         width: roi.width * 0.34,
-        height: roi.height * 0.36
+        height: roi.height * 0.2
+      },
+      {
+        id: `${prefix}-right-cheek-lower`,
+        x: roi.x + roi.width * 0.58,
+        y: roi.y + roi.height * 0.58,
+        width: roi.width * 0.34,
+        height: roi.height * 0.18
       }
     ]
   };
@@ -276,25 +304,53 @@ function geometryFromRoi(roi: RoiRect, prefix: string): { roi: RoiRect; regions:
 function pulseRegionsFromFaceRoi(roi: RoiRect): PulseRoiRegion[] {
   return [
     {
-      id: "forehead",
+      id: "forehead-left",
       x: roi.x + roi.width * 0.22,
       y: roi.y + roi.height * 0.02,
-      width: roi.width * 0.56,
+      width: roi.width * 0.18,
       height: roi.height * 0.22
     },
     {
-      id: "left-cheek",
+      id: "forehead-center",
+      x: roi.x + roi.width * 0.41,
+      y: roi.y + roi.height * 0.02,
+      width: roi.width * 0.18,
+      height: roi.height * 0.22
+    },
+    {
+      id: "forehead-right",
+      x: roi.x + roi.width * 0.6,
+      y: roi.y + roi.height * 0.02,
+      width: roi.width * 0.18,
+      height: roi.height * 0.22
+    },
+    {
+      id: "left-cheek-upper",
       x: roi.x + roi.width * 0.07,
       y: roi.y + roi.height * 0.42,
       width: roi.width * 0.32,
-      height: roi.height * 0.34
+      height: roi.height * 0.18
     },
     {
-      id: "right-cheek",
+      id: "left-cheek-lower",
+      x: roi.x + roi.width * 0.07,
+      y: roi.y + roi.height * 0.6,
+      width: roi.width * 0.32,
+      height: roi.height * 0.16
+    },
+    {
+      id: "right-cheek-upper",
       x: roi.x + roi.width * 0.61,
       y: roi.y + roi.height * 0.42,
       width: roi.width * 0.32,
-      height: roi.height * 0.34
+      height: roi.height * 0.18
+    },
+    {
+      id: "right-cheek-lower",
+      x: roi.x + roi.width * 0.61,
+      y: roi.y + roi.height * 0.6,
+      width: roi.width * 0.32,
+      height: roi.height * 0.16
     }
   ];
 }
