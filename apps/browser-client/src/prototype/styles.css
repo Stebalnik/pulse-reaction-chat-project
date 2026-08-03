@@ -23,6 +23,535 @@ input {
   font: inherit;
 }
 
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.publicShell,
+.adminShell {
+  min-height: 100dvh;
+  background:
+    linear-gradient(180deg, rgb(248 250 248 / 94%), rgb(238 242 239 / 98%)),
+    radial-gradient(circle at 25% 0%, #d8efe5 0, transparent 42%),
+    radial-gradient(circle at 80% 15%, #f7e6b8 0, transparent 34%);
+  overflow: auto;
+}
+
+.publicTopBar,
+.adminTopBar {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0 22px;
+  border-bottom: 1px solid #ccd7d1;
+  background: rgb(248 250 248 / 92%);
+  backdrop-filter: blur(18px);
+}
+
+.publicBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 820;
+}
+
+.publicBrand svg {
+  width: 22px;
+  height: 22px;
+  color: #226a54;
+}
+
+.publicIdentity {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.publicIdentity span,
+.publicIdentity strong {
+  font-size: 13px;
+}
+
+.publicIdentity span {
+  color: #46554e;
+}
+
+.publicIdentity strong {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #edf3f0;
+  color: #17231f;
+  font-weight: 800;
+}
+
+.textButton svg,
+.primaryAction svg,
+.secondaryAction svg {
+  width: 17px;
+  height: 17px;
+}
+
+.textButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  text-decoration: none;
+}
+
+.textButton.ghost {
+  background: #f4f7f5;
+}
+
+.publicHome,
+.adminWorkspace {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 46px 0;
+}
+
+.publicHero,
+.adminHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.74fr);
+  gap: 28px;
+  align-items: center;
+}
+
+.heroCopy,
+.adminHero {
+  min-width: 0;
+}
+
+.productSignal {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 16px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: #e2f2eb;
+  color: #1d604d;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.heroCopy h1,
+.adminHero h1 {
+  max-width: 720px;
+  margin: 0;
+  color: #16231e;
+  font-size: 56px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.heroCopy p,
+.adminHero p {
+  max-width: 660px;
+  margin: 18px 0 0;
+  color: #4c5e55;
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.primaryAction,
+.secondaryAction {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid #226a54;
+  border-radius: 8px;
+  padding: 0 16px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.primaryAction {
+  background: #226a54;
+  color: #ffffff;
+}
+
+.primaryAction:disabled {
+  border-color: #9aac9f;
+  background: #9aac9f;
+  cursor: not-allowed;
+}
+
+.primaryAction.compact,
+.secondaryAction.compact {
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.primaryAction.active {
+  background: #6e4639;
+  border-color: #6e4639;
+}
+
+.secondaryAction {
+  background: #ffffff;
+  color: #22332c;
+}
+
+.heroPreview {
+  min-height: 360px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px;
+  border: 1px solid #c9d4ce;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgb(33 53 45 / 12%);
+}
+
+.previewVideo {
+  min-height: 250px;
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  align-content: center;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgb(20 37 36 / 92%), rgb(35 61 55 / 92%)),
+    repeating-linear-gradient(90deg, #243836 0 12px, #20312f 12px 24px);
+  color: #f6faf7;
+}
+
+.previewVideo svg {
+  width: 54px;
+  height: 54px;
+}
+
+.previewPeer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #dce6e1;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.previewPeer svg {
+  width: 20px;
+  height: 20px;
+  color: #d58c34;
+}
+
+.previewPeer span {
+  color: #5f7067;
+  font-size: 13px;
+}
+
+.previewPeer strong {
+  color: #17231f;
+  font-size: 13px;
+}
+
+.publicStats,
+.adminGrid {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metricBlock,
+.adminCard {
+  min-width: 0;
+  border: 1px solid #cbd7d1;
+  border-radius: 8px;
+  padding: 14px;
+  background: rgb(255 255 255 / 86%);
+}
+
+.metricBlock span,
+.adminCard span {
+  color: #687a72;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.metricBlock strong,
+.adminCard strong {
+  display: block;
+  margin-top: 6px;
+  color: #17231f;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.publicRoom {
+  height: calc(100dvh - 66px);
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  padding: 16px;
+  gap: 14px;
+}
+
+.roomHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid #c9d4ce;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.roomHeader div {
+  display: grid;
+  gap: 3px;
+}
+
+.roomHeader span {
+  color: #687a72;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.roomHeader strong {
+  color: #17231f;
+}
+
+.publicCallGrid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.publicVideoPane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #b9c6c0;
+  border-radius: 8px;
+  background: #17221f;
+}
+
+.publicVideoPane video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.peerPane {
+  background:
+    linear-gradient(135deg, rgb(16 27 31 / 80%), rgb(28 47 43 / 80%)),
+    repeating-linear-gradient(90deg, #243836 0 12px, #20312f 12px 24px);
+}
+
+.publicEmptyVideo,
+.peerMock {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  color: #edf5f1;
+  text-align: center;
+}
+
+.publicEmptyVideo svg,
+.peerMock svg {
+  width: 48px;
+  height: 48px;
+}
+
+.peerMock strong {
+  font-size: 13px;
+  color: #b8c9c1;
+}
+
+.publicVideoLabel,
+.publicStatus {
+  position: absolute;
+  left: 12px;
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: rgb(248 250 248 / 92%);
+  color: #1c2823;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.publicVideoLabel {
+  bottom: 12px;
+}
+
+.publicStatus {
+  top: 12px;
+}
+
+.publicStatus.danger {
+  background: #fbe4df;
+  color: #842c1f;
+}
+
+.publicReactionStack {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  gap: 8px;
+  width: min(220px, calc(100% - 24px));
+}
+
+.reactionChip {
+  display: grid;
+  gap: 2px;
+  border: 1px solid #e5d6af;
+  border-radius: 8px;
+  padding: 9px;
+  background: rgb(255 246 217 / 92%);
+}
+
+.reactionChip span {
+  color: #6a5a2d;
+  font-size: 12px;
+}
+
+.reactionChip strong {
+  color: #1f261f;
+  font-size: 13px;
+}
+
+.reactionChip.steady {
+  border-color: #bad8c8;
+  background: rgb(234 247 239 / 92%);
+}
+
+.reactionChip.settling {
+  border-color: #b7ccdc;
+  background: rgb(230 241 248 / 92%);
+}
+
+.dialogBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgb(8 18 15 / 44%);
+}
+
+.registerDialog {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 14px;
+  border: 1px solid #d1ddd6;
+  border-radius: 8px;
+  padding: 18px;
+  background: #ffffff;
+}
+
+.registerDialog h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.registerDialog p {
+  margin: 7px 0 0;
+  color: #5f7067;
+  line-height: 1.45;
+}
+
+.registerDialog label {
+  display: grid;
+  gap: 6px;
+  color: #46554e;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.registerDialog input {
+  height: 40px;
+  border: 1px solid #b8c7bf;
+  border-radius: 8px;
+  padding: 0 10px;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.adminNav {
+  display: flex;
+  gap: 10px;
+}
+
+.adminNav a {
+  border: 1px solid #bdcbc4;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.adminHero {
+  grid-template-columns: 1fr;
+  border: 1px solid #c9d4ce;
+  border-radius: 8px;
+  padding: 22px;
+  background: #ffffff;
+}
+
+.adminHero .primaryAction {
+  width: fit-content;
+  margin-top: 18px;
+}
+
+.adminGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.adminCardIcon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #e6f2ed;
+  color: #226a54;
+}
+
+.adminCardIcon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.adminCard p {
+  margin: 8px 0 0;
+  color: #5f7067;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .appShell {
   height: 100dvh;
   display: grid;
@@ -927,6 +1456,44 @@ input {
 @media (max-width: 980px) {
   body {
     overflow: auto;
+  }
+
+  .publicTopBar,
+  .adminTopBar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 12px 16px;
+  }
+
+  .publicIdentity,
+  .adminNav {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .publicHero,
+  .adminHero {
+    grid-template-columns: 1fr;
+  }
+
+  .heroCopy h1,
+  .adminHero h1 {
+    font-size: 42px;
+  }
+
+  .publicStats,
+  .adminGrid,
+  .publicCallGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .publicRoom {
+    height: auto;
+    min-height: calc(100dvh - 66px);
+  }
+
+  .publicVideoPane {
+    min-height: min(62dvh, 420px);
   }
 
   .appShell {

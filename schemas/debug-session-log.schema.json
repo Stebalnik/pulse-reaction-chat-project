@@ -4,7 +4,7 @@
   "type": "object",
   "required": ["schemaVersion", "sessionId", "startedAtIso", "updatedAtIso", "eventCount", "assumptions", "events"],
   "properties": {
-    "schemaVersion": {"const": "debug-session-log-0.1.0"},
+    "schemaVersion": {"const": "debug-session-log-0.1.1"},
     "sessionId": {"type": "string"},
     "startedAtIso": {"type": "string"},
     "updatedAtIso": {"type": "string"},
@@ -14,7 +14,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["timestampMs", "wallClockIso", "eventType", "roi", "estimate", "diagnostics", "trend", "badge", "sampling", "calibration"],
+        "required": ["timestampMs", "wallClockIso", "eventType", "roi", "estimate", "diagnostics", "regionAgreement", "trend", "badge", "sampling", "calibration"],
         "properties": {
           "timestampMs": {"type": "number"},
           "wallClockIso": {"type": "string"},
@@ -47,6 +47,31 @@
           },
           "estimate": {"type": "object"},
           "diagnostics": {"type": "object"},
+          "regionAgreement": {
+            "type": "object",
+            "required": ["validGroupCount", "spreadBpm", "stable", "estimates"],
+            "properties": {
+              "validGroupCount": {"type": "integer", "minimum": 0, "maximum": 3},
+              "spreadBpm": {"type": ["number", "null"], "minimum": 0},
+              "stable": {"type": ["boolean", "null"]},
+              "estimates": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["groupId", "bpm", "signalQuality", "sampleCount", "reasonCodes"],
+                  "properties": {
+                    "groupId": {"enum": ["forehead", "left-cheek", "right-cheek"]},
+                    "bpm": {"type": ["number", "null"]},
+                    "signalQuality": {"type": "number", "minimum": 0, "maximum": 1},
+                    "sampleCount": {"type": "integer", "minimum": 0},
+                    "reasonCodes": {"type": "array", "items": {"type": "string"}}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          },
           "trend": {"type": "object"},
           "badge": {"type": "object"},
           "sampling": {"type": "object"},
@@ -56,14 +81,14 @@
             "properties": {
               "groundTruthBpm": {"type": ["number", "null"], "minimum": 35, "maximum": 220},
               "selectedReferenceMethod": {"type": ["string", "null"], "enum": ["GREEN", "CHROM", "POS", null]},
-              "closestMethod": {"type": ["string", "null"], "enum": ["GREEN", "CHROM", "POS", null]},
+              "closestMethod": {"type": ["string", "null"], "enum": ["GREEN", "CHROM", "POS", "PEAK_INTERVAL", null]},
               "methodErrors": {
                 "type": "array",
                 "items": {
                   "type": "object",
                   "required": ["method", "errorBpm"],
                   "properties": {
-                    "method": {"enum": ["GREEN", "CHROM", "POS"]},
+                    "method": {"enum": ["GREEN", "CHROM", "POS", "PEAK_INTERVAL"]},
                     "errorBpm": {"type": ["number", "null"], "minimum": 0}
                   },
                   "additionalProperties": false
