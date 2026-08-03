@@ -515,7 +515,7 @@ export function App(): JSX.Element {
               <div className="methodRows">
                 {(diagnostics?.methodEstimates ?? []).map((methodEstimate) => (
                   <div className="methodRow" key={methodEstimate.method}>
-                    <span>{methodEstimate.method}</span>
+                    <span>{methodLabel(methodEstimate.method)}</span>
                     <strong>{methodEstimate.bpm === null ? "--" : Math.round(methodEstimate.bpm)}</strong>
                     <small>{methodStatusText(methodEstimate.signalQuality, methodEstimate.reasonCodes)}</small>
                   </div>
@@ -1016,6 +1016,10 @@ function pulseHistoryStats(history: readonly PulseHistoryEntry[]): { medianBpm: 
 function methodStatusText(signalQuality: number, reasonCodes: readonly string[]): string {
   if (reasonCodes.length > 0) return reasonCodes[0]!;
   return `q ${Math.round(signalQuality * 100)}%`;
+}
+
+function methodLabel(method: string): string {
+  return method === "PEAK_INTERVAL" ? "PEAK" : method;
 }
 
 function regionAgreementText(agreement: PulseRegionAgreement | undefined): string {

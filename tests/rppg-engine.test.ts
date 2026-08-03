@@ -33,10 +33,26 @@ test("diagnostics exposes per-method estimates and fusion spread", () => {
   assert.equal(diagnostics.estimate.confidence !== "invalid", true);
   assert.ok(diagnostics.estimate.bpm !== null);
   assert.ok(diagnostics.selectedMethod.startsWith("FUSION"));
-  assert.equal(diagnostics.methodEstimates.length, 3);
+  assert.equal(diagnostics.methodEstimates.length, 4);
   assert.ok(diagnostics.methodEstimates.some((estimate) => estimate.method === "CHROM" && estimate.bpm !== null));
   assert.ok(diagnostics.methodEstimates.some((estimate) => estimate.method === "POS" && estimate.bpm !== null));
+  assert.ok(diagnostics.methodEstimates.some((estimate) => estimate.method === "PEAK_INTERVAL" && estimate.bpm !== null));
   assert.ok(diagnostics.methodSpreadBpm !== null);
+});
+
+test("PEAK_INTERVAL estimates pulse from peak-to-peak timing", () => {
+  const samples = syntheticTrace({ bpm: 75, seconds: 16, fps: 12, projection: "rgb" });
+  const estimate = estimateHeartRate(samples, {
+    method: "PEAK_INTERVAL",
+    minWindowMs: 12_000,
+    minSamples: 120,
+    minSpectralQuality: 0.18
+  });
+
+  assert.equal(estimate.confidence !== "invalid", true);
+  assert.ok(estimate.bpm !== null);
+  assert.ok(Math.abs(estimate.bpm - 75) <= 5, `expected peak intervals near 75 bpm, got ${estimate.bpm}`);
+  assert.equal(estimate.reasonCodes.length, 0);
 });
 
 test("fusion selects an agreeing method pair when the third method is an outlier", () => {

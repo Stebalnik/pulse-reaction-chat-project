@@ -341,6 +341,7 @@ function isConfirmedTemporalJump(pending: PendingTemporalJump, timestampMs: numb
 function hasStrongMethodAgreement(diagnostics: HeartRateDiagnostics): boolean {
   const validMethods = diagnostics.methodEstimates.filter(
     (estimate) =>
+      (estimate.method === "CHROM" || estimate.method === "POS" || estimate.method === "GREEN") &&
       estimate.bpm !== null &&
       estimate.signalQuality >= METHOD_AGREEMENT_FAST_CONFIRM_MIN_QUALITY &&
       estimate.reasonCodes.length === 0

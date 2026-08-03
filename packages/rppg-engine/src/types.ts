@@ -1,4 +1,4 @@
-export type RppgMethod = "GREEN" | "CHROM" | "POS" | "FUSION";
+export type RppgMethod = "GREEN" | "CHROM" | "POS" | "PEAK_INTERVAL" | "FUSION";
 
 export type ConfidenceCategory = "high" | "medium" | "low" | "invalid";
 
@@ -15,6 +15,7 @@ export type ReasonCode =
   | "MOTION_IN_PULSE_BAND"
   | "ESTIMATORS_DISAGREE"
   | "ROI_REGIONS_DISAGREE"
+  | "PEAK_INTERVAL_UNSTABLE"
   | "SPECTRAL_PEAK_WEAK"
   | "TEMPORAL_OUTLIER"
   | "INSUFFICIENT_VARIANCE"

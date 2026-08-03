@@ -1,4 +1,5 @@
 import { clamp, mean } from "./math.js";
+import { estimatePeakIntervalBpm } from "./peak-interval.js";
 import { projectChrom, projectGreen, projectPos } from "./projections.js";
 import { estimateDominantFrequency } from "./spectrum.js";
 import type { PreparedWindow } from "./window.js";
@@ -52,7 +53,7 @@ export function estimateHeartRateDiagnostics(
     };
   }
 
-  const methodEstimates = (["CHROM", "POS", "GREEN"] as const).map((method) => estimateSingleMethod(prepared, method, config));
+  const methodEstimates = estimateAllMethods(prepared, config);
   const fusionGroup = selectFusionGroup(methodEstimates, config);
   return {
     estimate: estimateFusionFromMethods(prepared, config, methodEstimates),
@@ -68,8 +69,12 @@ export function estimateHeartRateDiagnostics(
 }
 
 function estimateFusion(prepared: PreparedWindow, config: RppgEngineConfig): HeartRateEstimate {
-  const estimates = (["CHROM", "POS", "GREEN"] as const).map((method) => estimateSingleMethod(prepared, method, config));
+  const estimates = estimateAllMethods(prepared, config);
   return estimateFusionFromMethods(prepared, config, estimates);
+}
+
+function estimateAllMethods(prepared: PreparedWindow, config: RppgEngineConfig): InternalEstimate[] {
+  return (["CHROM", "POS", "GREEN", "PEAK_INTERVAL"] as const).map((method) => estimateSingleMethod(prepared, method, config));
 }
 
 function estimateFusionFromMethods(prepared: PreparedWindow, config: RppgEngineConfig, estimates: InternalEstimate[]): HeartRateEstimate {
@@ -142,6 +147,7 @@ function pairPreferenceBonus(left: Exclude<RppgMethod, "FUSION">, right: Exclude
   const methods = new Set([left, right]);
   if (methods.has("CHROM") && methods.has("POS")) return 0.03;
   if (methods.has("POS") && methods.has("GREEN")) return 0.02;
+  if (methods.has("PEAK_INTERVAL")) return 0.015;
   return 0.01;
 }
 
@@ -177,6 +183,10 @@ function estimateSingleMethod(
   config: RppgEngineConfig
 ): InternalEstimate {
   const samples = illuminationCorrectedSamples(prepared.samples, config.illuminationCorrectionStrength);
+  if (method === "PEAK_INTERVAL") {
+    return estimatePeakIntervalMethod(samples, prepared.sampleRateHz, config);
+  }
+
   const projection =
     method === "GREEN" ? projectGreen(samples) : method === "CHROM" ? projectChrom(samples) : projectPos(samples);
 
@@ -205,6 +215,31 @@ function estimateSingleMethod(
     bpm: peak.bpm,
     signalQuality: peak.quality,
     method,
+    reasonCodes
+  };
+}
+
+function estimatePeakIntervalMethod(
+  samples: readonly RgbTraceSample[],
+  sampleRateHz: number,
+  config: RppgEngineConfig
+): InternalEstimate {
+  const projection = projectPos(samples);
+  if (projection.reasonCodes.length > 0) {
+    return { bpm: null, signalQuality: 0, method: "PEAK_INTERVAL", reasonCodes: projection.reasonCodes };
+  }
+
+  const peakInterval = estimatePeakIntervalBpm(projection.signal, sampleRateHz, config.hrBandHz.min, config.hrBandHz.max);
+  if (peakInterval.bpm === null) {
+    return { bpm: null, signalQuality: 0, method: "PEAK_INTERVAL", reasonCodes: ["PEAK_INTERVAL_UNSTABLE"] };
+  }
+
+  const reasonCodes: ReasonCode[] = [];
+  if (peakInterval.quality < config.minSpectralQuality) reasonCodes.push("PEAK_INTERVAL_UNSTABLE");
+  return {
+    bpm: peakInterval.bpm,
+    signalQuality: peakInterval.quality,
+    method: "PEAK_INTERVAL",
     reasonCodes
   };
 }

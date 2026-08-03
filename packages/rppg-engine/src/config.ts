@@ -2,10 +2,10 @@ import type { RppgEngineConfig } from "./types.js";
 
 export const DEFAULT_RPPG_ENGINE_CONFIG: RppgEngineConfig = {
   method: "FUSION",
-  methodVersion: "rppg-engine-0.1.2",
+  methodVersion: "rppg-engine-0.1.3",
   minWindowMs: 10_000,
   minSamples: 90,
-  minFps: 12,
+  minFps: 6,
   minRoiCoverage: 0.55,
   maxRoiCoverageStd: 0.2,
   maxMotionScore: 0.65,

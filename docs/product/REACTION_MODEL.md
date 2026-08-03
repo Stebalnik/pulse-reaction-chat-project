@@ -117,9 +117,11 @@ The same accepted zones are also grouped into `forehead`, `left-cheek`, and `rig
 
 The browser prototype also applies a temporal outlier gate to low-confidence BPM jumps relative to the accepted local history. A jump can be accepted faster only when GREEN, CHROM, and POS all provide tightly agreeing candidates for several consecutive samples; otherwise the window remains `TEMPORAL_OUTLIER` and must not emit a reaction state.
 
-The live browser estimator requests up to 60 fps when available, samples frames at display cadence, and uses a 12-second minimum window for the first visible estimate. The launch UI constrains the live HR search band to 51-192 BPM to reduce low-frequency drift being selected as pulse; wider ranges require separate validation and user-specific configuration.
+The estimator includes a time-domain `PEAK_INTERVAL` candidate that detects local pulse peaks on the filtered rPPG trace and estimates BPM from median peak-to-peak intervals. It is used as an additional candidate in fusion and diagnostics, not as a standalone reaction rule. Unstable or insufficient peak sequences are rejected with `PEAK_INTERVAL_UNSTABLE`.
 
-The live debug UI exposes recent local BPM estimates, median, spread, CHROM/POS/GREEN candidates, method spread, and the current selection or rejection reason. These diagnostics are for signal tuning and validation only; reaction states must continue to use valid baseline-relative windows and abstain when quality gates fail.
+The live browser estimator requests up to 60 fps when available, samples frames at display cadence, and uses a 12-second minimum window for the first visible estimate. The launch UI constrains the live HR search band to 51-192 BPM to reduce low-frequency drift being selected as pulse; wider ranges require separate validation and user-specific configuration. Low FPS is not treated as an automatic failure until the effective cadence falls below the configured minimum; lower-cadence windows must still pass method quality and agreement checks.
+
+The live debug UI exposes recent local BPM estimates, median, spread, CHROM/POS/GREEN/PEAK candidates, method spread, and the current selection or rejection reason. These diagnostics are for signal tuning and validation only; reaction states must continue to use valid baseline-relative windows and abstain when quality gates fail.
 
 The prototype also writes a local debug session log during analysis. The log is limited to cleaned frame-level metrics such as ROI source and area, quality gates, reason codes, method estimates, trend state, and badge code. It must not include raw video frames or raw RGB traces. Users can download the JSON log for debugging.
 
