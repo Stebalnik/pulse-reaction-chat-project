@@ -24,7 +24,7 @@ Moderation status and notes were already stored, but reviewer identity was not. 
 ## Assumptions
 
 - Reviewer ID is operational admin metadata, not public user data.
-- The first MVP keeps token-based admin auth and adds reviewer identity as an audit field.
+- The first reviewer-identity slice kept token-based admin auth and added reviewer identity as an audit field.
 - `SYNVIBE_ADMIN_REVIEWER_IDS` should be configured in production when multiple reviewers share the admin surface.
 - Full role-scoped admin accounts remain a later step.
 
@@ -49,6 +49,6 @@ Not deployed in this slice.
 
 ## Next Steps
 
-1. Add role-scoped admin accounts and least-privilege reviewer access.
+1. Add account-backed admin sessions, reviewer deactivation, and token rotation.
 2. Add WebSocket transport once HTTP polling becomes the bottleneck.
 3. Add production API error reporting and client-visible retry states.

@@ -19,7 +19,7 @@ export function AdminApp(): JSX.Element {
   const [adminTokenDraft, setAdminTokenDraft] = useState(() => window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) ?? "");
   const [activeReviewerId, setActiveReviewerId] = useState(() => window.localStorage.getItem(ADMIN_REVIEWER_STORAGE_KEY) ?? "");
   const [reviewerIdDraft, setReviewerIdDraft] = useState(() => window.localStorage.getItem(ADMIN_REVIEWER_STORAGE_KEY) ?? "");
-  const [adminStatus, setAdminStatus] = useState<"loading" | "ready" | "auth_required" | "not_configured" | "offline">("loading");
+  const [adminStatus, setAdminStatus] = useState<"loading" | "ready" | "auth_required" | "forbidden" | "not_configured" | "offline">("loading");
 
   useEffect(() => {
     if (location.pathname.startsWith("/admin/debug")) return;
@@ -86,11 +86,11 @@ export function AdminApp(): JSX.Element {
             }}
           >
             <label>
-              Admin token
+              Admin role token
               <input
                 value={adminTokenDraft}
                 onChange={(event) => setAdminTokenDraft(event.target.value)}
-                placeholder="Paste private token"
+                placeholder="Paste private role token"
                 type="password"
                 autoComplete="off"
               />
@@ -245,9 +245,10 @@ function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
-function adminStatusText(status: "loading" | "ready" | "auth_required" | "not_configured" | "offline"): string {
+function adminStatusText(status: "loading" | "ready" | "auth_required" | "forbidden" | "not_configured" | "offline"): string {
   if (status === "ready") return "Connected";
   if (status === "auth_required") return "Token required";
+  if (status === "forbidden") return "Token scope does not allow this view";
   if (status === "not_configured") return "Backend token not configured";
   if (status === "offline") return "Backend offline";
   return "Checking";

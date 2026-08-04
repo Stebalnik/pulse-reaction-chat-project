@@ -19,6 +19,8 @@ import { SynVibeStore } from "./storage.js";
 
 const PORT = Number(process.env.SIGNALING_PORT ?? process.env.PORT ?? 1060);
 const ADMIN_TOKEN = process.env.SYNVIBE_ADMIN_TOKEN ?? null;
+const ADMIN_SUMMARY_TOKENS = parseTokenSet(process.env.SYNVIBE_ADMIN_SUMMARY_TOKENS);
+const ADMIN_REVIEWER_TOKENS = parseReviewerTokenMap(process.env.SYNVIBE_ADMIN_REVIEWER_TOKENS);
 const ADMIN_REVIEWER_IDS = parseReviewerIds(process.env.SYNVIBE_ADMIN_REVIEWER_IDS);
 const DEFAULT_ADMIN_REVIEWER_ID = process.env.SYNVIBE_ADMIN_REVIEWER_ID?.trim() || null;
 const store = new SynVibeStore();
@@ -50,24 +52,25 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     return;
   }
   if (request.method === "GET" && url.pathname === "/api/admin/summary") {
-    if (!isAdminAuthorized(request, response)) return;
+    if (!authorizeAdmin(request, response, "summary")) return;
     sendJson(response, 200, store.getAdminSummary());
     return;
   }
   if (request.method === "GET" && url.pathname === "/api/admin/moderation/reports") {
-    if (!isAdminAuthorized(request, response)) return;
+    if (!authorizeAdmin(request, response, "moderation")) return;
     const limit = Number(url.searchParams.get("limit") ?? "20");
     sendJson(response, 200, store.getModerationReports(Number.isFinite(limit) ? limit : 20, readModerationReportStatusFilter(url.searchParams.get("status"))));
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/admin/moderation/reports/resolve") {
-    if (!isAdminAuthorized(request, response)) return;
+    const adminAuth = authorizeAdmin(request, response, "moderation");
+    if (!adminAuth) return;
     const body = await readJson(request);
     const reviewerNotes = readOptionalString(body, "reviewerNotes", 500);
     const input: ModerationReportResolutionRequest = {
       reportId: readString(body, "reportId", 64),
       status: readModerationReportStatus(body),
-      ...readAdminReviewer(request, response),
+      ...readAdminReviewer(request, response, adminAuth),
       ...(reviewerNotes ? { reviewerNotes } : {})
     };
     if (response.writableEnded) return;
@@ -325,21 +328,54 @@ function sendJson(response: ServerResponse, status: number, body: unknown): void
   response.end(JSON.stringify(body));
 }
 
-function isAdminAuthorized(request: IncomingMessage, response: ServerResponse): boolean {
-  if (!ADMIN_TOKEN) {
-    sendJson(response, 503, { error: "admin_auth_not_configured" });
-    return false;
-  }
-  const suppliedToken = request.headers["x-synvibe-admin-token"];
-  if (typeof suppliedToken !== "string" || !tokensEqual(suppliedToken, ADMIN_TOKEN)) {
-    sendJson(response, 401, { error: "admin_auth_required" });
-    return false;
-  }
-  return true;
+type AdminScope = "summary" | "moderation";
+
+interface AdminAuthorization {
+  role: "owner" | "summary" | "reviewer";
+  reviewerId?: string;
 }
 
-function readAdminReviewer(request: IncomingMessage, response: ServerResponse): Pick<ModerationReportResolutionRequest, "reviewerId"> | Record<string, never> {
+function authorizeAdmin(request: IncomingMessage, response: ServerResponse, scope: AdminScope): AdminAuthorization | null {
+  if (!hasConfiguredAdminAuth(scope)) {
+    sendJson(response, 503, { error: "admin_auth_not_configured" });
+    return null;
+  }
+  const suppliedToken = request.headers["x-synvibe-admin-token"];
+  if (typeof suppliedToken !== "string" || suppliedToken.length === 0) {
+    sendJson(response, 401, { error: "admin_auth_required" });
+    return null;
+  }
+
+  if (ADMIN_TOKEN && tokensEqual(suppliedToken, ADMIN_TOKEN)) return { role: "owner" };
+
+  if (scope === "summary" && tokenSetHas(ADMIN_SUMMARY_TOKENS, suppliedToken)) return { role: "summary" };
+
+  const reviewerId = reviewerIdForToken(suppliedToken);
+  if (scope === "moderation" && reviewerId) return { role: "reviewer", reviewerId };
+
+  sendJson(response, 403, { error: "admin_scope_forbidden" });
+  return null;
+}
+
+function hasConfiguredAdminAuth(scope: AdminScope): boolean {
+  if (ADMIN_TOKEN) return true;
+  if (scope === "summary") return ADMIN_SUMMARY_TOKENS.length > 0;
+  return ADMIN_REVIEWER_TOKENS.length > 0;
+}
+
+function readAdminReviewer(
+  request: IncomingMessage,
+  response: ServerResponse,
+  adminAuth: AdminAuthorization
+): Pick<ModerationReportResolutionRequest, "reviewerId"> | Record<string, never> {
   const suppliedReviewer = request.headers["x-synvibe-reviewer-id"];
+  if (adminAuth.reviewerId) {
+    if (typeof suppliedReviewer === "string" && suppliedReviewer.trim().length > 0 && suppliedReviewer.trim() !== adminAuth.reviewerId) {
+      sendJson(response, 403, { error: "admin_reviewer_mismatch" });
+      return {};
+    }
+    return { reviewerId: adminAuth.reviewerId };
+  }
   const reviewerId = typeof suppliedReviewer === "string" && suppliedReviewer.trim().length > 0 ? suppliedReviewer.trim().slice(0, 80) : DEFAULT_ADMIN_REVIEWER_ID;
   if (ADMIN_REVIEWER_IDS.size > 0) {
     if (!reviewerId || !ADMIN_REVIEWER_IDS.has(reviewerId)) {
@@ -348,6 +384,39 @@ function readAdminReviewer(request: IncomingMessage, response: ServerResponse): 
     }
   }
   return reviewerId ? { reviewerId } : {};
+}
+
+function parseTokenSet(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function parseReviewerTokenMap(raw: string | undefined): Array<{ reviewerId: string; token: string }> {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((entry) => {
+      const separator = entry.indexOf(":");
+      if (separator <= 0) return null;
+      const reviewerId = entry.slice(0, separator).trim();
+      const token = entry.slice(separator + 1).trim();
+      return reviewerId && token ? { reviewerId: reviewerId.slice(0, 80), token } : null;
+    })
+    .filter((entry): entry is { reviewerId: string; token: string } => entry !== null);
+}
+
+function tokenSetHas(tokens: string[], suppliedToken: string): boolean {
+  return tokens.some((token) => tokensEqual(suppliedToken, token));
+}
+
+function reviewerIdForToken(suppliedToken: string): string | null {
+  for (const entry of ADMIN_REVIEWER_TOKENS) {
+    if (tokensEqual(suppliedToken, entry.token)) return entry.reviewerId;
+  }
+  return null;
 }
 
 function parseReviewerIds(raw: string | undefined): Set<string> {

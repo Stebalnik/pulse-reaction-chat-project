@@ -146,12 +146,14 @@ export async function loadChatMessages(input: {
 export type AdminSummaryResult =
   | { status: "ok"; summary: AdminSummary }
   | { status: "auth_required" }
+  | { status: "forbidden" }
   | { status: "not_configured" }
   | { status: "offline" };
 
 export type ModerationReportsResult =
   | { status: "ok"; queue: ModerationReportQueue }
   | { status: "auth_required" }
+  | { status: "forbidden" }
   | { status: "not_configured" }
   | { status: "offline" };
 
@@ -161,6 +163,7 @@ export async function loadAdminSummary(adminToken: string | null): Promise<Admin
       headers: adminToken ? { "x-synvibe-admin-token": adminToken } : {}
     });
     if (response.status === 401) return { status: "auth_required" };
+    if (response.status === 403) return { status: "forbidden" };
     if (response.status === 503) return { status: "not_configured" };
     if (!response.ok) return { status: "offline" };
     return { status: "ok", summary: (await response.json()) as AdminSummary };
@@ -176,6 +179,7 @@ export async function loadModerationReports(adminToken: string | null, statusFil
       headers: adminToken ? { "x-synvibe-admin-token": adminToken } : {}
     });
     if (response.status === 401) return { status: "auth_required" };
+    if (response.status === 403) return { status: "forbidden" };
     if (response.status === 503) return { status: "not_configured" };
     if (!response.ok) return { status: "offline" };
     return { status: "ok", queue: (await response.json()) as ModerationReportQueue };
