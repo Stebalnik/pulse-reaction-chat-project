@@ -10,6 +10,7 @@ import type {
   ModerationReportQueueItem,
   ModerationReportRequest,
   ModerationReportResolutionRequest,
+  ModerationReportStatusFilter,
   ProfileRecord,
   SessionEndRequest,
   SessionRecord,
@@ -163,9 +164,10 @@ export async function loadAdminSummary(adminToken: string | null): Promise<Admin
   }
 }
 
-export async function loadModerationReports(adminToken: string | null): Promise<ModerationReportsResult> {
+export async function loadModerationReports(adminToken: string | null, statusFilter: ModerationReportStatusFilter = "all"): Promise<ModerationReportsResult> {
   try {
-    const response = await fetch(`${API_ORIGIN}/api/admin/moderation/reports?limit=20`, {
+    const params = new URLSearchParams({ limit: "20", status: statusFilter });
+    const response = await fetch(`${API_ORIGIN}/api/admin/moderation/reports?${params.toString()}`, {
       headers: adminToken ? { "x-synvibe-admin-token": adminToken } : {}
     });
     if (response.status === 401) return { status: "auth_required" };

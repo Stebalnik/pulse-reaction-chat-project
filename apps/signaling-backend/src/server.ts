@@ -54,7 +54,7 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
   if (request.method === "GET" && url.pathname === "/api/admin/moderation/reports") {
     if (!isAdminAuthorized(request, response)) return;
     const limit = Number(url.searchParams.get("limit") ?? "20");
-    sendJson(response, 200, store.getModerationReports(Number.isFinite(limit) ? limit : 20));
+    sendJson(response, 200, store.getModerationReports(Number.isFinite(limit) ? limit : 20, readModerationReportStatusFilter(url.searchParams.get("status"))));
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/admin/moderation/reports/resolve") {
@@ -390,6 +390,12 @@ function readModerationReportStatus(body: Record<string, unknown>): ModerationRe
   const status = readString(body, "status", 20);
   if (status === "open" || status === "resolved" || status === "dismissed") return status;
   throw new Error(`Invalid moderation report status: ${status}`);
+}
+
+function readModerationReportStatusFilter(value: string | null): "all" | ModerationReportResolutionRequest["status"] {
+  if (!value || value === "all") return "all";
+  if (value === "open" || value === "resolved" || value === "dismissed") return value;
+  throw new Error(`Invalid moderation report status filter: ${value}`);
 }
 
 function readSignalType(body: Record<string, unknown>): WebRtcSignalRequest["type"] {

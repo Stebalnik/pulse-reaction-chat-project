@@ -144,14 +144,20 @@ test("matchmaking pairs queued users and supports blocking the match", () => {
     });
     assert.equal(moderationRecord.type, "block");
     assert.equal(moderationRecord.reason, "harassment");
+    const repeatReport = store.recordModerationReport({
+      localUserId: "SV-USERCC-000003",
+      reportedLocalUserId: "SV-USERBB-000002",
+      type: "report",
+      reason: "spam",
+      notes: "Suspicious payment link"
+    });
 
     const queue = store.getModerationReports(10);
-    assert.equal(queue.reports.length, 1);
-    assert.equal(queue.reports[0]?.reporterLocalUserId, "SV-USERAA-000001");
+    assert.equal(queue.reports.length, 2);
     assert.equal(queue.reports[0]?.reportedLocalUserId, "SV-USERBB-000002");
-    assert.equal(queue.reports[0]?.reason, "harassment");
     assert.equal(queue.reports[0]?.status, "open");
-    assert.equal(queue.reports[0]?.notes, "Ignored boundary after warning");
+    assert.equal(queue.reports[0]?.reportedUserOpenReports, 2);
+    assert.equal(queue.reports[0]?.reportedUserTotalReports, 2);
 
     const resolved = store.resolveModerationReport({
       reportId: moderationRecord.id,
@@ -165,12 +171,21 @@ test("matchmaking pairs queued users and supports blocking the match", () => {
     const reopened = store.resolveModerationReport({ reportId: moderationRecord.id, status: "open" });
     assert.equal(reopened.status, "open");
     assert.equal(reopened.resolvedAtIso, null);
+    store.resolveModerationReport({ reportId: repeatReport.id, status: "dismissed" });
+    const openQueue = store.getModerationReports(10, "open");
+    const dismissedQueue = store.getModerationReports(10, "dismissed");
+    assert.equal(openQueue.reports.every((report) => report.status === "open"), true);
+    assert.equal(dismissedQueue.reports.length, 1);
+    assert.equal(dismissedQueue.reports[0]?.status, "dismissed");
 
     summary = store.getAdminSummary();
     assert.equal(summary.activeMatches, 0);
-    assert.equal(summary.reportCount, 0);
+    assert.equal(summary.reportCount, 1);
     assert.equal(summary.blockCount, 1);
-    assert.deepEqual(summary.topModerationReasons, [{ reason: "harassment", count: 1 }]);
+    assert.deepEqual(summary.topModerationReasons, [
+      { reason: "harassment", count: 1 },
+      { reason: "spam", count: 1 }
+    ]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

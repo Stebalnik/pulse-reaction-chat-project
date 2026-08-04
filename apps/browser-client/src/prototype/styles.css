@@ -818,6 +818,30 @@ a {
   color: #63736b;
 }
 
+.moderationFilters {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.moderationFilters button {
+  min-height: 32px;
+  border: 1px solid #cbd7d1;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: #25352e;
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.moderationFilters button.active {
+  border-color: #226a54;
+  background: #e6f2ed;
+  color: #1b5c49;
+}
+
 .moderationRows {
   margin-top: 12px;
   display: grid;

@@ -49,6 +49,6 @@ Not deployed in this slice.
 
 ## Recommended next steps
 
-1. Add repeated-offender indicators and queue filtering.
-2. Add reviewer identity after authenticated admin accounts exist.
-3. Add message-level report references after chat retention/deletion policy is finalized.
+1. Add chat retention/deletion policy and user-visible deletion controls.
+2. Add message-level report references after chat retention/deletion policy is finalized.
+3. Add reviewer identity after authenticated admin accounts exist.

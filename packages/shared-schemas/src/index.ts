@@ -109,6 +109,7 @@ export interface ConsentEventRecord {
 export type ModerationReportType = "report" | "block";
 export type ModerationReportReason = "safety" | "harassment" | "underage" | "spam" | "other";
 export type ModerationReportStatus = "open" | "resolved" | "dismissed";
+export type ModerationReportStatusFilter = "all" | ModerationReportStatus;
 
 export interface ModerationReportRequest {
   localUserId: string;
@@ -146,6 +147,8 @@ export interface ModerationReportQueueItem {
   status: ModerationReportStatus;
   notes: string | null;
   reviewerNotes: string | null;
+  reportedUserTotalReports: number;
+  reportedUserOpenReports: number;
   createdAtIso: string;
   resolvedAtIso: string | null;
 }

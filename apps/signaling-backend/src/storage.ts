@@ -21,6 +21,7 @@ import type {
   MatchChatMessageRequest,
   ModerationReportQueue,
   ModerationReportQueueItem,
+  ModerationReportStatusFilter,
   WebRtcSignalBatch,
   WebRtcSignalMessage,
   WebRtcSignalRequest,
@@ -349,12 +350,24 @@ export class SynVibeStore {
     return record;
   }
 
-  getModerationReports(limit: number): ModerationReportQueue {
+  getModerationReports(limit: number, statusFilter: ModerationReportStatusFilter = "all"): ModerationReportQueue {
+    const statusClause = statusFilter === "all" ? "" : `WHERE COALESCE(moderation_reports.status, 'open') = ${sql(statusFilter)}`;
     const rows = this.query<ModerationReportQueueRow>(`
       SELECT
         moderation_reports.id,
         reporter.local_user_id AS reporter_local_user_id,
         reported.local_user_id AS reported_local_user_id,
+        (
+          SELECT COUNT(*)
+          FROM moderation_reports AS repeat_reports
+          WHERE repeat_reports.reported_user_id = moderation_reports.reported_user_id
+        ) AS reported_user_total_reports,
+        (
+          SELECT COUNT(*)
+          FROM moderation_reports AS repeat_reports
+          WHERE repeat_reports.reported_user_id = moderation_reports.reported_user_id
+            AND COALESCE(repeat_reports.status, 'open') = 'open'
+        ) AS reported_user_open_reports,
         moderation_reports.match_id,
         moderation_reports.type,
         moderation_reports.reason,
@@ -366,6 +379,7 @@ export class SynVibeStore {
       FROM moderation_reports
       JOIN users AS reporter ON reporter.id = moderation_reports.reporter_user_id
       LEFT JOIN users AS reported ON reported.id = moderation_reports.reported_user_id
+      ${statusClause}
       ORDER BY CASE COALESCE(moderation_reports.status, 'open') WHEN 'open' THEN 0 ELSE 1 END, moderation_reports.created_at DESC, moderation_reports.id DESC
       LIMIT ${Math.max(1, Math.min(100, Math.floor(limit)))};
     `);
@@ -380,6 +394,8 @@ export class SynVibeStore {
         status: row.status ?? "open",
         notes: row.notes,
         reviewerNotes: row.reviewer_notes,
+        reportedUserTotalReports: row.reported_user_total_reports,
+        reportedUserOpenReports: row.reported_user_open_reports,
         createdAtIso: row.created_at,
         resolvedAtIso: row.resolved_at
       }))
@@ -392,6 +408,17 @@ export class SynVibeStore {
         moderation_reports.id,
         reporter.local_user_id AS reporter_local_user_id,
         reported.local_user_id AS reported_local_user_id,
+        (
+          SELECT COUNT(*)
+          FROM moderation_reports AS repeat_reports
+          WHERE repeat_reports.reported_user_id = moderation_reports.reported_user_id
+        ) AS reported_user_total_reports,
+        (
+          SELECT COUNT(*)
+          FROM moderation_reports AS repeat_reports
+          WHERE repeat_reports.reported_user_id = moderation_reports.reported_user_id
+            AND COALESCE(repeat_reports.status, 'open') = 'open'
+        ) AS reported_user_open_reports,
         moderation_reports.match_id,
         moderation_reports.type,
         moderation_reports.reason,
@@ -426,6 +453,8 @@ export class SynVibeStore {
       status: input.status,
       notes: existing.notes,
       reviewerNotes: input.reviewerNotes ?? null,
+      reportedUserTotalReports: existing.reported_user_total_reports,
+      reportedUserOpenReports: existing.reported_user_open_reports,
       createdAtIso: existing.created_at,
       resolvedAtIso: resolvedAt
     };
@@ -886,6 +915,8 @@ interface ModerationReportQueueRow {
   id: string;
   reporter_local_user_id: string;
   reported_local_user_id: string | null;
+  reported_user_total_reports: number;
+  reported_user_open_reports: number;
   match_id: string | null;
   type: "report" | "block";
   reason: "safety" | "harassment" | "underage" | "spam" | "other";

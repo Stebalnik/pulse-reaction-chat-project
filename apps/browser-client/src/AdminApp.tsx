@@ -1,16 +1,18 @@
 import { Activity, BarChart3, Bug, Database, Gauge, ShieldCheck, UsersRound } from "lucide-react";
 import type { JSX } from "react";
 import { useEffect, useState } from "react";
-import type { AdminSummary, ModerationReportQueueItem } from "@pulse-reaction/shared-schemas";
+import type { AdminSummary, ModerationReportQueueItem, ModerationReportStatusFilter } from "@pulse-reaction/shared-schemas";
 import { loadAdminSummary, loadModerationReports, resolveModerationReport } from "./api.js";
 import { App as DebugApp } from "./prototype/App.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
 const ADMIN_TOKEN_STORAGE_KEY = "synvibe.adminToken";
+const MODERATION_FILTERS: ModerationReportStatusFilter[] = ["open", "all", "resolved", "dismissed"];
 
 export function AdminApp(): JSX.Element {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [moderationReports, setModerationReports] = useState<ModerationReportQueueItem[]>([]);
+  const [moderationFilter, setModerationFilter] = useState<ModerationReportStatusFilter>("open");
   const [reviewerNotes, setReviewerNotes] = useState<Record<string, string>>({});
   const [activeAdminToken, setActiveAdminToken] = useState(() => window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) ?? "");
   const [adminTokenDraft, setAdminTokenDraft] = useState(() => window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) ?? "");
@@ -28,10 +30,10 @@ export function AdminApp(): JSX.Element {
         setAdminStatus(result.status);
       }
     });
-    void loadModerationReports(activeAdminToken.trim() || null).then((result) => {
+    void loadModerationReports(activeAdminToken.trim() || null, moderationFilter).then((result) => {
       if (result.status === "ok") setModerationReports(result.queue.reports);
     });
-  }, [activeAdminToken]);
+  }, [activeAdminToken, moderationFilter]);
 
   if (location.pathname.startsWith("/admin/debug")) {
     return <DebugApp />;
@@ -127,6 +129,13 @@ export function AdminApp(): JSX.Element {
             <span>Safety review</span>
             <strong>{formatCount(moderationReports.length)} recent</strong>
           </div>
+          <div className="moderationFilters" aria-label="Moderation status filter">
+            {MODERATION_FILTERS.map((filter) => (
+              <button className={filter === moderationFilter ? "active" : ""} type="button" onClick={() => setModerationFilter(filter)} key={filter}>
+                {filter}
+              </button>
+            ))}
+          </div>
           {moderationReports.length === 0 ? (
             <p>No report or block records yet.</p>
           ) : (
@@ -144,6 +153,11 @@ export function AdminApp(): JSX.Element {
                   </p>
                   <div className="moderationReviewControls">
                     <small>{report.notes || report.matchId || formatDateTime(report.createdAtIso)}</small>
+                    {report.reportedLocalUserId && (
+                      <small>
+                        Repeats: {report.reportedUserOpenReports} open / {report.reportedUserTotalReports} total
+                      </small>
+                    )}
                     {report.reviewerNotes && <small>Review: {report.reviewerNotes}</small>}
                     {report.resolvedAtIso && <small>{formatDateTime(report.resolvedAtIso)}</small>}
                     <textarea

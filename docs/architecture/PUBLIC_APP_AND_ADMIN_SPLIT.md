@@ -62,7 +62,7 @@ Only active match participants can send or read messages for that match. Chat te
 
 ## Admin
 
-The `/admin` route reads `GET /api/admin/summary` and `GET /api/admin/moderation/reports` when the own-server backend is available and an admin token is supplied. It shows pending/auth states rather than fake data when the API is offline, unauthorized, or not configured. The first backend summary includes visits, room starts, camera grant rate, active sessions, waiting users, active matches, call setup success rate, call disconnect/failure counts, chat message count, sufficient-signal ratio, top rejection reasons, report/block counts, top moderation reasons, and registered-vs-guest counts. The moderation queue lists recent report/block records for safety review and supports `open`, `resolved`, and `dismissed` status updates through `POST /api/admin/moderation/reports/resolve`.
+The `/admin` route reads `GET /api/admin/summary` and `GET /api/admin/moderation/reports` when the own-server backend is available and an admin token is supplied. It shows pending/auth states rather than fake data when the API is offline, unauthorized, or not configured. The first backend summary includes visits, room starts, camera grant rate, active sessions, waiting users, active matches, call setup success rate, call disconnect/failure counts, chat message count, sufficient-signal ratio, top rejection reasons, report/block counts, top moderation reasons, and registered-vs-guest counts. The moderation queue lists recent report/block records for safety review, supports `open`, `resolved`, and `dismissed` filters, includes repeated-report indicators for the reported anonymous user ID, and supports status updates through `POST /api/admin/moderation/reports/resolve`.
 
 Next admin analytics should add:
 
@@ -71,7 +71,7 @@ Next admin analytics should add:
 - signal quality: sufficient-signal ratio, FPS distribution, ROI source, rejection reason codes;
 - product outputs: badge distribution and baseline maturity, without exposing raw biometric traces;
 - user experience: guest vs registered usage, repeat visits, registration conversion;
-- safety operations: repeated-offender indicators and admin filtering;
+- safety operations: message-level report references after chat retention/deletion policy is finalized;
 - operations: errors, API health, signaling queue size.
 
 ## Boundaries
