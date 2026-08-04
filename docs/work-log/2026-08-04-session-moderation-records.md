@@ -48,6 +48,6 @@ Not deployed in this slice. The backend deploy script and smoke script from the 
 
 ## Recommended next steps
 
-1. Add reviewer identity after authenticated admin accounts exist.
+1. Add role-scoped admin accounts and least-privilege reviewer access.
 2. Add production API error reporting and client-visible retry states.
 3. Add WebSocket transport once HTTP polling becomes the bottleneck.

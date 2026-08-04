@@ -212,14 +212,17 @@ test("matchmaking pairs queued users and supports blocking the match", () => {
     const resolved = store.resolveModerationReport({
       reportId: moderationRecord.id,
       status: "resolved",
+      reviewerId: "ops-alex",
       reviewerNotes: "Reviewed and kept block in place"
     });
     assert.equal(resolved.status, "resolved");
+    assert.equal(resolved.reviewerId, "ops-alex");
     assert.equal(resolved.reviewerNotes, "Reviewed and kept block in place");
     assert.ok(resolved.resolvedAtIso);
 
-    const reopened = store.resolveModerationReport({ reportId: moderationRecord.id, status: "open" });
+    const reopened = store.resolveModerationReport({ reportId: moderationRecord.id, status: "open", reviewerId: "ops-riley" });
     assert.equal(reopened.status, "open");
+    assert.equal(reopened.reviewerId, "ops-riley");
     assert.equal(reopened.resolvedAtIso, null);
     store.resolveModerationReport({ reportId: repeatReport.id, status: "dismissed" });
     const openQueue = store.getModerationReports(10, "open");

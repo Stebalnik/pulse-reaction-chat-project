@@ -49,6 +49,6 @@ Not deployed in this slice.
 
 ## Recommended next steps
 
-1. Add reviewer identity after authenticated admin accounts exist.
+1. Add role-scoped admin accounts and least-privilege reviewer access.
 2. Add WebSocket transport once HTTP polling becomes the bottleneck.
 3. Add production API error reporting and client-visible retry states.

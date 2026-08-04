@@ -7,6 +7,7 @@ import { App as DebugApp } from "./prototype/App.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
 const ADMIN_TOKEN_STORAGE_KEY = "synvibe.adminToken";
+const ADMIN_REVIEWER_STORAGE_KEY = "synvibe.adminReviewerId";
 const MODERATION_FILTERS: ModerationReportStatusFilter[] = ["open", "all", "resolved", "dismissed"];
 
 export function AdminApp(): JSX.Element {
@@ -16,6 +17,8 @@ export function AdminApp(): JSX.Element {
   const [reviewerNotes, setReviewerNotes] = useState<Record<string, string>>({});
   const [activeAdminToken, setActiveAdminToken] = useState(() => window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) ?? "");
   const [adminTokenDraft, setAdminTokenDraft] = useState(() => window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) ?? "");
+  const [activeReviewerId, setActiveReviewerId] = useState(() => window.localStorage.getItem(ADMIN_REVIEWER_STORAGE_KEY) ?? "");
+  const [reviewerIdDraft, setReviewerIdDraft] = useState(() => window.localStorage.getItem(ADMIN_REVIEWER_STORAGE_KEY) ?? "");
   const [adminStatus, setAdminStatus] = useState<"loading" | "ready" | "auth_required" | "not_configured" | "offline">("loading");
 
   useEffect(() => {
@@ -40,7 +43,7 @@ export function AdminApp(): JSX.Element {
   }
 
   const updateModerationStatus = async (reportId: string, status: "open" | "resolved" | "dismissed"): Promise<void> => {
-    const updated = await resolveModerationReport(activeAdminToken.trim() || null, {
+    const updated = await resolveModerationReport(activeAdminToken.trim() || null, activeReviewerId.trim() || null, {
       reportId,
       status,
       ...(reviewerNotes[reportId]?.trim() ? { reviewerNotes: reviewerNotes[reportId]!.trim() } : {})
@@ -75,8 +78,11 @@ export function AdminApp(): JSX.Element {
             onSubmit={(event) => {
               event.preventDefault();
               const nextToken = adminTokenDraft.trim();
+              const nextReviewerId = reviewerIdDraft.trim();
               window.localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, nextToken);
+              window.localStorage.setItem(ADMIN_REVIEWER_STORAGE_KEY, nextReviewerId);
               setActiveAdminToken(nextToken);
+              setActiveReviewerId(nextReviewerId);
             }}
           >
             <label>
@@ -86,6 +92,16 @@ export function AdminApp(): JSX.Element {
                 onChange={(event) => setAdminTokenDraft(event.target.value)}
                 placeholder="Paste private token"
                 type="password"
+                autoComplete="off"
+              />
+            </label>
+            <label>
+              Reviewer ID
+              <input
+                value={reviewerIdDraft}
+                onChange={(event) => setReviewerIdDraft(event.target.value)}
+                placeholder="reviewer handle"
+                type="text"
                 autoComplete="off"
               />
             </label>
@@ -166,6 +182,7 @@ export function AdminApp(): JSX.Element {
                     )}
                     {report.reportedMessageExcerpt && <small>Excerpt: {report.reportedMessageExcerpt}</small>}
                     {report.reviewerNotes && <small>Review: {report.reviewerNotes}</small>}
+                    {report.reviewerId && <small>Reviewer: {report.reviewerId}</small>}
                     {report.resolvedAtIso && <small>{formatDateTime(report.resolvedAtIso)}</small>}
                     <textarea
                       value={reviewerNotes[report.id] ?? ""}

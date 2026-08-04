@@ -184,13 +184,14 @@ export async function loadModerationReports(adminToken: string | null, statusFil
   }
 }
 
-export async function resolveModerationReport(adminToken: string | null, input: ModerationReportResolutionRequest): Promise<ModerationReportQueueItem | null> {
+export async function resolveModerationReport(adminToken: string | null, reviewerId: string | null, input: ModerationReportResolutionRequest): Promise<ModerationReportQueueItem | null> {
   try {
     const response = await fetch(`${API_ORIGIN}/api/admin/moderation/reports/resolve`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(adminToken ? { "x-synvibe-admin-token": adminToken } : {})
+        ...(adminToken ? { "x-synvibe-admin-token": adminToken } : {}),
+        ...(reviewerId ? { "x-synvibe-reviewer-id": reviewerId } : {})
       },
       body: JSON.stringify(input)
     });

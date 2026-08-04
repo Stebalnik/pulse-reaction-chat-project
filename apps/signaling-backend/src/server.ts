@@ -19,6 +19,8 @@ import { SynVibeStore } from "./storage.js";
 
 const PORT = Number(process.env.SIGNALING_PORT ?? process.env.PORT ?? 1060);
 const ADMIN_TOKEN = process.env.SYNVIBE_ADMIN_TOKEN ?? null;
+const ADMIN_REVIEWER_IDS = parseReviewerIds(process.env.SYNVIBE_ADMIN_REVIEWER_IDS);
+const DEFAULT_ADMIN_REVIEWER_ID = process.env.SYNVIBE_ADMIN_REVIEWER_ID?.trim() || null;
 const store = new SynVibeStore();
 
 const server = createServer(async (request, response) => {
@@ -65,8 +67,10 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     const input: ModerationReportResolutionRequest = {
       reportId: readString(body, "reportId", 64),
       status: readModerationReportStatus(body),
+      ...readAdminReviewer(request, response),
       ...(reviewerNotes ? { reviewerNotes } : {})
     };
+    if (response.writableEnded) return;
     sendJson(response, 200, store.resolveModerationReport(input));
     return;
   }
@@ -313,7 +317,7 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
 function setCors(response: ServerResponse): void {
   response.setHeader("Access-Control-Allow-Origin", process.env.LOCAL_APP_ORIGIN ?? "http://127.0.0.1:1059");
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "content-type");
+  response.setHeader("Access-Control-Allow-Headers", "content-type,x-synvibe-admin-token,x-synvibe-reviewer-id");
 }
 
 function sendJson(response: ServerResponse, status: number, body: unknown): void {
@@ -332,6 +336,28 @@ function isAdminAuthorized(request: IncomingMessage, response: ServerResponse): 
     return false;
   }
   return true;
+}
+
+function readAdminReviewer(request: IncomingMessage, response: ServerResponse): Pick<ModerationReportResolutionRequest, "reviewerId"> | Record<string, never> {
+  const suppliedReviewer = request.headers["x-synvibe-reviewer-id"];
+  const reviewerId = typeof suppliedReviewer === "string" && suppliedReviewer.trim().length > 0 ? suppliedReviewer.trim().slice(0, 80) : DEFAULT_ADMIN_REVIEWER_ID;
+  if (ADMIN_REVIEWER_IDS.size > 0) {
+    if (!reviewerId || !ADMIN_REVIEWER_IDS.has(reviewerId)) {
+      sendJson(response, 403, { error: "admin_reviewer_required" });
+      return {};
+    }
+  }
+  return reviewerId ? { reviewerId } : {};
+}
+
+function parseReviewerIds(raw: string | undefined): Set<string> {
+  if (!raw) return new Set();
+  return new Set(
+    raw
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
 }
 
 function tokensEqual(left: string, right: string): boolean {

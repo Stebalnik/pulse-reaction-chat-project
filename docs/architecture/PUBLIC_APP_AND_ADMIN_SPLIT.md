@@ -19,7 +19,7 @@ Server-backed identity now has a first MVP implementation in `apps/signaling-bac
 - `sessions`: session ID, user ID, route, start/end timestamps, and explicit close reason via room-exit events;
 - `events`: visit, room start, camera grant, camera pause, analysis start, match wait/start/leave, call connect/disconnect/fail, consent grant/revoke, and room exit;
 - `consent_events`: adults-only chat terms, camera access, physiological analysis, and research feedback decisions;
-- `moderation_reports`: report/block actions with selected reason, optional notes, reviewer status/notes, reporter/reported user IDs, optional match/message linkage, and no raw media or biometric traces;
+- `moderation_reports`: report/block actions with selected reason, optional notes, reviewer status/notes/identity, reporter/reported user IDs, optional match/message linkage, and no raw media or biometric traces;
 - `chat_messages`: active-match text messages scoped to participants, with sender deletion tombstones and time-limited retention;
 - `reaction_outputs`: active-consent-gated cleaned output only, with model version, method version, confidence, quality metrics, reason codes, and no raw video.
 
@@ -69,7 +69,7 @@ Message-level reports can reference a peer message ID from the active match. The
 
 ## Admin
 
-The `/admin` route reads `GET /api/admin/summary` and `GET /api/admin/moderation/reports` when the own-server backend is available and an admin token is supplied. It shows pending/auth states rather than fake data when the API is offline, unauthorized, or not configured. The first backend summary includes visits, room starts, camera grant rate, active sessions, waiting users, active matches, call setup success rate, call disconnect/failure counts, chat message count, sufficient-signal ratio, top rejection reasons, report/block counts, top moderation reasons, and registered-vs-guest counts. The moderation queue lists recent report/block records for safety review, supports `open`, `resolved`, and `dismissed` filters, includes repeated-report indicators for the reported anonymous user ID, shows message-level references when explicitly reported, and supports status updates through `POST /api/admin/moderation/reports/resolve`.
+The `/admin` route reads `GET /api/admin/summary` and `GET /api/admin/moderation/reports` when the own-server backend is available and an admin token is supplied. It shows pending/auth states rather than fake data when the API is offline, unauthorized, or not configured. The first backend summary includes visits, room starts, camera grant rate, active sessions, waiting users, active matches, call setup success rate, call disconnect/failure counts, chat message count, sufficient-signal ratio, top rejection reasons, report/block counts, top moderation reasons, and registered-vs-guest counts. The moderation queue lists recent report/block records for safety review, supports `open`, `resolved`, and `dismissed` filters, includes repeated-report indicators for the reported anonymous user ID, shows message-level references when explicitly reported, records reviewer identity on status updates when supplied or required by backend allowlist, and supports status updates through `POST /api/admin/moderation/reports/resolve`.
 
 Next admin analytics should add:
 
@@ -78,7 +78,7 @@ Next admin analytics should add:
 - signal quality: sufficient-signal ratio, FPS distribution, ROI source, rejection reason codes;
 - product outputs: badge distribution and baseline maturity, without exposing raw biometric traces;
 - user experience: guest vs registered usage, repeat visits, registration conversion;
-- safety operations: reviewer identity after authenticated admin accounts exist;
+- safety operations: role-scoped admin accounts and least-privilege reviewer access;
 - operations: errors, API health, signaling queue size.
 
 ## Boundaries

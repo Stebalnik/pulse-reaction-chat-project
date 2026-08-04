@@ -52,4 +52,4 @@ Not deployed in this slice.
 
 1. Add moderation queue views that can reference reported match IDs and message IDs when explicitly reported.
 2. Add WebSocket transport once HTTP polling becomes the bottleneck.
-3. Add reviewer identity after authenticated admin accounts exist.
+3. Add role-scoped admin accounts and least-privilege reviewer access.

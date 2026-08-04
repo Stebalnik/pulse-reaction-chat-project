@@ -154,6 +154,7 @@ export class SynVibeStore {
         notes TEXT,
         status TEXT NOT NULL DEFAULT 'open',
         reviewer_notes TEXT,
+        reviewer_id TEXT,
         resolved_at TEXT,
         created_at TEXT NOT NULL
       );
@@ -422,6 +423,7 @@ export class SynVibeStore {
         moderation_reports.notes,
         COALESCE(moderation_reports.status, 'open') AS status,
         moderation_reports.reviewer_notes,
+        moderation_reports.reviewer_id,
         moderation_reports.resolved_at,
         moderation_reports.created_at
       FROM moderation_reports
@@ -448,6 +450,7 @@ export class SynVibeStore {
         status: row.status ?? "open",
         notes: row.notes,
         reviewerNotes: row.reviewer_notes,
+        reviewerId: row.reviewer_id,
         reportedUserTotalReports: row.reported_user_total_reports,
         reportedUserOpenReports: row.reported_user_open_reports,
         createdAtIso: row.created_at,
@@ -492,6 +495,7 @@ export class SynVibeStore {
         moderation_reports.notes,
         COALESCE(moderation_reports.status, 'open') AS status,
         moderation_reports.reviewer_notes,
+        moderation_reports.reviewer_id,
         moderation_reports.resolved_at,
         moderation_reports.created_at
       FROM moderation_reports
@@ -509,6 +513,7 @@ export class SynVibeStore {
       SET
         status = ${sql(input.status)},
         reviewer_notes = ${input.reviewerNotes ? sql(input.reviewerNotes) : "NULL"},
+        reviewer_id = ${input.reviewerId ? sql(input.reviewerId) : "NULL"},
         resolved_at = ${resolvedAt ? sql(resolvedAt) : "NULL"}
       WHERE id = ${sql(input.reportId)};
     `);
@@ -526,6 +531,7 @@ export class SynVibeStore {
       status: input.status,
       notes: existing.notes,
       reviewerNotes: input.reviewerNotes ?? null,
+      reviewerId: input.reviewerId ?? null,
       reportedUserTotalReports: existing.reported_user_total_reports,
       reportedUserOpenReports: existing.reported_user_open_reports,
       createdAtIso: existing.created_at,
@@ -954,6 +960,7 @@ export class SynVibeStore {
     if (!columns.has("reported_message_id")) this.execute("ALTER TABLE moderation_reports ADD COLUMN reported_message_id TEXT REFERENCES chat_messages(id);");
     if (!columns.has("status")) this.execute("ALTER TABLE moderation_reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open';");
     if (!columns.has("reviewer_notes")) this.execute("ALTER TABLE moderation_reports ADD COLUMN reviewer_notes TEXT;");
+    if (!columns.has("reviewer_id")) this.execute("ALTER TABLE moderation_reports ADD COLUMN reviewer_id TEXT;");
     if (!columns.has("resolved_at")) this.execute("ALTER TABLE moderation_reports ADD COLUMN resolved_at TEXT;");
   }
 
@@ -1086,6 +1093,7 @@ interface ModerationReportQueueRow {
   status: "open" | "resolved" | "dismissed";
   notes: string | null;
   reviewer_notes: string | null;
+  reviewer_id: string | null;
   resolved_at: string | null;
   created_at: string;
 }

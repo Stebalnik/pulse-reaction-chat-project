@@ -139,6 +139,7 @@ export interface ModerationReportResolutionRequest {
   reportId: string;
   status: ModerationReportStatus;
   reviewerNotes?: string;
+  reviewerId?: string;
 }
 
 export interface ModerationReportQueueItem {
@@ -155,6 +156,7 @@ export interface ModerationReportQueueItem {
   status: ModerationReportStatus;
   notes: string | null;
   reviewerNotes: string | null;
+  reviewerId: string | null;
   reportedUserTotalReports: number;
   reportedUserOpenReports: number;
   createdAtIso: string;

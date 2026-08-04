@@ -13,6 +13,7 @@ Current MVP scope:
 - Active-match text chat scoped to matched participants, with sender delete controls and configurable retention.
 - Admin summary metrics for `/admin`.
 - Token-gated admin API access through `SYNVIBE_ADMIN_TOKEN` and `X-SynVibe-Admin-Token`.
+- Optional reviewer identity enforcement for moderation resolution through `SYNVIBE_ADMIN_REVIEWER_IDS` and `X-SynVibe-Reviewer-Id`.
 
 Run locally:
 
@@ -27,10 +28,12 @@ SIGNALING_PORT=1060
 LOCAL_APP_ORIGIN=https://synvibe.app
 SYNVIBE_DB_PATH=/var/lib/synvibe/synvibe.sqlite
 SYNVIBE_ADMIN_TOKEN=<private random token>
+SYNVIBE_ADMIN_REVIEWER_IDS=ops-alex,ops-riley
 SYNVIBE_CHAT_RETENTION_HOURS=24
 ```
 
 If `SYNVIBE_ADMIN_TOKEN` is missing, `/api/admin/*` returns `admin_auth_not_configured` instead of exposing operational data.
+If `SYNVIBE_ADMIN_REVIEWER_IDS` is set, moderation resolution requires `X-SynVibe-Reviewer-Id` to match one of the configured reviewer IDs. If `SYNVIBE_ADMIN_REVIEWER_ID` is set without an allowlist, it is used as the default reviewer ID for single-operator deployments.
 
 Deploy:
 
