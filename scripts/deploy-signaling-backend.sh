@@ -34,6 +34,10 @@ ssh "$SERVER_HOST" "
     echo 'SYNVIBE_ADMIN_TOKEN must be set to a private token of at least 16 characters in $ENV_PATH.' >&2
     exit 43
   fi
+  if ! command -v sqlite3 >/dev/null; then
+    echo 'Missing sqlite3 on the server. Install sqlite3 before starting the backend service.' >&2
+    exit 45
+  fi
   chown -R www-data:www-data '$DATA_DIR'
 "
 
