@@ -92,6 +92,8 @@ test("profile API validates handles and returns conflicts without internal error
 
     await waitForHealth(port, server);
 
+    assert.equal(await status(port, "/api/profiles?localUserId=SV-PROFAPI-MISSING"), 204);
+
     assert.equal(
       await status(port, "/api/profiles", undefined, {
         method: "POST",

@@ -56,7 +56,7 @@ Endpoints:
 - `GET /health`
 - `GET /api/health`
 - `POST /api/users/anonymous`
-- `GET /api/profiles?localUserId=...`
+- `GET /api/profiles?localUserId=...` - returns `204 No Content` when a guest has not registered a profile yet.
 - `POST /api/profiles`
 - `POST /api/sessions`
 - `POST /api/sessions/end`

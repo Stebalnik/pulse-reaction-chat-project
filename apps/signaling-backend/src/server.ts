@@ -123,7 +123,8 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     }
     const profile = store.getProfileByLocalUserId(localUserId.slice(0, 64));
     if (!profile) {
-      sendJson(response, 404, { error: "profile_not_found" });
+      response.writeHead(204);
+      response.end();
       return;
     }
     sendJson(response, 200, profile);

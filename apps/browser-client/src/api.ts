@@ -54,6 +54,7 @@ export async function saveServerProfile(input: {
 export async function loadServerProfile(localUserId: string): Promise<ProfileRecord | null> {
   try {
     const response = await fetch(`${API_ORIGIN}/api/profiles?localUserId=${encodeURIComponent(localUserId)}`);
+    if (response.status === 204) return null;
     if (!response.ok) return null;
     return (await response.json()) as ProfileRecord;
   } catch {
