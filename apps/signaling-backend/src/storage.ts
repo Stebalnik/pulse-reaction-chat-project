@@ -10,6 +10,7 @@ import type {
   ProfileRequest,
   ReactionOutputRequest,
   SessionRecord,
+  SessionEndRequest,
   SessionRequest,
   MatchmakingJoinRequest,
   MatchmakingLeaveRequest,
@@ -19,7 +20,9 @@ import type {
   WebRtcSignalMessage,
   WebRtcSignalRequest,
   ConsentEventRecord,
-  ConsentEventRequest
+  ConsentEventRequest,
+  ModerationReportRecord,
+  ModerationReportRequest
 } from "@pulse-reaction/shared-schemas";
 
 const DEFAULT_DB_PATH = resolve(process.cwd(), "data/synvibe.sqlite");
@@ -119,6 +122,16 @@ export class SynVibeStore {
         metadata_json TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS moderation_reports (
+        id TEXT PRIMARY KEY,
+        reporter_user_id TEXT NOT NULL REFERENCES users(id),
+        reported_user_id TEXT REFERENCES users(id),
+        match_id TEXT REFERENCES matches(id),
+        type TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        notes TEXT,
+        created_at TEXT NOT NULL
+      );
     `);
   }
 
@@ -188,6 +201,32 @@ export class SynVibeStore {
     return record;
   }
 
+  endSession(input: SessionEndRequest): SessionRecord {
+    const user = this.upsertAnonymousUser(input.localUserId);
+    const now = new Date().toISOString();
+    const session = this.queryOne<SessionRow>(`
+      SELECT * FROM sessions
+      WHERE id = ${sql(input.sessionId)} AND user_id = ${sql(user.id)};
+    `);
+    if (!session) throw new Error("Session not found for user");
+
+    const endedAt = session.ended_at ?? now;
+    if (!session.ended_at) {
+      this.execute(`
+        UPDATE sessions SET ended_at = ${sql(endedAt)}
+        WHERE id = ${sql(input.sessionId)} AND user_id = ${sql(user.id)} AND ended_at IS NULL;
+      `);
+      this.recordEvent({
+        localUserId: input.localUserId,
+        sessionId: input.sessionId,
+        type: "room_exit",
+        route: session.route,
+        metadata: { reason: input.reason }
+      });
+    }
+    return mapSession({ ...session, ended_at: endedAt });
+  }
+
   recordEvent(input: EventRequest): void {
     const user = this.upsertAnonymousUser(input.localUserId);
     this.execute(`
@@ -250,6 +289,36 @@ export class SynVibeStore {
         ${sql(record.decision)},
         ${sql(record.policyVersion)},
         ${sql(JSON.stringify(input.metadata ?? {}))},
+        ${sql(now)}
+      );
+    `);
+    return record;
+  }
+
+  recordModerationReport(input: ModerationReportRequest): ModerationReportRecord {
+    const reporter = this.upsertAnonymousUser(input.localUserId);
+    const reported = input.reportedLocalUserId ? this.upsertAnonymousUser(input.reportedLocalUserId) : null;
+    const now = new Date().toISOString();
+    const record: ModerationReportRecord = {
+      id: randomUUID(),
+      reporterUserId: reporter.id,
+      reportedUserId: reported?.id ?? null,
+      matchId: input.matchId ?? null,
+      type: input.type,
+      reason: input.reason,
+      createdAtIso: now
+    };
+    if (record.matchId) this.ensureMatchBelongsToReporter(record.matchId, reporter.id);
+    this.execute(`
+      INSERT INTO moderation_reports (id, reporter_user_id, reported_user_id, match_id, type, reason, notes, created_at)
+      VALUES (
+        ${sql(record.id)},
+        ${sql(record.reporterUserId)},
+        ${record.reportedUserId ? sql(record.reportedUserId) : "NULL"},
+        ${record.matchId ? sql(record.matchId) : "NULL"},
+        ${sql(record.type)},
+        ${sql(record.reason)},
+        ${input.notes ? sql(input.notes) : "NULL"},
         ${sql(now)}
       );
     `);
@@ -441,6 +510,8 @@ export class SynVibeStore {
     const activeSessions = this.scalar("SELECT COUNT(*) AS value FROM sessions WHERE ended_at IS NULL;");
     const waitingUsers = this.scalar("SELECT COUNT(*) AS value FROM waiting_queue WHERE status = 'waiting';");
     const activeMatches = this.scalar("SELECT COUNT(*) AS value FROM matches WHERE status = 'active';");
+    const reportCount = this.scalar("SELECT COUNT(*) AS value FROM moderation_reports WHERE type = 'report';");
+    const blockCount = this.scalar("SELECT COUNT(*) AS value FROM moderation_reports WHERE type = 'block';");
     const averageSessionDurationSeconds = this.queryOne<{ value: number | null }>(`
       SELECT AVG(strftime('%s', ended_at) - strftime('%s', started_at)) AS value
       FROM sessions
@@ -465,6 +536,9 @@ export class SynVibeStore {
       averageSessionDurationSeconds,
       sufficientSignalRatio: signalCounts.total === 0 ? null : signalCounts.sufficient / signalCounts.total,
       topRejectionReasons: this.topRejectionReasons(),
+      reportCount,
+      blockCount,
+      topModerationReasons: this.topModerationReasons(),
       registeredUsers,
       guestUsers: Math.max(0, totalUsers - registeredUsers)
     };
@@ -517,6 +591,14 @@ export class SynVibeStore {
     return match;
   }
 
+  private ensureMatchBelongsToReporter(matchId: string, userId: string): void {
+    const matchCount = this.scalar(`
+      SELECT COUNT(*) AS value FROM matches
+      WHERE id = ${sql(matchId)} AND (user_a_id = ${sql(userId)} OR user_b_id = ${sql(userId)});
+    `);
+    if (matchCount === 0) throw new Error("Match not found for reporter");
+  }
+
   private topRejectionReasons(): Array<{ reasonCode: string; count: number }> {
     const rows = this.query<ReactionReasonRow>(`
       SELECT reason_codes_json FROM reaction_outputs WHERE state = 'INSUFFICIENT_SIGNAL';
@@ -529,6 +611,16 @@ export class SynVibeStore {
     return Array.from(counts, ([reasonCode, count]) => ({ reasonCode, count }))
       .sort((a, b) => b.count - a.count || a.reasonCode.localeCompare(b.reasonCode))
       .slice(0, 5);
+  }
+
+  private topModerationReasons(): AdminSummary["topModerationReasons"] {
+    return this.query<{ reason: AdminSummary["topModerationReasons"][number]["reason"]; count: number }>(`
+      SELECT reason, COUNT(*) AS count
+      FROM moderation_reports
+      GROUP BY reason
+      ORDER BY count DESC, reason ASC
+      LIMIT 5;
+    `);
   }
 
   private getUserByLocalId(localUserId: string): AnonymousUserRecord | null {
@@ -568,6 +660,14 @@ interface ProfileRow {
   handle: string;
   created_at: string;
   updated_at: string;
+}
+
+interface SessionRow {
+  id: string;
+  user_id: string;
+  route: string;
+  started_at: string;
+  ended_at: string | null;
 }
 
 interface ReactionReasonRow {
@@ -628,6 +728,16 @@ function mapProfile(row: ProfileRow): ProfileRecord {
     handle: row.handle,
     createdAtIso: row.created_at,
     updatedAtIso: row.updated_at
+  };
+}
+
+function mapSession(row: SessionRow): SessionRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    route: row.route,
+    startedAtIso: row.started_at,
+    endedAtIso: row.ended_at
   };
 }
 

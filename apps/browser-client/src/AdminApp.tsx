@@ -91,7 +91,12 @@ export function AdminApp(): JSX.Element {
             detail={`${formatCount(summary?.roomStarts)} room starts`}
           />
           <AdminCard icon={<BarChart3 aria-hidden="true" />} label="Signals" value={formatNullableRate(summary?.sufficientSignalRatio)} detail={formatTopReasons(summary)} />
-          <AdminCard icon={<Database aria-hidden="true" />} label="Storage" value="Own server" detail="No external analytics database connected" />
+          <AdminCard
+            icon={<Database aria-hidden="true" />}
+            label="Safety"
+            value={`${formatCount(summary?.reportCount)} / ${formatCount(summary?.blockCount)}`}
+            detail={formatModerationReasons(summary)}
+          />
           <AdminCard
             icon={<ShieldCheck aria-hidden="true" />}
             label="Matching"
@@ -121,6 +126,11 @@ function formatNullableRate(value: number | null | undefined): string {
 function formatTopReasons(summary: AdminSummary | null): string {
   const top = summary?.topRejectionReasons[0];
   return top ? `${top.reasonCode}: ${top.count}` : "No rejection reasons yet";
+}
+
+function formatModerationReasons(summary: AdminSummary | null): string {
+  const top = summary?.topModerationReasons[0];
+  return top ? `${top.reason}: ${top.count}` : "reports / blocks";
 }
 
 function adminStatusText(status: "loading" | "ready" | "auth_required" | "not_configured" | "offline"): string {

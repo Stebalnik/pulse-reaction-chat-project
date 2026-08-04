@@ -39,11 +39,34 @@ test("admin summary counts privacy-safe MVP records", () => {
     assert.equal(summary.activeSessions, 1);
     assert.equal(summary.registeredUsers, 1);
     assert.equal(summary.guestUsers, 0);
+    assert.equal(summary.reportCount, 0);
+    assert.equal(summary.blockCount, 0);
+    assert.deepEqual(summary.topModerationReasons, []);
     assert.equal(summary.sufficientSignalRatio, 0);
     assert.deepEqual(summary.topRejectionReasons, [
       { reasonCode: "MOTION_HIGH", count: 1 },
       { reasonCode: "ROI_TOO_SMALL", count: 1 }
     ]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("ending a session records exit state for admin duration metrics", () => {
+  const dir = mkdtempSync(join(tmpdir(), "synvibe-session-end-"));
+  try {
+    const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
+    const session = store.createSession({ localUserId: "SV-ENDSES-000001", route: "/room" });
+
+    const ended = store.endSession({ localUserId: "SV-ENDSES-000001", sessionId: session.id, reason: "left" });
+    const repeated = store.endSession({ localUserId: "SV-ENDSES-000001", sessionId: session.id, reason: "unload" });
+    const summary = store.getAdminSummary();
+
+    assert.equal(ended.id, session.id);
+    assert.ok(ended.endedAtIso);
+    assert.equal(repeated.endedAtIso, ended.endedAtIso);
+    assert.equal(summary.activeSessions, 0);
+    assert.equal(typeof summary.averageSessionDurationSeconds, "number");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -83,8 +106,21 @@ test("matchmaking pairs queued users and supports blocking the match", () => {
     });
     assert.equal(afterBlock.status, "idle");
 
+    const moderationRecord = store.recordModerationReport({
+      localUserId: "SV-USERAA-000001",
+      matchId: second.match.id,
+      reportedLocalUserId: "SV-USERBB-000002",
+      type: "block",
+      reason: "safety"
+    });
+    assert.equal(moderationRecord.type, "block");
+    assert.equal(moderationRecord.reason, "safety");
+
     summary = store.getAdminSummary();
     assert.equal(summary.activeMatches, 0);
+    assert.equal(summary.reportCount, 0);
+    assert.equal(summary.blockCount, 1);
+    assert.deepEqual(summary.topModerationReasons, [{ reason: "safety", count: 1 }]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

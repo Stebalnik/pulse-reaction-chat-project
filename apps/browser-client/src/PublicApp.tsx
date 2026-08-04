@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MatchmakingStatus, WebRtcSignalMessage } from "@pulse-reaction/shared-schemas";
 import {
   createServerSession,
+  endServerSession,
   ensureAnonymousUser,
   joinMatchmaking,
   leaveMatchmaking,
@@ -11,6 +12,7 @@ import {
   loadSignals,
   recordConsentEvent,
   recordEvent,
+  recordModerationReport,
   saveServerProfile,
   sendSignal
 } from "./api.js";
@@ -270,6 +272,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const signalCursorRef = useRef<string | null>(null);
   const offerStartedRef = useRef<string | null>(null);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const endedSessionIdsRef = useRef<Set<string>>(new Set());
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -285,6 +288,21 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       setMatchingOnline(Boolean(session));
     });
   }, [userId]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    const endSessionOnce = (reason: "left" | "unload", transport: "fetch" | "beacon"): void => {
+      if (endedSessionIdsRef.current.has(sessionId)) return;
+      endedSessionIdsRef.current.add(sessionId);
+      void endServerSession({ localUserId: userId, sessionId, reason }, transport);
+    };
+    const onPageHide = (): void => endSessionOnce("unload", "beacon");
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      endSessionOnce("left", "fetch");
+    };
+  }, [sessionId, userId]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -317,7 +335,17 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
 
   const leaveCurrentMatch = async (reason: "left" | "reported" | "blocked"): Promise<void> => {
     const matchId = matchStatus.status === "matched" ? matchStatus.match.id : undefined;
+    const reportedLocalUserId = matchStatus.status === "matched" ? matchStatus.match.peer.localUserId : undefined;
     closePeerConnection(peerConnectionRef, remoteVideoRef, setHasRemoteStream, setConnectionState);
+    if (reason !== "left") {
+      await recordModerationReport({
+        localUserId: userId,
+        ...(matchId ? { matchId } : {}),
+        ...(reportedLocalUserId ? { reportedLocalUserId } : {}),
+        type: reason === "blocked" ? "block" : "report",
+        reason: "safety"
+      });
+    }
     const status = await leaveMatchmaking({
       localUserId: userId,
       ...(matchId ? { matchId } : {}),

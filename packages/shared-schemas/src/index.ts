@@ -53,6 +53,12 @@ export interface SessionRecord {
   endedAtIso: string | null;
 }
 
+export interface SessionEndRequest {
+  localUserId: string;
+  sessionId: string;
+  reason: "left" | "unload" | "replaced" | "error";
+}
+
 export interface EventRequest {
   localUserId: string;
   sessionId?: string;
@@ -96,6 +102,28 @@ export interface ConsentEventRecord {
   createdAtIso: string;
 }
 
+export type ModerationReportType = "report" | "block";
+export type ModerationReportReason = "safety" | "harassment" | "underage" | "spam" | "other";
+
+export interface ModerationReportRequest {
+  localUserId: string;
+  matchId?: string;
+  reportedLocalUserId?: string;
+  type: ModerationReportType;
+  reason: ModerationReportReason;
+  notes?: string;
+}
+
+export interface ModerationReportRecord {
+  id: string;
+  reporterUserId: string;
+  reportedUserId: string | null;
+  matchId: string | null;
+  type: ModerationReportType;
+  reason: ModerationReportReason;
+  createdAtIso: string;
+}
+
 export interface AdminSummary {
   generatedAtIso: string;
   visits: number;
@@ -108,6 +136,9 @@ export interface AdminSummary {
   averageSessionDurationSeconds: number | null;
   sufficientSignalRatio: number | null;
   topRejectionReasons: Array<{ reasonCode: string; count: number }>;
+  reportCount: number;
+  blockCount: number;
+  topModerationReasons: Array<{ reason: ModerationReportReason; count: number }>;
   registeredUsers: number;
   guestUsers: number;
 }

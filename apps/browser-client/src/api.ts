@@ -3,7 +3,9 @@ import type {
   ConsentEventRequest,
   EventRequest,
   MatchmakingStatus,
+  ModerationReportRequest,
   ProfileRecord,
+  SessionEndRequest,
   SessionRecord,
   WebRtcSignalBatch,
   WebRtcSignalRequest
@@ -27,12 +29,25 @@ export async function createServerSession(localUserId: string, route: string): P
   return post<SessionRecord>("/api/sessions", { localUserId, route });
 }
 
+export async function endServerSession(input: SessionEndRequest, transport: "fetch" | "beacon" = "fetch"): Promise<SessionRecord | null> {
+  if (transport === "beacon" && "sendBeacon" in navigator) {
+    const blob = new Blob([JSON.stringify(input)], { type: "application/json" });
+    navigator.sendBeacon(`${API_ORIGIN}/api/sessions/end`, blob);
+    return null;
+  }
+  return post<SessionRecord>("/api/sessions/end", input);
+}
+
 export async function recordEvent(input: EventRequest): Promise<void> {
   await post("/api/events", input);
 }
 
 export async function recordConsentEvent(input: ConsentEventRequest): Promise<void> {
   await post("/api/consent-events", input);
+}
+
+export async function recordModerationReport(input: ModerationReportRequest): Promise<void> {
+  await post("/api/moderation/reports", input);
 }
 
 export async function joinMatchmaking(localUserId: string, sessionId: string | undefined): Promise<MatchmakingStatus | null> {

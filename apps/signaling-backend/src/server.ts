@@ -5,8 +5,10 @@ import type {
   EventRequest,
   MatchmakingJoinRequest,
   MatchmakingLeaveRequest,
+  ModerationReportRequest,
   ProfileRequest,
   ReactionOutputRequest,
+  SessionEndRequest,
   SessionRequest,
   WebRtcSignalRequest
 } from "@pulse-reaction/shared-schemas";
@@ -72,6 +74,16 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     sendJson(response, 201, store.createSession(input));
     return;
   }
+  if (request.method === "POST" && url.pathname === "/api/sessions/end") {
+    const body = await readJson(request);
+    const input: SessionEndRequest = {
+      localUserId: readString(body, "localUserId", 64),
+      sessionId: readString(body, "sessionId", 64),
+      reason: readSessionEndReason(body)
+    };
+    sendJson(response, 200, store.endSession(input));
+    return;
+  }
   if (request.method === "POST" && url.pathname === "/api/events") {
     const body = await readJson(request);
     const sessionId = readOptionalString(body, "sessionId", 64);
@@ -101,6 +113,22 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
       ...(metadata ? { metadata } : {})
     };
     sendJson(response, 201, store.recordConsentEvent(input));
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/moderation/reports") {
+    const body = await readJson(request);
+    const matchId = readOptionalString(body, "matchId", 64);
+    const reportedLocalUserId = readOptionalString(body, "reportedLocalUserId", 64);
+    const notes = readOptionalString(body, "notes", 500);
+    const input: ModerationReportRequest = {
+      localUserId: readString(body, "localUserId", 64),
+      ...(matchId ? { matchId } : {}),
+      ...(reportedLocalUserId ? { reportedLocalUserId } : {}),
+      type: readModerationReportType(body),
+      reason: readModerationReportReason(body),
+      ...(notes ? { notes } : {})
+    };
+    sendJson(response, 201, store.recordModerationReport(input));
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/matchmaking/join") {
@@ -275,6 +303,26 @@ function readLeaveReason(body: Record<string, unknown>): MatchmakingLeaveRequest
   const reason = readString(body, "reason", 20);
   if (reason === "left" || reason === "reported" || reason === "blocked") return reason;
   throw new Error(`Invalid leave reason: ${reason}`);
+}
+
+function readSessionEndReason(body: Record<string, unknown>): SessionEndRequest["reason"] {
+  const reason = readString(body, "reason", 20);
+  if (reason === "left" || reason === "unload" || reason === "replaced" || reason === "error") return reason;
+  throw new Error(`Invalid session end reason: ${reason}`);
+}
+
+function readModerationReportType(body: Record<string, unknown>): ModerationReportRequest["type"] {
+  const type = readString(body, "type", 20);
+  if (type === "report" || type === "block") return type;
+  throw new Error(`Invalid moderation report type: ${type}`);
+}
+
+function readModerationReportReason(body: Record<string, unknown>): ModerationReportRequest["reason"] {
+  const reason = readString(body, "reason", 30);
+  if (reason === "safety" || reason === "harassment" || reason === "underage" || reason === "spam" || reason === "other") {
+    return reason;
+  }
+  throw new Error(`Invalid moderation report reason: ${reason}`);
 }
 
 function readSignalType(body: Record<string, unknown>): WebRtcSignalRequest["type"] {

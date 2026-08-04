@@ -16,9 +16,10 @@ The browser client assigns a stable anonymous user ID on first visit and stores 
 Server-backed identity now has a first MVP implementation in `apps/signaling-backend`:
 
 - `users`: anonymous ID, optional registered profile, created/last seen timestamps;
-- `sessions`: session ID, user ID, route, device class, consent state, start/end timestamps;
-- `events`: visit, room start, camera grant, analysis start, peer connect, disconnect, registration start, registration complete;
+- `sessions`: session ID, user ID, route, start/end timestamps, and explicit close reason via room-exit events;
+- `events`: visit, room start, camera grant, camera pause, analysis start, match wait/start/leave, consent grant/revoke, and room exit;
 - `consent_events`: adults-only chat terms, camera access, physiological analysis, and research feedback decisions;
+- `moderation_reports`: report/block actions with coarse safety reason, reporter/reported user IDs, optional match linkage, and no raw media or biometric traces;
 - `reaction_outputs`: cleaned output only, with model version, method version, confidence, quality metrics, reason codes, and no raw video.
 
 The browser client posts anonymous user/profile/event records when the API is available and falls back to local-only behavior when it is not.
@@ -36,7 +37,7 @@ The first matching MVP is implemented in `apps/signaling-backend` with:
 - `GET /api/matchmaking/status`;
 - `POST /api/matchmaking/leave`.
 
-The browser room joins the live queue after a server session is created, polls status, shows the matched peer profile, records report/block/next actions, and uses the signaling relay to exchange WebRTC offer/answer/ICE payloads for active matches.
+The browser room joins the live queue after a server session is created, polls status, shows the matched peer profile, records report/block actions as dedicated moderation records, and uses the signaling relay to exchange WebRTC offer/answer/ICE payloads for active matches.
 
 ## WebRTC Signaling
 
@@ -50,7 +51,7 @@ Only users who belong to an active match can post or read signaling messages for
 
 ## Admin
 
-The `/admin` route reads `GET /api/admin/summary` when the own-server backend is available and an admin token is supplied. It shows pending/auth states rather than fake data when the API is offline, unauthorized, or not configured. The first backend summary includes visits, room starts, camera grant rate, active sessions, waiting users, active matches, sufficient-signal ratio, top rejection reasons, and registered-vs-guest counts.
+The `/admin` route reads `GET /api/admin/summary` when the own-server backend is available and an admin token is supplied. It shows pending/auth states rather than fake data when the API is offline, unauthorized, or not configured. The first backend summary includes visits, room starts, camera grant rate, active sessions, waiting users, active matches, sufficient-signal ratio, top rejection reasons, report/block counts, top moderation reasons, and registered-vs-guest counts.
 
 Next admin analytics should add:
 
@@ -59,6 +60,7 @@ Next admin analytics should add:
 - signal quality: sufficient-signal ratio, FPS distribution, ROI source, rejection reason codes;
 - product outputs: badge distribution and baseline maturity, without exposing raw biometric traces;
 - user experience: guest vs registered usage, repeat visits, registration conversion;
+- safety operations: report/block review queue and repeated-offender handling;
 - operations: errors, API health, signaling queue size.
 
 ## Boundaries
