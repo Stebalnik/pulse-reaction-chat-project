@@ -12,6 +12,7 @@
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.0",
     "@pulse-reaction/rppg-engine": "workspace:*",
+    "@pulse-reaction/shared-schemas": "workspace:*",
     "@vitejs/plugin-react": "^6.0.4",
     "lucide-react": "^1.27.0",
     "react": "^19.2.8",

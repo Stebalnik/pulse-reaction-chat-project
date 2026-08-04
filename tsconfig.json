@@ -10,7 +10,11 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": true
+    "declaration": true,
+    "paths": {
+      "@pulse-reaction/rppg-engine": ["./packages/rppg-engine/src/index.ts"],
+      "@pulse-reaction/shared-schemas": ["./packages/shared-schemas/src/index.ts"]
+    }
   },
   "include": [
     "apps/**/*.ts",

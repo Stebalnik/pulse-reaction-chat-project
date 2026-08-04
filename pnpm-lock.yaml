@@ -32,6 +32,9 @@ importers:
       '@pulse-reaction/rppg-engine':
         specifier: workspace:*
         version: link:../../packages/rppg-engine
+      '@pulse-reaction/shared-schemas':
+        specifier: workspace:*
+        version: link:../../packages/shared-schemas
       '@vitejs/plugin-react':
         specifier: ^6.0.4
         version: 6.0.4(vite@8.1.5(@types/node@20.19.43)(esbuild@0.28.1)(tsx@4.23.1))
@@ -50,7 +53,11 @@ importers:
 
   apps/desktop-client: {}
 
-  apps/signaling-backend: {}
+  apps/signaling-backend:
+    dependencies:
+      '@pulse-reaction/shared-schemas':
+        specifier: workspace:*
+        version: link:../../packages/shared-schemas
 
   packages/research-pipeline: {}
 

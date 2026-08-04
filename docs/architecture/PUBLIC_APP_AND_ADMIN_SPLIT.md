@@ -13,16 +13,20 @@ Status: MVP scaffold.
 
 The browser client assigns a stable anonymous user ID on first visit and stores it in local storage. This is enough for device continuity during the MVP, but it is not a server account.
 
-Server-backed identity should be added next:
+Server-backed identity now has a first MVP implementation in `apps/signaling-backend`:
 
 - `users`: anonymous ID, optional registered profile, created/last seen timestamps;
 - `sessions`: session ID, user ID, route, device class, consent state, start/end timestamps;
 - `events`: visit, room start, camera grant, analysis start, peer connect, disconnect, registration start, registration complete;
 - `reaction_outputs`: cleaned output only, with model version, method version, confidence, quality metrics, reason codes, and no raw video.
 
+The browser client posts anonymous user/profile/event records when the API is available and falls back to local-only behavior when it is not.
+
 ## Admin
 
-The current `/admin` route is a scaffold for platform analytics. It intentionally does not show fake data. The first backend analytics release should populate:
+The `/admin` route reads `GET /api/admin/summary` when the own-server backend is available. It shows pending states rather than fake data when the API is offline. The first backend summary includes visits, room starts, camera grant rate, active sessions, sufficient-signal ratio, top rejection reasons, and registered-vs-guest counts.
+
+Next admin analytics should add:
 
 - acquisition: visits, referrers, landing-to-room conversion;
 - room funnel: camera grant, waiting, peer matched, call duration, disconnect reason;
@@ -37,4 +41,4 @@ Public UI must not claim to detect specific emotions, attraction, honesty, inten
 
 ## Next Backend Step
 
-Use the existing `apps/signaling-backend` workspace for a single-server MVP with local storage on the SynVibe server. Start with SQLite for operational simplicity, then migrate only if usage requires it. No external analytics database is required for the first launch.
+Continue in `apps/signaling-backend` with a single-server MVP on the SynVibe server. SQLite remains the first storage layer for operational simplicity. The next backend step is simple admin access control before exposing operational data, followed by roulette signaling and WebRTC offer/answer/candidate relay.

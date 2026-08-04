@@ -1,6 +1,7 @@
 import { Activity, Camera, CircleUserRound, HeartPulse, Play, ShieldCheck, UserPlus, Video } from "lucide-react";
 import type { JSX } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createServerSession, ensureAnonymousUser, recordEvent, saveServerProfile } from "./api.js";
 import { getOrCreateAnonymousUserId, loadLocalProfile, saveLocalProfile, type LocalProfile } from "./identity.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
@@ -13,8 +14,14 @@ export function PublicApp(): JSX.Element {
 
   const enterRoom = (): void => {
     history.pushState(null, "", "/room");
+    void recordEvent({ localUserId: userId, type: "room_start", route: "/room" });
     setInRoom(true);
   };
+
+  useEffect(() => {
+    void ensureAnonymousUser(userId);
+    void recordEvent({ localUserId: userId, type: "visit", route: location.pathname });
+  }, [userId]);
 
   useEffect(() => {
     const onPopState = (): void => setInRoom(location.pathname === "/room");
@@ -53,7 +60,9 @@ export function PublicApp(): JSX.Element {
           current={profile}
           onClose={() => setRegisterOpen(false)}
           onSave={(next) => {
-            setProfile(saveLocalProfile(next));
+            const saved = saveLocalProfile(next);
+            setProfile(saved);
+            void saveServerProfile({ localUserId: userId, displayName: saved.displayName, handle: saved.handle });
             setRegisterOpen(false);
           }}
         />
@@ -120,6 +129,11 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | undefined>();
+
+  useEffect(() => {
+    void createServerSession(userId, "/room").then((session) => setSessionId(session?.id));
+  }, [userId]);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -146,14 +160,16 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
         stream = nextStream;
         if (videoRef.current) videoRef.current.srcObject = nextStream;
         setCameraError(null);
+        void recordRoomEvent(userId, sessionId, "camera_grant");
       })
       .catch(() => setCameraError("Camera unavailable"));
 
     return () => {
       cancelled = true;
       stream?.getTracks().forEach((track) => track.stop());
+      if (stream) void recordRoomEvent(userId, sessionId, "camera_pause");
     };
-  }, [cameraEnabled]);
+  }, [cameraEnabled, sessionId, userId]);
 
   return (
     <section className="publicRoom">
@@ -271,4 +287,13 @@ function stopVideo(video: HTMLVideoElement | null): void {
   const stream = video?.srcObject instanceof MediaStream ? video.srcObject : null;
   stream?.getTracks().forEach((track) => track.stop());
   if (video) video.srcObject = null;
+}
+
+function recordRoomEvent(userId: string, sessionId: string | undefined, type: "camera_grant" | "camera_pause"): void {
+  void recordEvent({
+    localUserId: userId,
+    ...(sessionId ? { sessionId } : {}),
+    type,
+    route: "/room"
+  });
 }
