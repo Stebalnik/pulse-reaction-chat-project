@@ -25,7 +25,7 @@ Server-backed identity now has a first MVP implementation in `apps/signaling-bac
 
 The browser client posts anonymous user/profile/event records when the API is available, loads the server profile for the current anonymous ID, and falls back to local-only profile behavior when the backend is not reachable.
 
-The public room is adults-only. Browser entry and direct `/room` navigation require local adults-only acknowledgement before matching begins. The acknowledgement is also posted to `POST /api/consent-events` when the backend is available.
+The public room is adults-only. Browser entry and direct `/room` navigation require local adults-only acknowledgement before matching begins. The acknowledgement is also posted to `POST /api/consent-events` when the backend is available, and the room reasserts the accepted policy when joining a server-backed session after a prior offline entry.
 
 Physiological analysis has a separate public-room consent control. Camera access alone does not enable analysis. Users can opt in to local-only pulse-pattern processing, revoke it immediately, and the browser posts `physiological_analysis` consent grant/revoke records when the backend is available. The public room still does not share precise BPM with the peer by default.
 
@@ -38,11 +38,12 @@ The first matching MVP is implemented in `apps/signaling-backend` with:
 - `waiting_queue`: active queue entries with session linkage;
 - `matches`: active and ended match records;
 - `blocked_users`: block-aware rematching prevention;
+- adult-chat consent enforcement before queue entry or match creation;
 - `POST /api/matchmaking/join`;
 - `GET /api/matchmaking/status`;
 - `POST /api/matchmaking/leave`.
 
-The browser room joins the live queue after a server session is created, polls status, shows the matched peer profile, records report/block actions as dedicated moderation records, records privacy-safe WebRTC lifecycle events, and uses the signaling relay to exchange WebRTC offer/answer/ICE payloads for active matches.
+The browser room joins the live queue after a server session is created, polls status, shows the matched peer profile, records report/block actions as dedicated moderation records, records privacy-safe WebRTC lifecycle events, and uses the signaling relay to exchange WebRTC offer/answer/ICE payloads for active matches. If the backend has no active `adult_chat_terms` grant, matching returns `ineligible` instead of adding the user to `waiting_queue`.
 
 ## WebRTC Signaling
 

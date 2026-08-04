@@ -541,6 +541,9 @@ export class SynVibeStore {
 
   joinMatchmaking(input: MatchmakingJoinRequest): MatchmakingStatus {
     const user = this.upsertAnonymousUser(input.localUserId);
+    if (!this.hasActiveConsent(user.id, "adult_chat_terms", input.sessionId)) {
+      return { status: "ineligible", reason: "adult_chat_terms_required" };
+    }
     const current = this.getMatchmakingStatus(input.localUserId);
     if (current.status === "matched") return current;
 

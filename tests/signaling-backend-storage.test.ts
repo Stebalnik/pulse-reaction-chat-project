@@ -150,6 +150,26 @@ test("profiles can be loaded and updated by anonymous user id", () => {
   }
 });
 
+test("matchmaking requires active adults-only chat consent", () => {
+  const dir = mkdtempSync(join(tmpdir(), "synvibe-match-consent-"));
+  try {
+    const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
+    const localUserId = "SV-NOADLT-000001";
+    const session = store.createSession({ localUserId, route: "/room" });
+
+    const rejected = store.joinMatchmaking({ localUserId, sessionId: session.id });
+    assert.deepEqual(rejected, { status: "ineligible", reason: "adult_chat_terms_required" });
+    assert.equal(store.getAdminSummary().waitingUsers, 0);
+
+    grantAdultChatTerms(store, localUserId, session.id);
+    const accepted = store.joinMatchmaking({ localUserId, sessionId: session.id });
+    assert.equal(accepted.status, "waiting");
+    assert.equal(store.getAdminSummary().waitingUsers, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("matchmaking pairs queued users and supports blocking the match", () => {
   const dir = mkdtempSync(join(tmpdir(), "synvibe-match-"));
   try {
@@ -158,6 +178,8 @@ test("matchmaking pairs queued users and supports blocking the match", () => {
     store.upsertProfile({ localUserId: "SV-USERBB-000002", displayName: "Bo", handle: "bo" });
     const sessionA = store.createSession({ localUserId: "SV-USERAA-000001", route: "/room" });
     const sessionB = store.createSession({ localUserId: "SV-USERBB-000002", route: "/room" });
+    grantAdultChatTerms(store, "SV-USERAA-000001", sessionA.id);
+    grantAdultChatTerms(store, "SV-USERBB-000002", sessionB.id);
 
     const first = store.joinMatchmaking({ localUserId: "SV-USERAA-000001", sessionId: sessionA.id });
     assert.equal(first.status, "waiting");
@@ -250,6 +272,8 @@ test("signaling relay delivers peer messages only for active matches", () => {
     const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
     store.upsertProfile({ localUserId: "SV-SIGNAL-000001", displayName: "Cam", handle: "cam" });
     store.upsertProfile({ localUserId: "SV-SIGNAL-000002", displayName: "Dev", handle: "dev" });
+    grantAdultChatTerms(store, "SV-SIGNAL-000001");
+    grantAdultChatTerms(store, "SV-SIGNAL-000002");
 
     const first = store.joinMatchmaking({ localUserId: "SV-SIGNAL-000001" });
     assert.equal(first.status, "waiting");
@@ -296,6 +320,8 @@ test("match chat stores messages only for active match participants", () => {
     const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
     store.upsertProfile({ localUserId: "SV-CHATX-000001", displayName: "Eli", handle: "eli" });
     store.upsertProfile({ localUserId: "SV-CHATX-000002", displayName: "Fran", handle: "fran" });
+    grantAdultChatTerms(store, "SV-CHATX-000001");
+    grantAdultChatTerms(store, "SV-CHATX-000002");
     const first = store.joinMatchmaking({ localUserId: "SV-CHATX-000001" });
     assert.equal(first.status, "waiting");
     const second = store.joinMatchmaking({ localUserId: "SV-CHATX-000002" });
@@ -359,6 +385,8 @@ test("match chat retention prunes expired message rows", () => {
   process.env.SYNVIBE_CHAT_RETENTION_HOURS = "1";
   try {
     const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
+    grantAdultChatTerms(store, "SV-KEEPX-000001");
+    grantAdultChatTerms(store, "SV-KEEPX-000002");
     const first = store.joinMatchmaking({ localUserId: "SV-KEEPX-000001" });
     assert.equal(first.status, "waiting");
     const second = store.joinMatchmaking({ localUserId: "SV-KEEPX-000002" });
@@ -394,6 +422,8 @@ test("moderation reports can reference retained or deleted peer messages", () =>
   process.env.SYNVIBE_CHAT_RETENTION_HOURS = "1";
   try {
     const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
+    grantAdultChatTerms(store, "SV-MSGRP-000001");
+    grantAdultChatTerms(store, "SV-MSGRP-000002");
     const first = store.joinMatchmaking({ localUserId: "SV-MSGRP-000001" });
     assert.equal(first.status, "waiting");
     const second = store.joinMatchmaking({ localUserId: "SV-MSGRP-000002" });
@@ -503,3 +533,14 @@ test("records policy-versioned consent grant and revoke events", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+function grantAdultChatTerms(store: SynVibeStore, localUserId: string, sessionId?: string): void {
+  store.recordConsentEvent({
+    localUserId,
+    ...(sessionId ? { sessionId } : {}),
+    type: "adult_chat_terms",
+    decision: "granted",
+    policyVersion: "adult-chat-terms-2026-08-04",
+    metadata: { route: "/room", fixture: true }
+  });
+}

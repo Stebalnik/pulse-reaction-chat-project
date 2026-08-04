@@ -217,6 +217,7 @@ export interface MatchRecord {
 
 export type MatchmakingStatus =
   | { status: "idle" }
+  | { status: "ineligible"; reason: "adult_chat_terms_required" }
   | { status: "waiting"; joinedAtIso: string; queuePosition: number }
   | { status: "matched"; match: MatchRecord };
 

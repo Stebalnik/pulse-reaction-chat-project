@@ -146,14 +146,19 @@ export function PublicApp(): JSX.Element {
 
 function acceptAdultChatTerms(userId: string): void {
   window.localStorage.setItem(ADULT_CHAT_CONSENT_KEY, ADULT_CHAT_POLICY_VERSION);
-  void recordConsentEvent({
+  void syncAdultChatTerms(userId, undefined, "explicit_accept");
+  void recordEvent({ localUserId: userId, type: "consent_grant", route: "/room", metadata: { consentType: "adult_chat_terms" } });
+}
+
+async function syncAdultChatTerms(userId: string, sessionId: string | undefined, source: "explicit_accept" | "room_entry_assertion"): Promise<void> {
+  await recordConsentEvent({
     localUserId: userId,
+    ...(sessionId ? { sessionId } : {}),
     type: "adult_chat_terms",
     decision: "granted",
     policyVersion: ADULT_CHAT_POLICY_VERSION,
-    metadata: { route: "/room" }
+    metadata: { route: "/room", source }
   });
-  void recordEvent({ localUserId: userId, type: "consent_grant", route: "/room", metadata: { consentType: "adult_chat_terms" } });
 }
 
 function PublicHome({
@@ -352,15 +357,17 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       }
     };
 
-    void joinMatchmaking(userId, sessionId).then((status) => {
-      if (cancelled) return;
-      if (status) {
-        setMatchStatus(status);
-        setMatchingOnline(true);
-      } else {
-        setMatchingOnline(false);
-      }
-    });
+    void syncAdultChatTerms(userId, sessionId, "room_entry_assertion")
+      .then(() => joinMatchmaking(userId, sessionId))
+      .then((status) => {
+        if (cancelled) return;
+        if (status) {
+          setMatchStatus(status);
+          setMatchingOnline(true);
+        } else {
+          setMatchingOnline(false);
+        }
+      });
     const intervalId = window.setInterval(refresh, 2500);
 
     return () => {
@@ -379,6 +386,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
     });
     setMatchStatus(status ?? { status: "idle" });
     if (reason === "left") {
+      await syncAdultChatTerms(userId, sessionId, "room_entry_assertion");
       const next = await joinMatchmaking(userId, sessionId);
       if (next) setMatchStatus(next);
     }
@@ -677,13 +685,17 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
               </button>
             </>
           )}
-          {matchStatus.status === "idle" && matchingOnline && (
+          {(matchStatus.status === "idle" || matchStatus.status === "ineligible") && matchingOnline && (
             <button
               className="secondaryAction compact"
               type="button"
-              onClick={() => void joinMatchmaking(userId, sessionId).then((status) => status && setMatchStatus(status))}
+              onClick={() =>
+                void syncAdultChatTerms(userId, sessionId, "room_entry_assertion")
+                  .then(() => joinMatchmaking(userId, sessionId))
+                  .then((status) => status && setMatchStatus(status))
+              }
             >
-              Find peer
+              {matchStatus.status === "ineligible" ? "Confirm and find peer" : "Find peer"}
             </button>
           )}
           <button className={`primaryAction compact ${cameraEnabled ? "active" : ""}`} type="button" onClick={() => setCameraEnabled((value) => !value)}>
@@ -974,6 +986,16 @@ function PeerPane({
     );
   }
 
+  if (status.status === "ineligible") {
+    return (
+      <div className="peerMock">
+        <ShieldCheck aria-hidden="true" />
+        <span>Adults-only confirmation required</span>
+        <strong>Confirm terms before matching</strong>
+      </div>
+    );
+  }
+
   return (
     <div className="peerMock">
       <ShieldCheck aria-hidden="true" />
@@ -1062,6 +1084,7 @@ function roomStatusText(status: MatchmakingStatus, online: boolean): string {
   if (!online) return "Matching backend offline";
   if (status.status === "matched") return `Matched with ${status.match.peer.displayName ?? status.match.peer.localUserId}`;
   if (status.status === "waiting") return `Waiting in queue, position ${status.queuePosition}`;
+  if (status.status === "ineligible") return "Adults-only confirmation required";
   return "Ready to match";
 }
 

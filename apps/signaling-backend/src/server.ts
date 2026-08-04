@@ -183,18 +183,15 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
       ...(sessionId ? { sessionId } : {})
     };
     const status = store.joinMatchmaking(input);
-    store.recordEvent({
-      localUserId: input.localUserId,
-      ...(sessionId ? { sessionId } : {}),
-      type: status.status === "matched" ? "match_start" : "match_wait",
-      route: "/room",
-      metadata:
-        status.status === "matched"
-          ? { matchId: status.match.id }
-          : status.status === "waiting"
-            ? { queuePosition: status.queuePosition }
-            : {}
-    });
+    if (status.status === "matched" || status.status === "waiting") {
+      store.recordEvent({
+        localUserId: input.localUserId,
+        ...(sessionId ? { sessionId } : {}),
+        type: status.status === "matched" ? "match_start" : "match_wait",
+        route: "/room",
+        metadata: status.status === "matched" ? { matchId: status.match.id } : { queuePosition: status.queuePosition }
+      });
+    }
     sendJson(response, 200, status);
     return;
   }
