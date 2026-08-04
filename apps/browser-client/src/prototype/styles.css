@@ -710,6 +710,17 @@ a {
   line-height: 1.45;
 }
 
+.registerDialog .formError {
+  margin: 0;
+  border: 1px solid #f0b8b2;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff4f2;
+  color: #9a3328;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .registerDialog label {
   display: grid;
   gap: 6px;

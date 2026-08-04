@@ -15,7 +15,7 @@ The browser client assigns a stable anonymous user ID on first visit and stores 
 
 Server-backed identity now has a first MVP implementation in `apps/signaling-backend`:
 
-- `users`: anonymous ID, optional registered profile, created/last seen timestamps;
+- `users`: anonymous ID, optional registered profile with server-validated unique handle, created/last seen timestamps;
 - `sessions`: session ID, user ID, route, start/end timestamps, and explicit close reason via room-exit events;
 - `events`: visit, room start, camera grant, camera pause, analysis start, match wait/start/leave, call connect/disconnect/fail, consent grant/revoke, and room exit;
 - `consent_events`: adults-only chat terms, camera access, physiological analysis, and research feedback decisions;

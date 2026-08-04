@@ -15,7 +15,7 @@ import type {
   SessionRequest,
   WebRtcSignalRequest
 } from "@pulse-reaction/shared-schemas";
-import { SynVibeStore } from "./storage.js";
+import { ProfileHandleConflictError, SynVibeStore } from "./storage.js";
 
 const PORT = Number(process.env.SIGNALING_PORT ?? process.env.PORT ?? 1060);
 const ADMIN_TOKEN = process.env.SYNVIBE_ADMIN_TOKEN ?? null;
@@ -85,12 +85,26 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
   }
   if (request.method === "POST" && url.pathname === "/api/profiles") {
     const body = await readJson(request);
+    const displayName = readString(body, "displayName", 80);
+    const handle = normalizeHandle(readString(body, "handle", 40));
+    if (!isValidDisplayName(displayName) || !isValidHandle(handle)) {
+      sendJson(response, 400, { error: "invalid_profile" });
+      return;
+    }
     const input: ProfileRequest = {
       localUserId: readString(body, "localUserId", 64),
-      displayName: readString(body, "displayName", 80),
-      handle: normalizeHandle(readString(body, "handle", 40))
+      displayName,
+      handle
     };
-    sendJson(response, 200, store.upsertProfile(input));
+    try {
+      sendJson(response, 200, store.upsertProfile(input));
+    } catch (error) {
+      if (error instanceof ProfileHandleConflictError) {
+        sendJson(response, 409, { error: "handle_taken", handle: error.handle });
+        return;
+      }
+      throw error;
+    }
     return;
   }
   if (request.method === "GET" && url.pathname === "/api/profiles") {
@@ -534,6 +548,14 @@ function readConsentDecision(body: Record<string, unknown>): ConsentEventRequest
 
 function normalizeHandle(handle: string): string {
   return handle.replace(/^@/, "").toLowerCase();
+}
+
+function isValidDisplayName(displayName: string): boolean {
+  return displayName.length >= 2 && displayName.length <= 80;
+}
+
+function isValidHandle(handle: string): boolean {
+  return /^[a-z0-9_]{3,30}$/.test(handle);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

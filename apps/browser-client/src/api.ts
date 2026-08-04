@@ -22,6 +22,12 @@ import type {
 
 const API_ORIGIN = import.meta.env.VITE_API_ORIGIN ?? "";
 
+export type ProfileSaveResult =
+  | { status: "saved"; profile: ProfileRecord }
+  | { status: "handle_taken" }
+  | { status: "invalid_profile" }
+  | { status: "offline" };
+
 export async function ensureAnonymousUser(localUserId: string): Promise<void> {
   await post("/api/users/anonymous", { localUserId });
 }
@@ -30,8 +36,20 @@ export async function saveServerProfile(input: {
   localUserId: string;
   displayName: string;
   handle: string;
-}): Promise<ProfileRecord | null> {
-  return post<ProfileRecord>("/api/profiles", input);
+}): Promise<ProfileSaveResult> {
+  try {
+    const response = await fetch(`${API_ORIGIN}/api/profiles`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input)
+    });
+    if (response.ok) return { status: "saved", profile: (await response.json()) as ProfileRecord };
+    if (response.status === 409) return { status: "handle_taken" };
+    if (response.status === 400) return { status: "invalid_profile" };
+    return { status: "offline" };
+  } catch {
+    return { status: "offline" };
+  }
 }
 
 export async function loadServerProfile(localUserId: string): Promise<ProfileRecord | null> {

@@ -75,6 +75,53 @@ test("admin API supports least-privilege summary and reviewer tokens", async () 
   }
 });
 
+test("profile API validates handles and returns conflicts without internal errors", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "synvibe-profile-api-"));
+  const port = 13_000 + Math.floor(Math.random() * 1_000);
+  let server: ChildProcess | null = null;
+  try {
+    server = spawn(process.execPath, ["--import", "tsx", "apps/signaling-backend/src/server.ts"], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        SIGNALING_PORT: String(port),
+        SYNVIBE_DB_PATH: join(dir, "synvibe.sqlite")
+      },
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+
+    await waitForHealth(port, server);
+
+    assert.equal(
+      await status(port, "/api/profiles", undefined, {
+        method: "POST",
+        body: { localUserId: "SV-PROFAPI-000001", displayName: "Jo", handle: "bad handle" }
+      }),
+      400
+    );
+    assert.equal(
+      await status(port, "/api/profiles", undefined, {
+        method: "POST",
+        body: { localUserId: "SV-PROFAPI-000001", displayName: "Jo", handle: "@taken_name" }
+      }),
+      200
+    );
+    assert.equal(
+      await status(port, "/api/profiles", undefined, {
+        method: "POST",
+        body: { localUserId: "SV-PROFAPI-000002", displayName: "Mo", handle: "taken_name" }
+      }),
+      409
+    );
+  } finally {
+    if (server) {
+      server.kill("SIGTERM");
+      await onceExit(server);
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 async function waitForHealth(port: number, server: ChildProcess): Promise<void> {
   const deadline = Date.now() + 5_000;
   while (Date.now() < deadline) {

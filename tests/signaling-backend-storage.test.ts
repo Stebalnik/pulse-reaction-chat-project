@@ -154,6 +154,7 @@ test("profiles can be loaded and updated by anonymous user id", () => {
     assert.equal(loaded?.displayName, "Mira");
     assert.equal(updated.id, first.id);
     assert.equal(store.getProfileByLocalUserId(localUserId)?.handle, "mira_k");
+    assert.throws(() => store.upsertProfile({ localUserId: "SV-PROFIL-000002", displayName: "Other Mira", handle: "mira_k" }));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -6,7 +6,7 @@ Current MVP scope:
 
 - Node HTTP API on `SIGNALING_PORT` or `PORT`, defaulting to `1060` for local side-by-side browser development.
 - SQLite storage at `SYNVIBE_DB_PATH`, defaulting to `data/synvibe.sqlite`.
-- Anonymous users, profiles, sessions with explicit end records, operational events, and cleaned reaction-output records.
+- Anonymous users, server-validated unique profile handles, sessions with explicit end records, operational events, and cleaned reaction-output records.
 - Dedicated consent-event records for adults-only chat terms, camera access, physiological analysis, and research feedback.
 - Adults-only consent enforcement before matchmaking, roulette waiting queue, active match records, match leave handling, reason-coded report/block moderation records, message-level report references, admin review queue with status filters and repeated-report indicators, and block-aware rematching.
 - WebRTC offer/answer/ICE signaling relay scoped to active matches.

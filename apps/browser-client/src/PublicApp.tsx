@@ -42,6 +42,7 @@ export function PublicApp(): JSX.Element {
   const [profile, setProfile] = useState<LocalProfile | null>(() => loadLocalProfile());
   const [registerOpen, setRegisterOpen] = useState(false);
   const [profileSyncStatus, setProfileSyncStatus] = useState<"unknown" | "server" | "local_only">("unknown");
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
   const [safetyGateOpen, setSafetyGateOpen] = useState(false);
   const [adultChatAccepted, setAdultChatAccepted] = useState(() => window.localStorage.getItem(ADULT_CHAT_CONSENT_KEY) === ADULT_CHAT_POLICY_VERSION);
   const [inRoom, setInRoom] = useState(location.pathname === "/room");
@@ -116,14 +117,30 @@ export function PublicApp(): JSX.Element {
       {registerOpen && (
         <RegisterDialog
           current={profile}
-          onClose={() => setRegisterOpen(false)}
-          onSave={(next) => {
-            const saved = saveLocalProfile(next);
-            setProfile(saved);
-            void saveServerProfile({ localUserId: userId, displayName: saved.displayName, handle: saved.handle }).then((serverProfile) => {
-              setProfileSyncStatus(serverProfile ? "server" : "local_only");
-            });
+          error={profileSaveError}
+          onClose={() => {
+            setProfileSaveError(null);
             setRegisterOpen(false);
+          }}
+          onSave={async (next) => {
+            setProfileSaveError(null);
+            const result = await saveServerProfile({ localUserId: userId, displayName: next.displayName, handle: next.handle });
+            if (result.status === "handle_taken") {
+              setProfileSaveError("That handle is already taken. Choose another one.");
+              return false;
+            }
+            if (result.status === "invalid_profile") {
+              setProfileSaveError("Use 2+ characters for the name and 3-30 letters, numbers, or underscores for the handle.");
+              return false;
+            }
+            const saved = saveLocalProfile({
+              displayName: result.status === "saved" ? result.profile.displayName : next.displayName,
+              handle: result.status === "saved" ? result.profile.handle : next.handle
+            });
+            setProfile(saved);
+            setProfileSyncStatus(result.status === "saved" ? "server" : "local_only");
+            setRegisterOpen(false);
+            return true;
           }}
         />
       )}
@@ -1017,16 +1034,20 @@ function PeerPane({
 
 function RegisterDialog({
   current,
+  error,
   onClose,
   onSave
 }: {
   current: LocalProfile | null;
+  error: string | null;
   onClose: () => void;
-  onSave: (profile: { displayName: string; handle: string }) => void;
+  onSave: (profile: { displayName: string; handle: string }) => Promise<boolean>;
 }): JSX.Element {
   const [displayName, setDisplayName] = useState(current?.displayName ?? "");
   const [handle, setHandle] = useState(current?.handle ?? "");
-  const canSave = displayName.trim().length >= 2 && handle.trim().length >= 3;
+  const [saving, setSaving] = useState(false);
+  const normalizedHandle = handle.trim().replace(/^@/, "").toLowerCase();
+  const canSave = displayName.trim().length >= 2 && /^[a-z0-9_]{3,30}$/.test(normalizedHandle) && !saving;
 
   return (
     <div className="dialogBackdrop" role="presentation">
@@ -1035,7 +1056,13 @@ function RegisterDialog({
         onSubmit={(event) => {
           event.preventDefault();
           if (!canSave) return;
-          onSave({ displayName: displayName.trim(), handle: handle.trim().replace(/^@/, "") });
+          setSaving(true);
+          void onSave({ displayName: displayName.trim(), handle: normalizedHandle }).then(
+            (saved) => {
+              if (!saved) setSaving(false);
+            },
+            () => setSaving(false)
+          );
         }}
       >
         <div>
@@ -1050,12 +1077,13 @@ function RegisterDialog({
           Handle
           <input value={handle} onChange={(event) => setHandle(event.target.value)} placeholder="synvibe_alex" />
         </label>
+        {error && <p className="formError">{error}</p>}
         <div className="dialogActions">
           <button className="secondaryAction compact" type="button" onClick={onClose}>
             Cancel
           </button>
           <button className="primaryAction compact" type="submit" disabled={!canSave}>
-            Save profile
+            {saving ? "Saving" : "Save profile"}
           </button>
         </div>
       </form>

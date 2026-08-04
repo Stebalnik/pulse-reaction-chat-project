@@ -37,6 +37,13 @@ import type {
 const DEFAULT_DB_PATH = resolve(process.cwd(), "data/synvibe.sqlite");
 const DEFAULT_CHAT_RETENTION_HOURS = 24;
 
+export class ProfileHandleConflictError extends Error {
+  constructor(readonly handle: string) {
+    super(`Profile handle is already taken: ${handle}`);
+    this.name = "ProfileHandleConflictError";
+  }
+}
+
 export class SynVibeStore {
   readonly dbPath: string;
   readonly chatRetentionHours: number;
@@ -188,6 +195,8 @@ export class SynVibeStore {
     const user = this.upsertAnonymousUser(input.localUserId);
     const now = new Date().toISOString();
     const existing = this.queryOne<ProfileRow>(`SELECT * FROM profiles WHERE user_id = ${sql(user.id)};`);
+    const handleOwner = this.queryOne<ProfileRow>(`SELECT * FROM profiles WHERE handle = ${sql(input.handle)};`);
+    if (handleOwner && handleOwner.user_id !== user.id) throw new ProfileHandleConflictError(input.handle);
     if (existing) {
       this.execute(`
         UPDATE profiles
