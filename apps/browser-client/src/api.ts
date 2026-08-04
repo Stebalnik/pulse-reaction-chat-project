@@ -4,6 +4,7 @@ import type {
   EventRequest,
   MatchChatBatch,
   MatchChatMessage,
+  MatchChatMessageDeletionRequest,
   MatchChatMessageRequest,
   MatchmakingStatus,
   ModerationReportQueue,
@@ -117,6 +118,10 @@ export async function loadSignals(input: {
 
 export async function sendChatMessage(input: MatchChatMessageRequest): Promise<MatchChatMessage | null> {
   return post<MatchChatMessage>("/api/match-chat/messages", input);
+}
+
+export async function deleteChatMessage(input: MatchChatMessageDeletionRequest): Promise<MatchChatMessage | null> {
+  return post<MatchChatMessage>("/api/match-chat/messages/delete", input);
 }
 
 export async function loadChatMessages(input: {

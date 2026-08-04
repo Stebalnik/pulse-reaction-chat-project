@@ -1,9 +1,10 @@
-import { Activity, Camera, CircleUserRound, HeartPulse, MessageCircle, Play, Send, ShieldCheck, UserPlus, Video } from "lucide-react";
+import { Activity, Camera, CircleUserRound, HeartPulse, MessageCircle, Play, Send, ShieldCheck, Trash2, UserPlus, Video } from "lucide-react";
 import type { JSX, MutableRefObject, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MatchChatMessage, MatchmakingStatus, ModerationReportReason, WebRtcSignalMessage } from "@pulse-reaction/shared-schemas";
 import {
   createServerSession,
+  deleteChatMessage,
   endServerSession,
   ensureAnonymousUser,
   joinMatchmaking,
@@ -528,7 +529,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       chatCursorRef.current = batch.nextCursor;
       setChatOnline(true);
       if (batch.messages.length) {
-        setChatMessages((current) => appendUniqueMessages(current, batch.messages));
+        setChatMessages((current) => mergeChatMessages(current, batch.messages));
       }
     };
 
@@ -571,10 +572,21 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
     const message = await sendChatMessage({ localUserId: userId, matchId: matchStatus.match.id, body });
     if (message) {
       setChatOnline(true);
-      setChatMessages((current) => appendUniqueMessages(current, [message]));
+      setChatMessages((current) => mergeChatMessages(current, [message]));
     } else {
       setChatOnline(false);
       setChatDraft(body);
+    }
+  };
+
+  const deleteOwnChatMessage = async (messageId: string): Promise<void> => {
+    if (matchStatus.status !== "matched") return;
+    const message = await deleteChatMessage({ localUserId: userId, matchId: matchStatus.match.id, messageId });
+    if (message) {
+      setChatOnline(true);
+      setChatMessages((current) => mergeChatMessages(current, [message]));
+    } else {
+      setChatOnline(false);
     }
   };
 
@@ -639,6 +651,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
         draft={chatDraft}
         onDraftChange={setChatDraft}
         onSubmit={() => void submitChatMessage()}
+        onDelete={(messageId) => void deleteOwnChatMessage(messageId)}
         localUserId={userId}
         disabled={matchStatus.status !== "matched"}
         online={chatOnline && matchingOnline}
@@ -710,6 +723,7 @@ function MatchChatPanel({
   draft,
   onDraftChange,
   onSubmit,
+  onDelete,
   localUserId,
   disabled,
   online
@@ -718,6 +732,7 @@ function MatchChatPanel({
   draft: string;
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
+  onDelete: (messageId: string) => void;
   localUserId: string;
   disabled: boolean;
   online: boolean;
@@ -737,7 +752,12 @@ function MatchChatPanel({
         ) : (
           messages.map((message) => (
             <div className={message.senderLocalUserId === localUserId ? "matchMessage you" : "matchMessage peer"} key={message.id}>
-              {message.body}
+              <span className={message.deletedAtIso ? "deletedMessageBody" : ""}>{message.deletedAtIso ? "Message deleted" : message.body}</span>
+              {message.senderLocalUserId === localUserId && !message.deletedAtIso && (
+                <button className="messageDeleteButton" type="button" onClick={() => onDelete(message.id)} title="Delete message" aria-label="Delete message">
+                  <Trash2 aria-hidden="true" />
+                </button>
+              )}
             </div>
           ))
         )}
@@ -913,15 +933,14 @@ function profileSyncText(status: "unknown" | "server" | "local_only", profile: L
   return "Checking";
 }
 
-function appendUniqueMessages(current: MatchChatMessage[], incoming: MatchChatMessage[]): MatchChatMessage[] {
-  const seen = new Set(current.map((message) => message.id));
-  const next = [...current];
+function mergeChatMessages(current: MatchChatMessage[], incoming: MatchChatMessage[]): MatchChatMessage[] {
+  const byId = new Map(current.map((message) => [message.id, message]));
   for (const message of incoming) {
-    if (seen.has(message.id)) continue;
-    seen.add(message.id);
-    next.push(message);
+    byId.set(message.id, message);
   }
-  return next.slice(-100);
+  return Array.from(byId.values())
+    .sort((left, right) => left.createdAtIso.localeCompare(right.createdAtIso) || left.id.localeCompare(right.id))
+    .slice(-100);
 }
 
 function ensurePeerConnection({

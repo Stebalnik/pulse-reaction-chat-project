@@ -10,7 +10,7 @@ Current MVP scope:
 - Dedicated consent-event records for adults-only chat terms, camera access, physiological analysis, and research feedback.
 - Roulette waiting queue, active match records, match leave handling, reason-coded report/block moderation records, admin review queue with status filters and repeated-report indicators, and block-aware rematching.
 - WebRTC offer/answer/ICE signaling relay scoped to active matches.
-- Active-match text chat scoped to matched participants.
+- Active-match text chat scoped to matched participants, with sender delete controls and configurable retention.
 - Admin summary metrics for `/admin`.
 - Token-gated admin API access through `SYNVIBE_ADMIN_TOKEN` and `X-SynVibe-Admin-Token`.
 
@@ -27,6 +27,7 @@ SIGNALING_PORT=1060
 LOCAL_APP_ORIGIN=https://synvibe.app
 SYNVIBE_DB_PATH=/var/lib/synvibe/synvibe.sqlite
 SYNVIBE_ADMIN_TOKEN=<private random token>
+SYNVIBE_CHAT_RETENTION_HOURS=24
 ```
 
 If `SYNVIBE_ADMIN_TOKEN` is missing, `/api/admin/*` returns `admin_auth_not_configured` instead of exposing operational data.
@@ -64,7 +65,8 @@ Endpoints:
 - `GET /api/signaling/messages`
 - `POST /api/match-chat/messages`
 - `GET /api/match-chat/messages`
+- `POST /api/match-chat/messages/delete`
 - `POST /api/reaction-outputs`
 - `GET /api/admin/summary`
 
-Privacy boundary: this service must not receive raw video, raw RGB traces, or another participant's precise BPM by default. WebRTC signaling stores setup payloads for active matches only; media flows through peer connections rather than server storage. Match chat stores user-entered text for active matched participants only. Reaction output uploads are cleaned records with model/method version, confidence, reason codes, quality score, and coarse state only.
+Privacy boundary: this service must not receive raw video, raw RGB traces, or another participant's precise BPM by default. WebRTC signaling stores setup payloads for active matches only; media flows through peer connections rather than server storage. Match chat stores user-entered text for active matched participants only, lets the sender replace their own message body with a deletion tombstone, and prunes retained chat rows after `SYNVIBE_CHAT_RETENTION_HOURS` hours. Reaction output uploads are cleaned records with model/method version, confidence, reason codes, quality score, and coarse state only.

@@ -50,6 +50,6 @@ Not deployed in this slice.
 
 ## Recommended next steps
 
-1. Add chat retention/deletion policy and user-visible deletion controls.
-2. Add moderation queue views that can reference reported match IDs and message IDs when explicitly reported.
-3. Add WebSocket transport once HTTP polling becomes the bottleneck.
+1. Add moderation queue views that can reference reported match IDs and message IDs when explicitly reported.
+2. Add WebSocket transport once HTTP polling becomes the bottleneck.
+3. Add reviewer identity after authenticated admin accounts exist.

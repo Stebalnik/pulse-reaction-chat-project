@@ -49,6 +49,6 @@ Not deployed in this slice.
 
 ## Recommended next steps
 
-1. Add chat retention/deletion policy and user-visible deletion controls.
-2. Add message-level report references after chat retention/deletion policy is finalized.
-3. Add reviewer identity after authenticated admin accounts exist.
+1. Add message-level report references that preserve deletion and retention boundaries.
+2. Add reviewer identity after authenticated admin accounts exist.
+3. Add WebSocket transport once HTTP polling becomes the bottleneck.

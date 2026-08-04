@@ -15,6 +15,7 @@ export type SynVibeEventType =
   | "call_disconnect"
   | "call_fail"
   | "chat_message"
+  | "chat_delete"
   | "report"
   | "block";
 
@@ -239,12 +240,20 @@ export interface MatchChatMessageRequest {
   body: string;
 }
 
+export interface MatchChatMessageDeletionRequest {
+  localUserId: string;
+  matchId: string;
+  messageId: string;
+}
+
 export interface MatchChatMessage {
   id: string;
   matchId: string;
   senderLocalUserId: string;
-  body: string;
+  body: string | null;
   createdAtIso: string;
+  deletedAtIso: string | null;
+  deletedByLocalUserId: string | null;
 }
 
 export interface MatchChatBatch {

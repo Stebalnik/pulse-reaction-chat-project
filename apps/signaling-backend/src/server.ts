@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { timingSafeEqual } from "node:crypto";
 import type {
   ConsentEventRequest,
+  MatchChatMessageDeletionRequest,
   EventRequest,
   MatchChatMessageRequest,
   MatchmakingJoinRequest,
@@ -251,6 +252,23 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
       metadata: { matchId: input.matchId, messageId: message.id, bodyLength: input.body.length }
     });
     sendJson(response, 201, message);
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/match-chat/messages/delete") {
+    const body = await readJson(request);
+    const input: MatchChatMessageDeletionRequest = {
+      localUserId: readString(body, "localUserId", 64),
+      matchId: readString(body, "matchId", 64),
+      messageId: readString(body, "messageId", 64)
+    };
+    const message = store.deleteChatMessage(input);
+    store.recordEvent({
+      localUserId: input.localUserId,
+      type: "chat_delete",
+      route: "/room",
+      metadata: { matchId: input.matchId, messageId: input.messageId }
+    });
+    sendJson(response, 200, message);
     return;
   }
   if (request.method === "GET" && url.pathname === "/api/match-chat/messages") {

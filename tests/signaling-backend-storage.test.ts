@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -262,6 +263,30 @@ test("match chat stores messages only for active match participants", () => {
     assert.equal(peerBatch.messages[0]?.body, "Hi from the live room");
     assert.equal(store.getAdminSummary().chatMessages, 1);
 
+    const deleted = store.deleteChatMessage({
+      localUserId: "SV-CHATX-000001",
+      matchId,
+      messageId: message.id
+    });
+    assert.equal(deleted.id, message.id);
+    assert.equal(deleted.body, null);
+    assert.equal(deleted.deletedByLocalUserId, "SV-CHATX-000001");
+    assert.ok(deleted.deletedAtIso);
+
+    const peerTombstoneBatch = store.getChatMessages("SV-CHATX-000002", matchId, peerBatch.nextCursor);
+    assert.equal(peerTombstoneBatch.messages.length, 1);
+    assert.equal(peerTombstoneBatch.messages[0]?.id, message.id);
+    assert.equal(peerTombstoneBatch.messages[0]?.body, null);
+    assert.equal(peerTombstoneBatch.messages[0]?.deletedByLocalUserId, "SV-CHATX-000001");
+    assert.equal(store.getAdminSummary().chatMessages, 0);
+    assert.throws(() =>
+      store.deleteChatMessage({
+        localUserId: "SV-CHATX-000002",
+        matchId,
+        messageId: message.id
+      })
+    );
+
     assert.throws(() => store.getChatMessages("SV-CHATX-000003", matchId, null));
     store.leaveMatchmaking({ localUserId: "SV-CHATX-000001", matchId, reason: "left" });
     assert.throws(() =>
@@ -272,6 +297,41 @@ test("match chat stores messages only for active match participants", () => {
       })
     );
   } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("match chat retention prunes expired message rows", () => {
+  const dir = mkdtempSync(join(tmpdir(), "synvibe-chat-retention-"));
+  const previousRetention = process.env.SYNVIBE_CHAT_RETENTION_HOURS;
+  process.env.SYNVIBE_CHAT_RETENTION_HOURS = "1";
+  try {
+    const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
+    const first = store.joinMatchmaking({ localUserId: "SV-KEEPX-000001" });
+    assert.equal(first.status, "waiting");
+    const second = store.joinMatchmaking({ localUserId: "SV-KEEPX-000002" });
+    assert.equal(second.status, "matched");
+    const matchId = second.match.id;
+    const message = store.recordChatMessage({
+      localUserId: "SV-KEEPX-000001",
+      matchId,
+      body: "This should expire"
+    });
+
+    execFileSync("sqlite3", [
+      store.dbPath,
+      `UPDATE chat_messages SET created_at = '2000-01-01T00:00:00.000Z' WHERE id = '${message.id.replaceAll("'", "''")}';`
+    ]);
+
+    const batch = store.getChatMessages("SV-KEEPX-000002", matchId, null);
+    assert.equal(batch.messages.length, 0);
+    assert.equal(store.getAdminSummary().chatMessages, 0);
+  } finally {
+    if (previousRetention === undefined) {
+      delete process.env.SYNVIBE_CHAT_RETENTION_HOURS;
+    } else {
+      process.env.SYNVIBE_CHAT_RETENTION_HOURS = previousRetention;
+    }
     rmSync(dir, { recursive: true, force: true });
   }
 });

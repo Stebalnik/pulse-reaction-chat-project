@@ -20,7 +20,7 @@ Server-backed identity now has a first MVP implementation in `apps/signaling-bac
 - `events`: visit, room start, camera grant, camera pause, analysis start, match wait/start/leave, call connect/disconnect/fail, consent grant/revoke, and room exit;
 - `consent_events`: adults-only chat terms, camera access, physiological analysis, and research feedback decisions;
 - `moderation_reports`: report/block actions with selected reason, optional notes, reviewer status/notes, reporter/reported user IDs, optional match linkage, and no raw media or biometric traces;
-- `chat_messages`: active-match text messages scoped to participants;
+- `chat_messages`: active-match text messages scoped to participants, with sender deletion tombstones and time-limited retention;
 - `reaction_outputs`: cleaned output only, with model version, method version, confidence, quality metrics, reason codes, and no raw video.
 
 The browser client posts anonymous user/profile/event records when the API is available, loads the server profile for the current anonymous ID, and falls back to local-only profile behavior when the backend is not reachable.
@@ -54,11 +54,12 @@ Only users who belong to an active match can post or read signaling messages for
 
 The public room includes first-pass active-match text chat:
 
-- `chat_messages`: message body, sender, match, and timestamp;
+- `chat_messages`: message body, sender, match, timestamp, and optional deletion tombstone metadata;
 - `POST /api/match-chat/messages`;
-- `GET /api/match-chat/messages`.
+- `GET /api/match-chat/messages`;
+- `POST /api/match-chat/messages/delete`.
 
-Only active match participants can send or read messages for that match. Chat text is user-entered conversation data and must not be mixed with biometric or reaction-pattern records.
+Only active match participants can send or read messages for that match. Senders can delete their own messages for the conversation; the backend clears the body and returns a tombstone rather than exposing the deleted text. The backend also prunes retained chat rows after `SYNVIBE_CHAT_RETENTION_HOURS` hours, defaulting to 24 hours. Chat text is user-entered conversation data and must not be mixed with biometric or reaction-pattern records.
 
 ## Admin
 
@@ -71,7 +72,7 @@ Next admin analytics should add:
 - signal quality: sufficient-signal ratio, FPS distribution, ROI source, rejection reason codes;
 - product outputs: badge distribution and baseline maturity, without exposing raw biometric traces;
 - user experience: guest vs registered usage, repeat visits, registration conversion;
-- safety operations: message-level report references after chat retention/deletion policy is finalized;
+- safety operations: message-level report references that preserve deletion and retention boundaries;
 - operations: errors, API health, signaling queue size.
 
 ## Boundaries

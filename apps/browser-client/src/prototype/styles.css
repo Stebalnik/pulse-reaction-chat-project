@@ -583,6 +583,9 @@ a {
   padding: 9px 10px;
   line-height: 1.35;
   overflow-wrap: anywhere;
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
 .matchMessage.you {
@@ -595,6 +598,33 @@ a {
   align-self: flex-start;
   background: #eef3f0;
   color: #1d2924;
+}
+
+.deletedMessageBody {
+  font-style: italic;
+  opacity: 0.72;
+}
+
+.messageDeleteButton {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 18%);
+  color: currentColor;
+  cursor: pointer;
+}
+
+.messageDeleteButton:hover {
+  background: rgb(255 255 255 / 28%);
+}
+
+.messageDeleteButton svg {
+  width: 14px;
+  height: 14px;
 }
 
 .matchComposer {

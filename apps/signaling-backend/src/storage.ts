@@ -18,6 +18,7 @@ import type {
   MatchPeer,
   MatchChatBatch,
   MatchChatMessage,
+  MatchChatMessageDeletionRequest,
   MatchChatMessageRequest,
   ModerationReportQueue,
   ModerationReportQueueItem,
@@ -33,12 +34,15 @@ import type {
 } from "@pulse-reaction/shared-schemas";
 
 const DEFAULT_DB_PATH = resolve(process.cwd(), "data/synvibe.sqlite");
+const DEFAULT_CHAT_RETENTION_HOURS = 24;
 
 export class SynVibeStore {
   readonly dbPath: string;
+  readonly chatRetentionHours: number;
 
   constructor(dbPath = process.env.SYNVIBE_DB_PATH ?? DEFAULT_DB_PATH) {
     this.dbPath = dbPath;
+    this.chatRetentionHours = readRetentionHours(process.env.SYNVIBE_CHAT_RETENTION_HOURS);
     mkdirSync(dirname(this.dbPath), { recursive: true });
     this.execute(`
       PRAGMA journal_mode = WAL;
@@ -124,6 +128,8 @@ export class SynVibeStore {
         match_id TEXT NOT NULL REFERENCES matches(id),
         sender_user_id TEXT NOT NULL REFERENCES users(id),
         body TEXT NOT NULL,
+        deleted_at TEXT,
+        deleted_by_user_id TEXT REFERENCES users(id),
         created_at TEXT NOT NULL
       );
       CREATE TABLE IF NOT EXISTS consent_events (
@@ -150,6 +156,7 @@ export class SynVibeStore {
         created_at TEXT NOT NULL
       );
     `);
+    this.ensureChatMessageColumns();
     this.ensureModerationReportColumns();
   }
 
@@ -602,6 +609,7 @@ export class SynVibeStore {
   }
 
   recordChatMessage(input: MatchChatMessageRequest): MatchChatMessage {
+    this.pruneExpiredChatMessages();
     const user = this.upsertAnonymousUser(input.localUserId);
     const match = this.getActiveMatchForUser(input.matchId, user.id);
     const now = new Date().toISOString();
@@ -610,7 +618,9 @@ export class SynVibeStore {
       matchId: match.id,
       senderLocalUserId: user.localUserId,
       body: input.body,
-      createdAtIso: now
+      createdAtIso: now,
+      deletedAtIso: null,
+      deletedByLocalUserId: null
     };
     this.execute(`
       INSERT INTO chat_messages (id, match_id, sender_user_id, body, created_at)
@@ -619,24 +629,69 @@ export class SynVibeStore {
     return message;
   }
 
+  deleteChatMessage(input: MatchChatMessageDeletionRequest): MatchChatMessage {
+    this.pruneExpiredChatMessages();
+    const user = this.upsertAnonymousUser(input.localUserId);
+    const match = this.getActiveMatchForUser(input.matchId, user.id);
+    const row = this.queryOne<ChatMessageRow>(`
+      SELECT
+        chat_messages.*,
+        sender.local_user_id,
+        deleted_by.local_user_id AS deleted_by_local_user_id,
+        COALESCE(chat_messages.deleted_at, chat_messages.created_at) || ':' || chat_messages.id AS delivery_cursor
+      FROM chat_messages
+      JOIN users AS sender ON sender.id = chat_messages.sender_user_id
+      LEFT JOIN users AS deleted_by ON deleted_by.id = chat_messages.deleted_by_user_id
+      WHERE chat_messages.id = ${sql(input.messageId)}
+        AND chat_messages.match_id = ${sql(match.id)}
+        AND chat_messages.sender_user_id = ${sql(user.id)};
+    `);
+    if (!row) throw new Error("Chat message not found for sender");
+    const deletedAt = row.deleted_at ?? new Date().toISOString();
+    if (!row.deleted_at) {
+      this.execute(`
+        UPDATE chat_messages
+        SET body = '', deleted_at = ${sql(deletedAt)}, deleted_by_user_id = ${sql(user.id)}
+        WHERE id = ${sql(row.id)}
+          AND match_id = ${sql(match.id)}
+          AND sender_user_id = ${sql(user.id)}
+          AND deleted_at IS NULL;
+      `);
+    }
+    return mapChatMessage({
+      ...row,
+      body: "",
+      deleted_at: deletedAt,
+      deleted_by_user_id: user.id,
+      deleted_by_local_user_id: user.localUserId,
+      delivery_cursor: `${deletedAt}:${row.id}`
+    });
+  }
+
   getChatMessages(localUserId: string, matchId: string, afterCursor: string | null): MatchChatBatch {
+    this.pruneExpiredChatMessages();
     const user = this.upsertAnonymousUser(localUserId);
     const match = this.getActiveMatchForUser(matchId, user.id);
-    const afterClause = afterCursor ? `AND chat_messages.created_at || ':' || chat_messages.id > ${sql(afterCursor)}` : "";
+    const afterClause = afterCursor ? `AND COALESCE(chat_messages.deleted_at, chat_messages.created_at) || ':' || chat_messages.id > ${sql(afterCursor)}` : "";
     const rows = this.query<ChatMessageRow>(`
-      SELECT chat_messages.*, users.local_user_id
+      SELECT
+        chat_messages.*,
+        sender.local_user_id,
+        deleted_by.local_user_id AS deleted_by_local_user_id,
+        COALESCE(chat_messages.deleted_at, chat_messages.created_at) || ':' || chat_messages.id AS delivery_cursor
       FROM chat_messages
-      JOIN users ON users.id = chat_messages.sender_user_id
-      WHERE match_id = ${sql(match.id)}
+      JOIN users AS sender ON sender.id = chat_messages.sender_user_id
+      LEFT JOIN users AS deleted_by ON deleted_by.id = chat_messages.deleted_by_user_id
+      WHERE chat_messages.match_id = ${sql(match.id)}
         ${afterClause}
-      ORDER BY chat_messages.created_at ASC, chat_messages.id ASC
+      ORDER BY COALESCE(chat_messages.deleted_at, chat_messages.created_at) ASC, chat_messages.id ASC
       LIMIT 100;
     `);
     const messages = rows.map(mapChatMessage);
     const last = rows.at(-1);
     return {
       messages,
-      nextCursor: last ? `${last.created_at}:${last.id}` : afterCursor
+      nextCursor: last ? last.delivery_cursor : afterCursor
     };
   }
 
@@ -688,7 +743,8 @@ export class SynVibeStore {
     const callConnects = this.countEvents("call_connect");
     const callDisconnects = this.countEvents("call_disconnect");
     const callFailures = this.countEvents("call_fail");
-    const chatMessages = this.scalar("SELECT COUNT(*) AS value FROM chat_messages;");
+    this.pruneExpiredChatMessages();
+    const chatMessages = this.scalar("SELECT COUNT(*) AS value FROM chat_messages WHERE deleted_at IS NULL;");
     const reportCount = this.scalar("SELECT COUNT(*) AS value FROM moderation_reports WHERE type = 'report';");
     const blockCount = this.scalar("SELECT COUNT(*) AS value FROM moderation_reports WHERE type = 'block';");
     const averageSessionDurationSeconds = this.queryOne<{ value: number | null }>(`
@@ -814,6 +870,18 @@ export class SynVibeStore {
     if (!columns.has("resolved_at")) this.execute("ALTER TABLE moderation_reports ADD COLUMN resolved_at TEXT;");
   }
 
+  private ensureChatMessageColumns(): void {
+    const columns = new Set(this.query<{ name: string }>("PRAGMA table_info(chat_messages);").map((row) => row.name));
+    if (!columns.has("deleted_at")) this.execute("ALTER TABLE chat_messages ADD COLUMN deleted_at TEXT;");
+    if (!columns.has("deleted_by_user_id")) this.execute("ALTER TABLE chat_messages ADD COLUMN deleted_by_user_id TEXT REFERENCES users(id);");
+  }
+
+  private pruneExpiredChatMessages(): void {
+    if (!Number.isFinite(this.chatRetentionHours) || this.chatRetentionHours <= 0) return;
+    const cutoff = new Date(Date.now() - this.chatRetentionHours * 60 * 60 * 1000).toISOString();
+    this.execute(`DELETE FROM chat_messages WHERE created_at < ${sql(cutoff)};`);
+  }
+
   private getUserByLocalId(localUserId: string): AnonymousUserRecord | null {
     const row = this.queryOne<UserRow>(`SELECT * FROM users WHERE local_user_id = ${sql(localUserId)};`);
     return row ? mapUser(row) : null;
@@ -908,7 +976,11 @@ interface ChatMessageRow {
   sender_user_id: string;
   local_user_id: string;
   body: string;
+  deleted_at: string | null;
+  deleted_by_user_id: string | null;
+  deleted_by_local_user_id: string | null;
   created_at: string;
+  delivery_cursor: string;
 }
 
 interface ModerationReportQueueRow {
@@ -969,13 +1041,22 @@ function mapSignal(row: SignalRow): WebRtcSignalMessage {
 }
 
 function mapChatMessage(row: ChatMessageRow): MatchChatMessage {
+  const deleted = Boolean(row.deleted_at);
   return {
     id: row.id,
     matchId: row.match_id,
     senderLocalUserId: row.local_user_id,
-    body: row.body,
-    createdAtIso: row.created_at
+    body: deleted ? null : row.body,
+    createdAtIso: row.created_at,
+    deletedAtIso: row.deleted_at,
+    deletedByLocalUserId: row.deleted_by_local_user_id
   };
+}
+
+function readRetentionHours(raw: string | undefined): number {
+  if (!raw) return DEFAULT_CHAT_RETENTION_HOURS;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : DEFAULT_CHAT_RETENTION_HOURS;
 }
 
 function parseReasonCodes(raw: string): string[] {

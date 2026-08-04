@@ -22,9 +22,14 @@ The first server-backed release should store:
 - session start/end events;
 - room matching events;
 - consent and pause events;
+- active-match chat text with sender deletion controls and time-limited retention;
 - cleaned reaction-pattern outputs;
 - quality metrics and rejection reason codes;
 - product analytics events such as visit, room start, camera grant, peer connect, disconnect, registration start, and registration complete.
+
+## Current Chat Retention Draft
+
+Match chat is operational conversation data, not biometric data. The current server implementation scopes chat reads and writes to active match participants, lets the sender delete their own message body for the conversation, and prunes retained chat rows after `SYNVIBE_CHAT_RETENTION_HOURS` hours. The engineering default is 24 hours until counsel and safety review set a production policy.
 
 ## Model Improvement
 
