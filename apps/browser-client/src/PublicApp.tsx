@@ -1,8 +1,18 @@
 import { Activity, Camera, CircleUserRound, HeartPulse, Play, ShieldCheck, UserPlus, Video } from "lucide-react";
-import type { JSX } from "react";
+import type { JSX, MutableRefObject, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MatchmakingStatus } from "@pulse-reaction/shared-schemas";
-import { createServerSession, ensureAnonymousUser, joinMatchmaking, leaveMatchmaking, loadMatchmakingStatus, recordEvent, saveServerProfile } from "./api.js";
+import type { MatchmakingStatus, WebRtcSignalMessage } from "@pulse-reaction/shared-schemas";
+import {
+  createServerSession,
+  ensureAnonymousUser,
+  joinMatchmaking,
+  leaveMatchmaking,
+  loadMatchmakingStatus,
+  loadSignals,
+  recordEvent,
+  saveServerProfile,
+  sendSignal
+} from "./api.js";
 import { getOrCreateAnonymousUserId, loadLocalProfile, saveLocalProfile, type LocalProfile } from "./identity.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
@@ -128,8 +138,16 @@ function PublicHome({
 
 function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile | null }): JSX.Element {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const signalCursorRef = useRef<string | null>(null);
+  const offerStartedRef = useRef<string | null>(null);
+  const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [hasRemoteStream, setHasRemoteStream] = useState(false);
+  const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>("new");
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({ status: "idle" });
   const [matchingOnline, setMatchingOnline] = useState(true);
@@ -172,6 +190,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
 
   const leaveCurrentMatch = async (reason: "left" | "reported" | "blocked"): Promise<void> => {
     const matchId = matchStatus.status === "matched" ? matchStatus.match.id : undefined;
+    closePeerConnection(peerConnectionRef, remoteVideoRef, setHasRemoteStream, setConnectionState);
     const status = await leaveMatchmaking({
       localUserId: userId,
       ...(matchId ? { matchId } : {}),
@@ -189,6 +208,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
     let cancelled = false;
     if (!cameraEnabled) {
       stopVideo(videoRef.current);
+      setLocalStream(null);
       return;
     }
 
@@ -208,6 +228,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
         }
         stream = nextStream;
         if (videoRef.current) videoRef.current.srcObject = nextStream;
+        setLocalStream(nextStream);
         setCameraError(null);
         void recordRoomEvent(userId, sessionId, "camera_grant");
       })
@@ -216,9 +237,82 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
     return () => {
       cancelled = true;
       stream?.getTracks().forEach((track) => track.stop());
+      setLocalStream(null);
       if (stream) void recordRoomEvent(userId, sessionId, "camera_pause");
     };
   }, [cameraEnabled, sessionId, userId]);
+
+  useEffect(() => {
+    if (matchStatus.status !== "matched" || !localStream) {
+      closePeerConnection(peerConnectionRef, remoteVideoRef, setHasRemoteStream, setConnectionState);
+      offerStartedRef.current = null;
+      signalCursorRef.current = null;
+      pendingIceCandidatesRef.current = [];
+      return;
+    }
+
+    const match = matchStatus.match;
+    let cancelled = false;
+    const connection = ensurePeerConnection({
+      peerConnectionRef,
+      remoteVideoRef,
+      localStream,
+      onRemoteStream: () => setHasRemoteStream(true),
+      onConnectionState: setConnectionState,
+      onSignal: (type, payload) => void sendSignal({ localUserId: userId, matchId: match.id, type, payload })
+    });
+
+    const handleMessages = async (messages: WebRtcSignalMessage[]): Promise<void> => {
+      for (const message of messages) {
+        if (message.type === "offer") {
+          const offer = readSessionDescription(message.payload);
+          if (!offer) continue;
+          await connection.setRemoteDescription(offer);
+          await drainPendingIceCandidates(connection, pendingIceCandidatesRef);
+          const answer = await connection.createAnswer();
+          await connection.setLocalDescription(answer);
+          await sendSignal({ localUserId: userId, matchId: match.id, type: "answer", payload: answerToPayload(answer) });
+        } else if (message.type === "answer") {
+          const answer = readSessionDescription(message.payload);
+          if (answer && !connection.currentRemoteDescription) {
+            await connection.setRemoteDescription(answer);
+            await drainPendingIceCandidates(connection, pendingIceCandidatesRef);
+          }
+        } else if (message.type === "candidate") {
+          const candidate = readIceCandidate(message.payload);
+          if (candidate) {
+            if (connection.remoteDescription) {
+              await connection.addIceCandidate(candidate);
+            } else {
+              pendingIceCandidatesRef.current.push(candidate);
+            }
+          }
+        }
+      }
+    };
+
+    const pollSignals = async (): Promise<void> => {
+      const batch = await loadSignals({ localUserId: userId, matchId: match.id, after: signalCursorRef.current });
+      if (!batch || cancelled) return;
+      signalCursorRef.current = batch.nextCursor;
+      await handleMessages(batch.messages);
+    };
+
+    if (match.localRole === "caller" && offerStartedRef.current !== match.id) {
+      offerStartedRef.current = match.id;
+      void connection.createOffer().then(async (offer) => {
+        await connection.setLocalDescription(offer);
+        await sendSignal({ localUserId: userId, matchId: match.id, type: "offer", payload: answerToPayload(offer) });
+      });
+    }
+    void pollSignals();
+    const intervalId = window.setInterval(() => void pollSignals(), 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [localStream, matchStatus, userId]);
 
   return (
     <section className="publicRoom">
@@ -265,7 +359,14 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
           <div className="publicVideoLabel">You</div>
         </article>
         <article className="publicVideoPane peerPane">
-          <PeerPane status={matchStatus} online={matchingOnline} />
+          <PeerPane
+            status={matchStatus}
+            online={matchingOnline}
+            remoteVideoRef={remoteVideoRef}
+            hasRemoteStream={hasRemoteStream}
+            connectionState={connectionState}
+            cameraEnabled={cameraEnabled}
+          />
           <div className="publicVideoLabel">Peer</div>
         </article>
       </div>
@@ -273,7 +374,21 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   );
 }
 
-function PeerPane({ status, online }: { status: MatchmakingStatus; online: boolean }): JSX.Element {
+function PeerPane({
+  status,
+  online,
+  remoteVideoRef,
+  hasRemoteStream,
+  connectionState,
+  cameraEnabled
+}: {
+  status: MatchmakingStatus;
+  online: boolean;
+  remoteVideoRef: RefObject<HTMLVideoElement | null>;
+  hasRemoteStream: boolean;
+  connectionState: RTCPeerConnectionState;
+  cameraEnabled: boolean;
+}): JSX.Element {
   if (!online) {
     return (
       <div className="peerMock">
@@ -287,11 +402,13 @@ function PeerPane({ status, online }: { status: MatchmakingStatus; online: boole
   if (status.status === "matched") {
     return (
       <>
-        <div className="peerMock matched">
+        <video ref={remoteVideoRef} className={hasRemoteStream ? "remoteVideo active" : "remoteVideo"} autoPlay playsInline />
+        <div className={`peerMock matched ${hasRemoteStream ? "connected" : ""}`}>
           <Activity aria-hidden="true" />
           <span>Matched</span>
           <strong>{status.match.peer.displayName ?? status.match.peer.localUserId}</strong>
           {status.match.peer.handle && <em>@{status.match.peer.handle}</em>}
+          <small>{cameraEnabled ? connectionStateText(connectionState) : "Enable camera to connect video"}</small>
         </div>
         <div className="publicReactionStack" aria-label="Peer reaction pattern availability">
           <ReactionChip code="PENDING" label="Consented signal" />
@@ -400,6 +517,95 @@ function roomStatusText(status: MatchmakingStatus, online: boolean): string {
   if (status.status === "matched") return `Matched with ${status.match.peer.displayName ?? status.match.peer.localUserId}`;
   if (status.status === "waiting") return `Waiting in queue, position ${status.queuePosition}`;
   return "Ready to match";
+}
+
+function ensurePeerConnection({
+  peerConnectionRef,
+  remoteVideoRef,
+  localStream,
+  onRemoteStream,
+  onConnectionState,
+  onSignal
+}: {
+  peerConnectionRef: MutableRefObject<RTCPeerConnection | null>;
+  remoteVideoRef: RefObject<HTMLVideoElement | null>;
+  localStream: MediaStream;
+  onRemoteStream: () => void;
+  onConnectionState: (state: RTCPeerConnectionState) => void;
+  onSignal: (type: "candidate", payload: Record<string, unknown>) => void;
+}): RTCPeerConnection {
+  if (peerConnectionRef.current) return peerConnectionRef.current;
+  const connection = new RTCPeerConnection({
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+  });
+  peerConnectionRef.current = connection;
+  localStream.getTracks().forEach((track) => connection.addTrack(track, localStream));
+  connection.ontrack = (event) => {
+    const [remoteStream] = event.streams;
+    if (remoteStream && remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = remoteStream;
+      onRemoteStream();
+    }
+  };
+  connection.onconnectionstatechange = () => onConnectionState(connection.connectionState);
+  connection.onicecandidate = (event) => {
+    if (event.candidate) onSignal("candidate", event.candidate.toJSON() as Record<string, unknown>);
+  };
+  return connection;
+}
+
+function closePeerConnection(
+  peerConnectionRef: MutableRefObject<RTCPeerConnection | null>,
+  remoteVideoRef: RefObject<HTMLVideoElement | null>,
+  setHasRemoteStream: (value: boolean) => void,
+  setConnectionState: (value: RTCPeerConnectionState) => void
+): void {
+  peerConnectionRef.current?.close();
+  peerConnectionRef.current = null;
+  if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+  setHasRemoteStream(false);
+  setConnectionState("closed");
+}
+
+async function drainPendingIceCandidates(
+  connection: RTCPeerConnection,
+  pendingIceCandidatesRef: MutableRefObject<RTCIceCandidateInit[]>
+): Promise<void> {
+  const candidates = pendingIceCandidatesRef.current.splice(0);
+  for (const candidate of candidates) await connection.addIceCandidate(candidate);
+}
+
+function answerToPayload(description: RTCSessionDescriptionInit): Record<string, unknown> {
+  return {
+    type: description.type,
+    sdp: description.sdp
+  };
+}
+
+function readSessionDescription(payload: Record<string, unknown>): RTCSessionDescriptionInit | null {
+  if ((payload.type === "offer" || payload.type === "answer") && typeof payload.sdp === "string") {
+    return { type: payload.type, sdp: payload.sdp };
+  }
+  return null;
+}
+
+function readIceCandidate(payload: Record<string, unknown>): RTCIceCandidateInit | null {
+  if (typeof payload.candidate !== "string") return null;
+  return {
+    candidate: payload.candidate,
+    sdpMid: typeof payload.sdpMid === "string" ? payload.sdpMid : null,
+    sdpMLineIndex: typeof payload.sdpMLineIndex === "number" ? payload.sdpMLineIndex : null,
+    ...(typeof payload.usernameFragment === "string" ? { usernameFragment: payload.usernameFragment } : {})
+  };
+}
+
+function connectionStateText(state: RTCPeerConnectionState): string {
+  if (state === "connected") return "Video connected";
+  if (state === "connecting") return "Connecting video";
+  if (state === "failed") return "Video connection failed";
+  if (state === "disconnected") return "Peer video interrupted";
+  if (state === "closed") return "Video closed";
+  return "Preparing video";
 }
 
 function stopVideo(video: HTMLVideoElement | null): void {

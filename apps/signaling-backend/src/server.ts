@@ -1,5 +1,13 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import type { EventRequest, MatchmakingJoinRequest, MatchmakingLeaveRequest, ProfileRequest, ReactionOutputRequest, SessionRequest } from "@pulse-reaction/shared-schemas";
+import type {
+  EventRequest,
+  MatchmakingJoinRequest,
+  MatchmakingLeaveRequest,
+  ProfileRequest,
+  ReactionOutputRequest,
+  SessionRequest,
+  WebRtcSignalRequest
+} from "@pulse-reaction/shared-schemas";
 import { SynVibeStore } from "./storage.js";
 
 const PORT = Number(process.env.SIGNALING_PORT ?? process.env.PORT ?? 1060);
@@ -114,7 +122,7 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     const input: MatchmakingLeaveRequest = {
       localUserId: readString(body, "localUserId", 64),
       ...(matchId ? { matchId } : {}),
-      reason: readString(body, "reason", 20) as MatchmakingLeaveRequest["reason"]
+      reason: readLeaveReason(body)
     };
     const status = store.leaveMatchmaking(input);
     store.recordEvent({
@@ -124,6 +132,27 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
       metadata: { matchId: input.matchId ?? null, reason: input.reason }
     });
     sendJson(response, 200, status);
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/signaling/messages") {
+    const body = await readJson(request);
+    const input: WebRtcSignalRequest = {
+      localUserId: readString(body, "localUserId", 64),
+      matchId: readString(body, "matchId", 64),
+      type: readSignalType(body),
+      payload: readRequiredRecord(body, "payload")
+    };
+    sendJson(response, 202, store.recordSignal(input));
+    return;
+  }
+  if (request.method === "GET" && url.pathname === "/api/signaling/messages") {
+    const localUserId = url.searchParams.get("localUserId");
+    const matchId = url.searchParams.get("matchId");
+    if (!localUserId || !matchId) {
+      sendJson(response, 400, { error: "missing_signaling_query" });
+      return;
+    }
+    sendJson(response, 200, store.getSignals(localUserId.slice(0, 64), matchId.slice(0, 64), url.searchParams.get("after")));
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/reaction-outputs") {
@@ -186,6 +215,12 @@ function readRecord(body: Record<string, unknown>, key: string): Record<string, 
   return isRecord(value) ? value : undefined;
 }
 
+function readRequiredRecord(body: Record<string, unknown>, key: string): Record<string, unknown> {
+  const value = readRecord(body, key);
+  if (!value) throw new Error(`Missing object: ${key}`);
+  return value;
+}
+
 function readStringArray(body: Record<string, unknown>, key: string, maxItems: number): string[] {
   const value = body[key];
   if (!Array.isArray(value)) return [];
@@ -196,6 +231,18 @@ function readNumber(body: Record<string, unknown>, key: string): number {
   const value = body[key];
   if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`Missing number: ${key}`);
   return value;
+}
+
+function readLeaveReason(body: Record<string, unknown>): MatchmakingLeaveRequest["reason"] {
+  const reason = readString(body, "reason", 20);
+  if (reason === "left" || reason === "reported" || reason === "blocked") return reason;
+  throw new Error(`Invalid leave reason: ${reason}`);
+}
+
+function readSignalType(body: Record<string, unknown>): WebRtcSignalRequest["type"] {
+  const type = readString(body, "type", 20);
+  if (type === "offer" || type === "answer" || type === "candidate") return type;
+  throw new Error(`Invalid signal type: ${type}`);
 }
 
 function normalizeHandle(handle: string): string {

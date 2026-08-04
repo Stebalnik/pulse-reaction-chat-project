@@ -380,6 +380,19 @@ a {
     repeating-linear-gradient(90deg, #243836 0 12px, #20312f 12px 24px);
 }
 
+.remoteVideo {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.remoteVideo.active {
+  opacity: 1;
+}
+
 .publicEmptyVideo,
 .peerMock {
   position: absolute;
@@ -408,10 +421,35 @@ a {
   font-size: 20px;
 }
 
+.peerMock.matched.connected {
+  inset: auto 12px 12px auto;
+  min-width: min(260px, calc(100% - 24px));
+  place-items: start;
+  justify-items: start;
+  border-radius: 8px;
+  padding: 12px;
+  background: rgb(15 28 24 / 76%);
+  backdrop-filter: blur(12px);
+}
+
+.peerMock.matched.connected svg {
+  width: 22px;
+  height: 22px;
+}
+
+.peerMock.matched.connected strong {
+  font-size: 15px;
+}
+
 .peerMock em {
   color: #b8c9c1;
   font-size: 13px;
   font-style: normal;
+}
+
+.peerMock small {
+  color: #dbe8e2;
+  font-size: 12px;
 }
 
 .publicVideoLabel,

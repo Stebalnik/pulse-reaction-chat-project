@@ -14,7 +14,10 @@ import type {
   MatchmakingJoinRequest,
   MatchmakingLeaveRequest,
   MatchmakingStatus,
-  MatchPeer
+  MatchPeer,
+  WebRtcSignalBatch,
+  WebRtcSignalMessage,
+  WebRtcSignalRequest
 } from "@pulse-reaction/shared-schemas";
 
 const DEFAULT_DB_PATH = resolve(process.cwd(), "data/synvibe.sqlite");
@@ -95,6 +98,14 @@ export class SynVibeStore {
         blocked_user_id TEXT NOT NULL REFERENCES users(id),
         created_at TEXT NOT NULL,
         PRIMARY KEY (blocker_user_id, blocked_user_id)
+      );
+      CREATE TABLE IF NOT EXISTS signaling_messages (
+        id TEXT PRIMARY KEY,
+        match_id TEXT NOT NULL REFERENCES matches(id),
+        sender_user_id TEXT NOT NULL REFERENCES users(id),
+        type TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
       );
     `);
   }
@@ -240,6 +251,7 @@ export class SynVibeStore {
         match: {
           id: matchId,
           startedAtIso: now,
+          localRole: "caller",
           peer: this.getPeerForUser(matchId, user.id)
         }
       };
@@ -281,6 +293,7 @@ export class SynVibeStore {
         match: {
           id: activeMatch.id,
           startedAtIso: activeMatch.created_at,
+          localRole: activeMatch.user_b_id === user.id ? "caller" : "callee",
           peer: this.getPeerForUser(activeMatch.id, user.id)
         }
       };
@@ -301,6 +314,47 @@ export class SynVibeStore {
     }
 
     return { status: "idle" };
+  }
+
+  recordSignal(input: WebRtcSignalRequest): WebRtcSignalMessage {
+    const user = this.upsertAnonymousUser(input.localUserId);
+    const match = this.getActiveMatchForUser(input.matchId, user.id);
+    const now = new Date().toISOString();
+    const message: WebRtcSignalMessage = {
+      id: randomUUID(),
+      matchId: match.id,
+      senderLocalUserId: user.localUserId,
+      type: input.type,
+      payload: input.payload,
+      createdAtIso: now
+    };
+    this.execute(`
+      INSERT INTO signaling_messages (id, match_id, sender_user_id, type, payload_json, created_at)
+      VALUES (${sql(message.id)}, ${sql(match.id)}, ${sql(user.id)}, ${sql(input.type)}, ${sql(JSON.stringify(input.payload))}, ${sql(now)});
+    `);
+    return message;
+  }
+
+  getSignals(localUserId: string, matchId: string, afterCursor: string | null): WebRtcSignalBatch {
+    const user = this.upsertAnonymousUser(localUserId);
+    const match = this.getActiveMatchForUser(matchId, user.id);
+    const afterClause = afterCursor ? `AND signaling_messages.created_at || ':' || signaling_messages.id > ${sql(afterCursor)}` : "";
+    const rows = this.query<SignalRow>(`
+      SELECT signaling_messages.*, users.local_user_id
+      FROM signaling_messages
+      JOIN users ON users.id = signaling_messages.sender_user_id
+      WHERE match_id = ${sql(match.id)}
+        AND sender_user_id != ${sql(user.id)}
+        ${afterClause}
+      ORDER BY signaling_messages.created_at ASC, signaling_messages.id ASC
+      LIMIT 100;
+    `);
+    const messages = rows.map(mapSignal);
+    const last = rows.at(-1);
+    return {
+      messages,
+      nextCursor: last ? `${last.created_at}:${last.id}` : afterCursor
+    };
   }
 
   leaveMatchmaking(input: MatchmakingLeaveRequest): MatchmakingStatus {
@@ -412,6 +466,17 @@ export class SynVibeStore {
     };
   }
 
+  private getActiveMatchForUser(matchId: string, userId: string): MatchRow {
+    const match = this.queryOne<MatchRow>(`
+      SELECT * FROM matches
+      WHERE id = ${sql(matchId)}
+        AND status = 'active'
+        AND (user_a_id = ${sql(userId)} OR user_b_id = ${sql(userId)});
+    `);
+    if (!match) throw new Error("Active match not found for user");
+    return match;
+  }
+
   private topRejectionReasons(): Array<{ reasonCode: string; count: number }> {
     const rows = this.query<ReactionReasonRow>(`
       SELECT reason_codes_json FROM reaction_outputs WHERE state = 'INSUFFICIENT_SIGNAL';
@@ -496,6 +561,16 @@ interface PeerRow {
   handle: string | null;
 }
 
+interface SignalRow {
+  id: string;
+  match_id: string;
+  sender_user_id: string;
+  local_user_id: string;
+  type: "offer" | "answer" | "candidate";
+  payload_json: string;
+  created_at: string;
+}
+
 function mapUser(row: UserRow): AnonymousUserRecord {
   return {
     id: row.id,
@@ -516,12 +591,32 @@ function mapProfile(row: ProfileRow): ProfileRecord {
   };
 }
 
+function mapSignal(row: SignalRow): WebRtcSignalMessage {
+  return {
+    id: row.id,
+    matchId: row.match_id,
+    senderLocalUserId: row.local_user_id,
+    type: row.type,
+    payload: parsePayload(row.payload_json),
+    createdAtIso: row.created_at
+  };
+}
+
 function parseReasonCodes(raw: string): string[] {
   try {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
   } catch {
     return [];
+  }
+}
+
+function parsePayload(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
   }
 }
 

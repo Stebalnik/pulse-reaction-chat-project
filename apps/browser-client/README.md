@@ -1,11 +1,11 @@
 # Browser client
 
-Browser surface for public no-login entry, camera consent, local video processing, quality feedback, admin debugging, and later real WebRTC matching.
+Browser surface for public no-login entry, camera consent, local video processing, quality feedback, admin debugging, roulette matching, and WebRTC peer setup.
 
 Routes:
 
 - `/`: public entry with local anonymous SynVibe ID.
-- `/room`: public video-chat room with server-backed roulette queue when the backend is available.
+- `/room`: public video-chat room with server-backed roulette queue and WebRTC signaling when the backend is available.
 - `/admin`: internal platform/admin shell.
 - `/admin/debug`: rPPG debug console.
 
@@ -14,6 +14,7 @@ Current prototype:
 - public no-login user shell with local anonymous ID;
 - local registration stored on the device and posted to the own-server backend when available;
 - public video-room with camera enable/pause controls and live roulette queue state;
+- active-match WebRTC offer/answer/ICE exchange through the own-server signaling relay;
 - local camera preview;
 - continuous local-only pulse-rate estimate from face/skin ROI while camera and local analysis consent are active;
 - on-device MediaPipe Face Landmarker ROI when the model loads successfully;

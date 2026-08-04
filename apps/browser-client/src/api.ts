@@ -1,4 +1,12 @@
-import type { AdminSummary, EventRequest, MatchmakingStatus, ProfileRecord, SessionRecord } from "@pulse-reaction/shared-schemas";
+import type {
+  AdminSummary,
+  EventRequest,
+  MatchmakingStatus,
+  ProfileRecord,
+  SessionRecord,
+  WebRtcSignalBatch,
+  WebRtcSignalRequest
+} from "@pulse-reaction/shared-schemas";
 
 const API_ORIGIN = import.meta.env.VITE_API_ORIGIN ?? "";
 
@@ -45,6 +53,29 @@ export async function leaveMatchmaking(input: {
   reason: "left" | "reported" | "blocked";
 }): Promise<MatchmakingStatus | null> {
   return post<MatchmakingStatus>("/api/matchmaking/leave", input);
+}
+
+export async function sendSignal(input: WebRtcSignalRequest): Promise<void> {
+  await post("/api/signaling/messages", input);
+}
+
+export async function loadSignals(input: {
+  localUserId: string;
+  matchId: string;
+  after?: string | null;
+}): Promise<WebRtcSignalBatch | null> {
+  try {
+    const params = new URLSearchParams({
+      localUserId: input.localUserId,
+      matchId: input.matchId
+    });
+    if (input.after) params.set("after", input.after);
+    const response = await fetch(`${API_ORIGIN}/api/signaling/messages?${params.toString()}`);
+    if (!response.ok) return null;
+    return (await response.json()) as WebRtcSignalBatch;
+  } catch {
+    return null;
+  }
 }
 
 export async function loadAdminSummary(): Promise<AdminSummary | null> {

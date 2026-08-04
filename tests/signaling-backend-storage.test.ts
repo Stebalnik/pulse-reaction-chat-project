@@ -89,3 +89,49 @@ test("matchmaking pairs queued users and supports blocking the match", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("signaling relay delivers peer messages only for active matches", () => {
+  const dir = mkdtempSync(join(tmpdir(), "synvibe-signal-"));
+  try {
+    const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
+    store.upsertProfile({ localUserId: "SV-SIGNAL-000001", displayName: "Cam", handle: "cam" });
+    store.upsertProfile({ localUserId: "SV-SIGNAL-000002", displayName: "Dev", handle: "dev" });
+
+    const first = store.joinMatchmaking({ localUserId: "SV-SIGNAL-000001" });
+    assert.equal(first.status, "waiting");
+    const second = store.joinMatchmaking({ localUserId: "SV-SIGNAL-000002" });
+    assert.equal(second.status, "matched");
+    const matchId = second.match.id;
+
+    store.recordSignal({
+      localUserId: "SV-SIGNAL-000001",
+      matchId,
+      type: "offer",
+      payload: { type: "offer", sdp: "v=0" }
+    });
+
+    const senderBatch = store.getSignals("SV-SIGNAL-000001", matchId, null);
+    assert.equal(senderBatch.messages.length, 0);
+
+    const peerBatch = store.getSignals("SV-SIGNAL-000002", matchId, null);
+    assert.equal(peerBatch.messages.length, 1);
+    assert.equal(peerBatch.messages[0]?.senderLocalUserId, "SV-SIGNAL-000001");
+    assert.equal(peerBatch.messages[0]?.type, "offer");
+    assert.deepEqual(peerBatch.messages[0]?.payload, { type: "offer", sdp: "v=0" });
+
+    const repeated = store.getSignals("SV-SIGNAL-000002", matchId, peerBatch.nextCursor);
+    assert.equal(repeated.messages.length, 0);
+
+    store.leaveMatchmaking({ localUserId: "SV-SIGNAL-000001", matchId, reason: "left" });
+    assert.throws(() =>
+      store.recordSignal({
+        localUserId: "SV-SIGNAL-000002",
+        matchId,
+        type: "answer",
+        payload: { type: "answer", sdp: "v=0" }
+      })
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

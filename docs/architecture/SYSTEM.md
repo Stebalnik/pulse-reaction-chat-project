@@ -81,5 +81,5 @@ Use schemas in `schemas/`. Raw estimates, quality decisions, baseline state, and
 - The package starts after face/ROI extraction and before baseline/reaction inference.
 - It must remain usable in a desktop renderer, Web Worker, or browser client without server-side video processing.
 - `apps/browser-client` now provides public routes at `/` and `/room`, plus admin routes at `/admin` and `/admin/debug`.
-- The current public room is a shell; real matching and signaling are still backend work.
+- The current public room has first-pass server-backed matching and HTTP-polled WebRTC signaling. Production hardening, TURN configuration, and deployment routing are still backend work.
 - The next backend milestone should add own-server storage for users, profiles, sessions, analytics events, consent events, room events, and cleaned outputs. Raw video and raw biometric traces remain out of default storage.

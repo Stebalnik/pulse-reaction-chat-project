@@ -33,7 +33,17 @@ The first matching MVP is implemented in `apps/signaling-backend` with:
 - `GET /api/matchmaking/status`;
 - `POST /api/matchmaking/leave`.
 
-The browser room joins the live queue after a server session is created, polls status, shows the matched peer profile, and records report/block/next actions. Media relay and WebRTC offer/answer/candidate exchange are still the next signaling layer.
+The browser room joins the live queue after a server session is created, polls status, shows the matched peer profile, records report/block/next actions, and uses the signaling relay to exchange WebRTC offer/answer/ICE payloads for active matches.
+
+## WebRTC Signaling
+
+The first signaling relay is HTTP polling over persisted messages:
+
+- `signaling_messages`: active-match-scoped offer, answer, and ICE candidate payloads;
+- `POST /api/signaling/messages`;
+- `GET /api/signaling/messages`.
+
+Only users who belong to an active match can post or read signaling messages for that match. The browser caller role creates an offer, the callee role answers, and both sides exchange ICE candidates. The backend does not store media streams.
 
 ## Admin
 
@@ -54,4 +64,4 @@ Public UI must not claim to detect specific emotions, attraction, honesty, inten
 
 ## Next Backend Step
 
-Continue in `apps/signaling-backend` with a single-server MVP on the SynVibe server. SQLite remains the first storage layer for operational simplicity. The next backend step is simple admin access control before exposing operational data, followed by WebRTC offer/answer/candidate relay for matched peers.
+Continue in `apps/signaling-backend` with a single-server MVP on the SynVibe server. SQLite remains the first storage layer for operational simplicity. The next backend step is simple admin access control before exposing operational data, followed by deployment wiring for the backend routes behind `synvibe.app`.

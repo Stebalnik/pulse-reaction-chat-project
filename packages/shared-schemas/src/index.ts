@@ -110,6 +110,7 @@ export interface MatchPeer {
 export interface MatchRecord {
   id: string;
   startedAtIso: string;
+  localRole: "caller" | "callee";
   peer: MatchPeer;
 }
 
@@ -117,3 +118,26 @@ export type MatchmakingStatus =
   | { status: "idle" }
   | { status: "waiting"; joinedAtIso: string; queuePosition: number }
   | { status: "matched"; match: MatchRecord };
+
+export type WebRtcSignalType = "offer" | "answer" | "candidate";
+
+export interface WebRtcSignalRequest {
+  localUserId: string;
+  matchId: string;
+  type: WebRtcSignalType;
+  payload: Record<string, unknown>;
+}
+
+export interface WebRtcSignalMessage {
+  id: string;
+  matchId: string;
+  senderLocalUserId: string;
+  type: WebRtcSignalType;
+  payload: Record<string, unknown>;
+  createdAtIso: string;
+}
+
+export interface WebRtcSignalBatch {
+  messages: WebRtcSignalMessage[];
+  nextCursor: string | null;
+}
