@@ -26,6 +26,8 @@ const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
 const SHOW_ADMIN_LINK = import.meta.env.VITE_SHOW_ADMIN_LINK === "true";
 const ADULT_CHAT_CONSENT_KEY = "synvibe.consent.adultChatTerms.v1";
 const ADULT_CHAT_POLICY_VERSION = "adult-chat-terms-2026-08-04";
+const PHYSIOLOGICAL_ANALYSIS_CONSENT_KEY = "synvibe.consent.physiologicalAnalysis.v1";
+const PHYSIOLOGICAL_ANALYSIS_POLICY_VERSION = "physiological-analysis-2026-08-04";
 const MODERATION_REASONS: Array<{ value: ModerationReportReason; label: string }> = [
   { value: "safety", label: "Safety concern" },
   { value: "harassment", label: "Harassment" },
@@ -297,8 +299,13 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const endedSessionIdsRef = useRef<Set<string>>(new Set());
   const callLifecycleEventsRef = useRef<Set<string>>(new Set());
+  const analysisStartEventsRef = useRef<Set<string>>(new Set());
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [physiologicalAnalysisAccepted, setPhysiologicalAnalysisAccepted] = useState(
+    () => window.localStorage.getItem(PHYSIOLOGICAL_ANALYSIS_CONSENT_KEY) === PHYSIOLOGICAL_ANALYSIS_POLICY_VERSION
+  );
+  const [analysisConsentOpen, setAnalysisConsentOpen] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [hasRemoteStream, setHasRemoteStream] = useState(false);
   const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>("new");
@@ -309,6 +316,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({ status: "idle" });
   const [matchingOnline, setMatchingOnline] = useState(true);
+  const analysisActive = cameraEnabled && physiologicalAnalysisAccepted;
 
   useEffect(() => {
     void createServerSession(userId, "/room").then((session) => {
@@ -565,6 +573,20 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
     });
   }, [connectionState, matchStatus, sessionId, userId]);
 
+  useEffect(() => {
+    if (!analysisActive) return;
+    const key = sessionId ?? "local-session";
+    if (analysisStartEventsRef.current.has(key)) return;
+    analysisStartEventsRef.current.add(key);
+    void recordEvent({
+      localUserId: userId,
+      ...(sessionId ? { sessionId } : {}),
+      type: "analysis_start",
+      route: "/room",
+      metadata: { mode: "local_only", precisePeerBpmShared: false }
+    });
+  }, [analysisActive, sessionId, userId]);
+
   const submitChatMessage = async (): Promise<void> => {
     if (matchStatus.status !== "matched") return;
     const body = chatDraft.trim();
@@ -589,6 +611,48 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
     } else {
       setChatOnline(false);
     }
+  };
+
+  const acceptPhysiologicalAnalysis = (): void => {
+    window.localStorage.setItem(PHYSIOLOGICAL_ANALYSIS_CONSENT_KEY, PHYSIOLOGICAL_ANALYSIS_POLICY_VERSION);
+    setPhysiologicalAnalysisAccepted(true);
+    setAnalysisConsentOpen(false);
+    void recordConsentEvent({
+      localUserId: userId,
+      ...(sessionId ? { sessionId } : {}),
+      type: "physiological_analysis",
+      decision: "granted",
+      policyVersion: PHYSIOLOGICAL_ANALYSIS_POLICY_VERSION,
+      metadata: { route: "/room", localOnly: true, precisePeerBpmShared: false }
+    });
+    void recordEvent({
+      localUserId: userId,
+      ...(sessionId ? { sessionId } : {}),
+      type: "consent_grant",
+      route: "/room",
+      metadata: { consentType: "physiological_analysis", policyVersion: PHYSIOLOGICAL_ANALYSIS_POLICY_VERSION }
+    });
+  };
+
+  const revokePhysiologicalAnalysis = (): void => {
+    window.localStorage.removeItem(PHYSIOLOGICAL_ANALYSIS_CONSENT_KEY);
+    setPhysiologicalAnalysisAccepted(false);
+    setAnalysisConsentOpen(false);
+    void recordConsentEvent({
+      localUserId: userId,
+      ...(sessionId ? { sessionId } : {}),
+      type: "physiological_analysis",
+      decision: "revoked",
+      policyVersion: PHYSIOLOGICAL_ANALYSIS_POLICY_VERSION,
+      metadata: { route: "/room" }
+    });
+    void recordEvent({
+      localUserId: userId,
+      ...(sessionId ? { sessionId } : {}),
+      type: "consent_revoke",
+      route: "/room",
+      metadata: { consentType: "physiological_analysis", policyVersion: PHYSIOLOGICAL_ANALYSIS_POLICY_VERSION }
+    });
   };
 
   return (
@@ -626,6 +690,15 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
             <Camera aria-hidden="true" />
             {cameraEnabled ? "Pause camera" : "Enable camera"}
           </button>
+          {physiologicalAnalysisAccepted ? (
+            <button className="secondaryAction compact" type="button" onClick={revokePhysiologicalAnalysis}>
+              Disable analysis
+            </button>
+          ) : (
+            <button className="secondaryAction compact" type="button" onClick={() => setAnalysisConsentOpen(true)}>
+              Enable analysis
+            </button>
+          )}
         </div>
       </div>
 
@@ -643,6 +716,8 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
             hasRemoteStream={hasRemoteStream}
             connectionState={connectionState}
             cameraEnabled={cameraEnabled}
+            analysisActive={analysisActive}
+            physiologicalAnalysisAccepted={physiologicalAnalysisAccepted}
           />
           <div className="publicVideoLabel">Peer</div>
         </article>
@@ -665,7 +740,52 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
           onSubmit={(input) => void submitModerationAction(input)}
         />
       )}
+      {analysisConsentOpen && (
+        <PhysiologicalAnalysisDialog
+          onClose={() => setAnalysisConsentOpen(false)}
+          onAccept={acceptPhysiologicalAnalysis}
+        />
+      )}
     </section>
+  );
+}
+
+function PhysiologicalAnalysisDialog({ onClose, onAccept }: { onClose: () => void; onAccept: () => void }): JSX.Element {
+  const [localOnlyConfirmed, setLocalOnlyConfirmed] = useState(false);
+  const [uncertaintyConfirmed, setUncertaintyConfirmed] = useState(false);
+  const canContinue = localOnlyConfirmed && uncertaintyConfirmed;
+
+  return (
+    <div className="dialogBackdrop" role="presentation">
+      <form
+        className="registerDialog"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (canContinue) onAccept();
+        }}
+      >
+        <div>
+          <h2>Local pulse analysis</h2>
+          <p>SynVibe can process your camera frames on this device for coarse pulse-pattern feedback. It does not share precise BPM with your peer by default.</p>
+        </div>
+        <label className="checkRow">
+          <input checked={localOnlyConfirmed} onChange={(event) => setLocalOnlyConfirmed(event.target.checked)} type="checkbox" />
+          I agree to local physiological analysis for my own room view.
+        </label>
+        <label className="checkRow">
+          <input checked={uncertaintyConfirmed} onChange={(event) => setUncertaintyConfirmed(event.target.checked)} type="checkbox" />
+          I understand pulse changes are not emotion, attraction, honesty, intent, compatibility, or medical labels.
+        </label>
+        <div className="dialogActions">
+          <button className="secondaryAction compact" type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="primaryAction compact" type="submit" disabled={!canContinue}>
+            Enable
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -802,7 +922,9 @@ function PeerPane({
   remoteVideoRef,
   hasRemoteStream,
   connectionState,
-  cameraEnabled
+  cameraEnabled,
+  analysisActive,
+  physiologicalAnalysisAccepted
 }: {
   status: MatchmakingStatus;
   online: boolean;
@@ -810,6 +932,8 @@ function PeerPane({
   hasRemoteStream: boolean;
   connectionState: RTCPeerConnectionState;
   cameraEnabled: boolean;
+  analysisActive: boolean;
+  physiologicalAnalysisAccepted: boolean;
 }): JSX.Element {
   if (!online) {
     return (
@@ -832,8 +956,8 @@ function PeerPane({
           {status.match.peer.handle && <em>@{status.match.peer.handle}</em>}
           <small>{cameraEnabled ? connectionStateText(connectionState) : "Enable camera to connect video"}</small>
         </div>
-        <div className="publicReactionStack" aria-label="Peer reaction pattern availability">
-          <ReactionChip code="PENDING" label="Consented signal" />
+        <div className="publicReactionStack" aria-label="Physiological analysis availability">
+          <ReactionChip code={analysisActive ? "LOCAL_READY" : physiologicalAnalysisAccepted ? "CAMERA_PAUSED" : "OPT_IN"} label="Local analysis" />
           <ReactionChip code="LOCAL_ONLY" label="Precise BPM private" />
         </div>
       </>

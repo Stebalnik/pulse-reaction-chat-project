@@ -526,6 +526,17 @@ a {
   background: rgb(234 247 239 / 92%);
 }
 
+.reactionChip.opt_in,
+.reactionChip.camera_paused {
+  border-color: #d9ccb1;
+  background: rgb(249 241 224 / 92%);
+}
+
+.reactionChip.local_ready {
+  border-color: #a9cfbd;
+  background: rgb(226 246 236 / 92%);
+}
+
 .matchChatPanel {
   min-height: 0;
   display: grid;

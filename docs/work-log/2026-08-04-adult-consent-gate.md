@@ -47,4 +47,4 @@ Not deployed in this task.
 
 1. Add session-end API and browser unload handling so average session duration is real.
 2. Add moderation report records separate from generic events.
-3. Add separate physiological-analysis consent before uploading any cleaned reaction outputs.
+3. Gate any cleaned reaction-output upload on active physiological-analysis consent.

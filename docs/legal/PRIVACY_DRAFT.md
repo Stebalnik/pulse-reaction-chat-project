@@ -14,6 +14,8 @@ Status: internal draft for product and legal review.
 
 The browser client can assign a local anonymous user ID and store a local profile on the user's device. The current debug console can export local JSON logs that include cleaned diagnostic metrics such as signal quality, ROI source, method estimates, reason codes, and badge state. These logs do not include raw video frames or raw RGB traces.
 
+The public room requires a separate opt-in before local physiological analysis is considered active. Camera permission and adults-only room acknowledgement are not treated as physiological-analysis consent. Users can revoke this consent from the room controls. The implementation records policy-versioned grant/revoke consent events when the backend is available and does not share precise BPM with the peer by default.
+
 ## Planned Server MVP
 
 The first server-backed release should store:

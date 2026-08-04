@@ -408,7 +408,7 @@ test("moderation reports can reference retained or deleted peer messages", () =>
   }
 });
 
-test("records adults-only chat consent as a dedicated consent event", () => {
+test("records policy-versioned consent grant and revoke events", () => {
   const dir = mkdtempSync(join(tmpdir(), "synvibe-consent-"));
   try {
     const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
@@ -427,6 +427,26 @@ test("records adults-only chat consent as a dedicated consent event", () => {
     assert.equal(record.type, "adult_chat_terms");
     assert.equal(record.decision, "granted");
     assert.equal(record.policyVersion, "adult-chat-terms-2026-08-04");
+    const analysisGrant = store.recordConsentEvent({
+      localUserId: "SV-CONSNT-000001",
+      sessionId: session.id,
+      type: "physiological_analysis",
+      decision: "granted",
+      policyVersion: "physiological-analysis-2026-08-04",
+      metadata: { localOnly: true, precisePeerBpmShared: false }
+    });
+    const analysisRevoke = store.recordConsentEvent({
+      localUserId: "SV-CONSNT-000001",
+      sessionId: session.id,
+      type: "physiological_analysis",
+      decision: "revoked",
+      policyVersion: "physiological-analysis-2026-08-04"
+    });
+
+    assert.equal(analysisGrant.type, "physiological_analysis");
+    assert.equal(analysisGrant.decision, "granted");
+    assert.equal(analysisRevoke.type, "physiological_analysis");
+    assert.equal(analysisRevoke.decision, "revoked");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
