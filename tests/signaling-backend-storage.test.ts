@@ -17,6 +17,9 @@ test("admin summary counts privacy-safe MVP records", () => {
     store.recordEvent({ localUserId, sessionId: session.id, type: "visit", route: "/" });
     store.recordEvent({ localUserId, sessionId: session.id, type: "room_start", route: "/room" });
     store.recordEvent({ localUserId, sessionId: session.id, type: "camera_grant", route: "/room" });
+    store.recordEvent({ localUserId, sessionId: session.id, type: "match_start", route: "/room" });
+    store.recordEvent({ localUserId, sessionId: session.id, type: "call_connect", route: "/room" });
+    store.recordEvent({ localUserId, sessionId: session.id, type: "call_disconnect", route: "/room" });
     store.recordReactionOutput({
       localUserId,
       sessionId: session.id,
@@ -37,6 +40,10 @@ test("admin summary counts privacy-safe MVP records", () => {
     assert.equal(summary.cameraGrants, 1);
     assert.equal(summary.cameraGrantRate, 1);
     assert.equal(summary.activeSessions, 1);
+    assert.equal(summary.callConnects, 1);
+    assert.equal(summary.callDisconnects, 1);
+    assert.equal(summary.callFailures, 0);
+    assert.equal(summary.callSetupSuccessRate, 1);
     assert.equal(summary.registeredUsers, 1);
     assert.equal(summary.guestUsers, 0);
     assert.equal(summary.reportCount, 0);

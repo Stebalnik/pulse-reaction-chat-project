@@ -100,6 +100,7 @@ Exit criteria:
 
 - Landing-to-room conversion.
 - Call setup success rate.
+- Call disconnect and failure count.
 - Camera permission success rate.
 - Percentage of sessions with sufficient signal for the local user.
 - Abstention rate by reason code.

@@ -273,6 +273,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const offerStartedRef = useRef<string | null>(null);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const endedSessionIdsRef = useRef<Set<string>>(new Set());
+  const callLifecycleEventsRef = useRef<Set<string>>(new Set());
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -468,6 +469,29 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       window.clearInterval(intervalId);
     };
   }, [localStream, matchStatus, userId]);
+
+  useEffect(() => {
+    if (matchStatus.status !== "matched") return;
+    const eventType =
+      connectionState === "connected"
+        ? "call_connect"
+        : connectionState === "disconnected"
+          ? "call_disconnect"
+          : connectionState === "failed"
+            ? "call_fail"
+            : null;
+    if (!eventType) return;
+    const key = `${matchStatus.match.id}:${eventType}`;
+    if (callLifecycleEventsRef.current.has(key)) return;
+    callLifecycleEventsRef.current.add(key);
+    void recordEvent({
+      localUserId: userId,
+      ...(sessionId ? { sessionId } : {}),
+      type: eventType,
+      route: "/room",
+      metadata: { matchId: matchStatus.match.id, connectionState }
+    });
+  }, [connectionState, matchStatus, sessionId, userId]);
 
   return (
     <section className="publicRoom">

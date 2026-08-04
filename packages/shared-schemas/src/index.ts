@@ -11,6 +11,9 @@ export type SynVibeEventType =
   | "match_start"
   | "match_end"
   | "match_leave"
+  | "call_connect"
+  | "call_disconnect"
+  | "call_fail"
   | "report"
   | "block";
 
@@ -133,6 +136,10 @@ export interface AdminSummary {
   activeSessions: number;
   waitingUsers: number;
   activeMatches: number;
+  callConnects: number;
+  callDisconnects: number;
+  callFailures: number;
+  callSetupSuccessRate: number | null;
   averageSessionDurationSeconds: number | null;
   sufficientSignalRatio: number | null;
   topRejectionReasons: Array<{ reasonCode: string; count: number }>;

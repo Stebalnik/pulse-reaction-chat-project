@@ -510,6 +510,10 @@ export class SynVibeStore {
     const activeSessions = this.scalar("SELECT COUNT(*) AS value FROM sessions WHERE ended_at IS NULL;");
     const waitingUsers = this.scalar("SELECT COUNT(*) AS value FROM waiting_queue WHERE status = 'waiting';");
     const activeMatches = this.scalar("SELECT COUNT(*) AS value FROM matches WHERE status = 'active';");
+    const matchStarts = this.countEvents("match_start");
+    const callConnects = this.countEvents("call_connect");
+    const callDisconnects = this.countEvents("call_disconnect");
+    const callFailures = this.countEvents("call_fail");
     const reportCount = this.scalar("SELECT COUNT(*) AS value FROM moderation_reports WHERE type = 'report';");
     const blockCount = this.scalar("SELECT COUNT(*) AS value FROM moderation_reports WHERE type = 'block';");
     const averageSessionDurationSeconds = this.queryOne<{ value: number | null }>(`
@@ -533,6 +537,10 @@ export class SynVibeStore {
       activeSessions,
       waitingUsers,
       activeMatches,
+      callConnects,
+      callDisconnects,
+      callFailures,
+      callSetupSuccessRate: matchStarts === 0 ? null : callConnects / matchStarts,
       averageSessionDurationSeconds,
       sufficientSignalRatio: signalCounts.total === 0 ? null : signalCounts.sufficient / signalCounts.total,
       topRejectionReasons: this.topRejectionReasons(),
