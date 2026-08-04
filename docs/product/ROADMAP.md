@@ -36,7 +36,7 @@ This override does not relax scientific, privacy, consent, age, or product-langu
 - quality UI;
 - public no-login entry and room shell;
 - admin/debug split;
-- no real matchmaking yet.
+- real matchmaking now exists with broad guest roulette and optional mutual profile filters.
 
 Current implementation: public browser routes are available at `/`, `/room`, `/admin`, and `/admin/debug`.
 
@@ -50,12 +50,12 @@ Current implementation: public browser routes are available at `/`, `/room`, `/a
 ## Phase 4 — Consent-based WebRTC chat
 
 - anonymous user records, optional registered profiles, and adults-only controls;
-- matchmaking and WebRTC signaling;
+- matchmaking with optional mutual filters and WebRTC signaling;
 - bilateral consent;
 - local reaction display and optional shared trend;
 - block/report/moderation.
 
-Next implementation target: own-server backend with SQLite storage for users, profiles, sessions, analytics events, consent events, room events, and cleaned reaction-pattern outputs. No external analytics database is required for the first launch.
+Next implementation target: production operations for the own-server backend, including deployment verification, account-backed sessions, and stronger availability monitoring. No external analytics database is required for the first launch.
 
 ## Phase 5 — Validation
 

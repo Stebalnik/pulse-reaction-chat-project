@@ -1,9 +1,18 @@
+import type { ConversationPace, MatchAgeBracket, MatchIntent, MatchLanguage, MatchTopicTag } from "@pulse-reaction/shared-schemas";
+
 const USER_ID_STORAGE_KEY = "synvibe.userId";
 const PROFILE_STORAGE_KEY = "synvibe.profile";
 
 export interface LocalProfile {
   displayName: string;
   handle: string;
+  ageBracket: MatchAgeBracket | null;
+  languages: MatchLanguage[];
+  matchIntent: MatchIntent | null;
+  preferredAgeBrackets: MatchAgeBracket[];
+  preferredLanguages: MatchLanguage[];
+  topicTags: MatchTopicTag[];
+  conversationPace: ConversationPace | null;
   createdAtIso: string;
 }
 
@@ -19,7 +28,7 @@ export function loadLocalProfile(): LocalProfile | null {
   const raw = window.localStorage.getItem(PROFILE_STORAGE_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as LocalProfile;
+    return normalizeProfile(JSON.parse(raw) as Partial<LocalProfile>);
   } catch {
     return null;
   }
@@ -32,6 +41,21 @@ export function saveLocalProfile(profile: Omit<LocalProfile, "createdAtIso">): L
   };
   window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(next));
   return next;
+}
+
+function normalizeProfile(profile: Partial<LocalProfile>): LocalProfile {
+  return {
+    displayName: profile.displayName ?? "Guest",
+    handle: profile.handle ?? "guest",
+    ageBracket: profile.ageBracket ?? null,
+    languages: profile.languages ?? [],
+    matchIntent: profile.matchIntent ?? null,
+    preferredAgeBrackets: profile.preferredAgeBrackets ?? [],
+    preferredLanguages: profile.preferredLanguages ?? [],
+    topicTags: profile.topicTags ?? [],
+    conversationPace: profile.conversationPace ?? null,
+    createdAtIso: profile.createdAtIso ?? new Date().toISOString()
+  };
 }
 
 function randomSegment(): string {

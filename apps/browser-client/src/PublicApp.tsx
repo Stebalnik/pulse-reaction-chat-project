@@ -1,7 +1,7 @@
 import { Activity, Camera, CircleUserRound, Flag, HeartPulse, MessageCircle, Play, Send, ShieldCheck, Trash2, UserPlus, Video } from "lucide-react";
 import type { JSX, MutableRefObject, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MatchChatMessage, MatchmakingStatus, ModerationReportReason, WebRtcSignalMessage } from "@pulse-reaction/shared-schemas";
+import type { ConversationPace, MatchAgeBracket, MatchChatMessage, MatchIntent, MatchLanguage, MatchPeer, MatchmakingStatus, MatchTopicTag, ModerationReportReason, ProfileRecord, WebRtcSignalMessage } from "@pulse-reaction/shared-schemas";
 import {
   createServerSession,
   deleteChatMessage,
@@ -36,6 +36,42 @@ const MODERATION_REASONS: Array<{ value: ModerationReportReason; label: string }
   { value: "spam", label: "Spam or scam" },
   { value: "other", label: "Other" }
 ];
+const AGE_BRACKET_OPTIONS: Array<{ value: MatchAgeBracket; label: string }> = [
+  { value: "18_24", label: "18-24" },
+  { value: "25_34", label: "25-34" },
+  { value: "35_44", label: "35-44" },
+  { value: "45_54", label: "45-54" },
+  { value: "55_plus", label: "55+" }
+];
+const LANGUAGE_OPTIONS: Array<{ value: MatchLanguage; label: string }> = [
+  { value: "en", label: "English" },
+  { value: "ru", label: "Russian" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+  { value: "de", label: "German" },
+  { value: "other", label: "Other" }
+];
+const INTENT_OPTIONS: Array<{ value: MatchIntent; label: string }> = [
+  { value: "open_conversation", label: "Open conversation" },
+  { value: "friendship", label: "Friendship" },
+  { value: "dating", label: "Dating" },
+  { value: "long_term", label: "Long-term dating" }
+];
+const TOPIC_OPTIONS: Array<{ value: MatchTopicTag; label: string }> = [
+  { value: "music", label: "Music" },
+  { value: "travel", label: "Travel" },
+  { value: "sports", label: "Sports" },
+  { value: "tech", label: "Tech" },
+  { value: "art", label: "Art" },
+  { value: "wellness", label: "Wellness" },
+  { value: "games", label: "Games" },
+  { value: "food", label: "Food" }
+];
+const PACE_OPTIONS: Array<{ value: ConversationPace; label: string }> = [
+  { value: "calm", label: "Calm" },
+  { value: "balanced", label: "Balanced" },
+  { value: "high_energy", label: "High energy" }
+];
 
 export function PublicApp(): JSX.Element {
   const userId = useMemo(() => getOrCreateAnonymousUserId(), []);
@@ -62,7 +98,7 @@ export function PublicApp(): JSX.Element {
     void recordEvent({ localUserId: userId, type: "visit", route: location.pathname });
     void loadServerProfile(userId).then((serverProfile) => {
       if (!serverProfile) return;
-      const saved = saveLocalProfile({ displayName: serverProfile.displayName, handle: serverProfile.handle });
+      const saved = saveLocalProfile(profileFromServer(serverProfile));
       setProfile(saved);
       setProfileSyncStatus("server");
     });
@@ -133,10 +169,7 @@ export function PublicApp(): JSX.Element {
               setProfileSaveError("Use 2+ characters for the name and 3-30 letters, numbers, or underscores for the handle.");
               return false;
             }
-            const saved = saveLocalProfile({
-              displayName: result.status === "saved" ? result.profile.displayName : next.displayName,
-              handle: result.status === "saved" ? result.profile.handle : next.handle
-            });
+            const saved = saveLocalProfile(result.status === "saved" ? profileFromServer(result.profile) : next);
             setProfile(saved);
             setProfileSyncStatus(result.status === "saved" ? "server" : "local_only");
             setRegisterOpen(false);
@@ -235,6 +268,7 @@ function PublicHome({
         <MetricBlock label="Your ID" value={userId} />
         <MetricBlock label="Mode" value={profile ? "Registered profile" : "Guest access"} />
         <MetricBlock label="Profile sync" value={profileSyncText(profileSyncStatus, profile)} />
+        <MetricBlock label="Search filters" value={profileFilterText(profile)} />
       </div>
     </section>
   );
@@ -998,6 +1032,7 @@ function PeerPane({
           <span>Matched</span>
           <strong>{status.match.peer.displayName ?? status.match.peer.localUserId}</strong>
           {status.match.peer.handle && <em>@{status.match.peer.handle}</em>}
+          <small>{peerProfileSummary(status.match.peer)}</small>
           <small>{cameraEnabled ? connectionStateText(connectionState) : "Enable camera to connect video"}</small>
         </div>
         <div className="publicReactionStack" aria-label="Physiological analysis availability">
@@ -1046,10 +1081,17 @@ function RegisterDialog({
   current: LocalProfile | null;
   error: string | null;
   onClose: () => void;
-  onSave: (profile: { displayName: string; handle: string }) => Promise<boolean>;
+  onSave: (profile: Omit<LocalProfile, "createdAtIso">) => Promise<boolean>;
 }): JSX.Element {
   const [displayName, setDisplayName] = useState(current?.displayName ?? "");
   const [handle, setHandle] = useState(current?.handle ?? "");
+  const [ageBracket, setAgeBracket] = useState<MatchAgeBracket | "">(current?.ageBracket ?? "");
+  const [languages, setLanguages] = useState<MatchLanguage[]>(current?.languages ?? []);
+  const [matchIntent, setMatchIntent] = useState<MatchIntent | "">(current?.matchIntent ?? "");
+  const [preferredAgeBrackets, setPreferredAgeBrackets] = useState<MatchAgeBracket[]>(current?.preferredAgeBrackets ?? []);
+  const [preferredLanguages, setPreferredLanguages] = useState<MatchLanguage[]>(current?.preferredLanguages ?? []);
+  const [topicTags, setTopicTags] = useState<MatchTopicTag[]>(current?.topicTags ?? []);
+  const [conversationPace, setConversationPace] = useState<ConversationPace | "">(current?.conversationPace ?? "");
   const [saving, setSaving] = useState(false);
   const normalizedHandle = handle.trim().replace(/^@/, "").toLowerCase();
   const canSave = displayName.trim().length >= 2 && /^[a-z0-9_]{3,30}$/.test(normalizedHandle) && !saving;
@@ -1062,7 +1104,17 @@ function RegisterDialog({
           event.preventDefault();
           if (!canSave) return;
           setSaving(true);
-          void onSave({ displayName: displayName.trim(), handle: normalizedHandle }).then(
+          void onSave({
+            displayName: displayName.trim(),
+            handle: normalizedHandle,
+            ageBracket: ageBracket || null,
+            languages,
+            matchIntent: matchIntent || null,
+            preferredAgeBrackets,
+            preferredLanguages,
+            topicTags,
+            conversationPace: conversationPace || null
+          }).then(
             (saved) => {
               if (!saved) setSaving(false);
             },
@@ -1082,6 +1134,44 @@ function RegisterDialog({
           Handle
           <input value={handle} onChange={(event) => setHandle(event.target.value)} placeholder="synvibe_alex" />
         </label>
+        <label>
+          Your age group
+          <select value={ageBracket} onChange={(event) => setAgeBracket(event.target.value as MatchAgeBracket | "")}>
+            <option value="">Prefer not to say</option>
+            {AGE_BRACKET_OPTIONS.map((option) => (
+              <option value={option.value} key={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Looking for
+          <select value={matchIntent} onChange={(event) => setMatchIntent(event.target.value as MatchIntent | "")}>
+            <option value="">No preference</option>
+            {INTENT_OPTIONS.map((option) => (
+              <option value={option.value} key={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Conversation pace
+          <select value={conversationPace} onChange={(event) => setConversationPace(event.target.value as ConversationPace | "")}>
+            <option value="">No preference</option>
+            {PACE_OPTIONS.map((option) => (
+              <option value={option.value} key={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <ChipSelector label="Languages you speak" options={LANGUAGE_OPTIONS} selected={languages} onChange={setLanguages} />
+        <ChipSelector label="Preferred languages" options={LANGUAGE_OPTIONS} selected={preferredLanguages} onChange={setPreferredLanguages} />
+        <ChipSelector label="Preferred age groups" options={AGE_BRACKET_OPTIONS} selected={preferredAgeBrackets} onChange={setPreferredAgeBrackets} />
+        <ChipSelector label="Conversation topics" options={TOPIC_OPTIONS} selected={topicTags} onChange={setTopicTags} />
+        <p className="formHint">Filters are mutual and optional. Empty fields keep roulette matching broad.</p>
         {error && <p className="formError">{error}</p>}
         <div className="dialogActions">
           <button className="secondaryAction compact" type="button" onClick={onClose}>
@@ -1093,6 +1183,39 @@ function RegisterDialog({
         </div>
       </form>
     </div>
+  );
+}
+
+function ChipSelector<T extends string>({
+  label,
+  options,
+  selected,
+  onChange
+}: {
+  label: string;
+  options: Array<{ value: T; label: string }>;
+  selected: T[];
+  onChange: (next: T[]) => void;
+}): JSX.Element {
+  return (
+    <fieldset className="chipSelector">
+      <legend>{label}</legend>
+      <div>
+        {options.map((option) => {
+          const active = selected.includes(option.value);
+          return (
+            <button
+              className={active ? "active" : ""}
+              type="button"
+              onClick={() => onChange(active ? selected.filter((value) => value !== option.value) : [...selected, option.value])}
+              key={option.value}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }
 
@@ -1146,6 +1269,46 @@ function profileSyncText(status: "unknown" | "server" | "local_only", profile: L
   if (status === "server") return "Server saved";
   if (status === "local_only") return "Local only";
   return "Checking";
+}
+
+function profileFilterText(profile: LocalProfile | null): string {
+  if (!profile) return "Broad roulette";
+  const count =
+    (profile.ageBracket ? 1 : 0) +
+    profile.languages.length +
+    (profile.matchIntent ? 1 : 0) +
+    profile.preferredAgeBrackets.length +
+    profile.preferredLanguages.length +
+    profile.topicTags.length +
+    (profile.conversationPace ? 1 : 0);
+  return count === 0 ? "Broad roulette" : `${count} active`;
+}
+
+function profileFromServer(profile: ProfileRecord): Omit<LocalProfile, "createdAtIso"> {
+  return {
+    displayName: profile.displayName,
+    handle: profile.handle,
+    ageBracket: profile.ageBracket,
+    languages: profile.languages,
+    matchIntent: profile.matchIntent,
+    preferredAgeBrackets: profile.preferredAgeBrackets,
+    preferredLanguages: profile.preferredLanguages,
+    topicTags: profile.topicTags,
+    conversationPace: profile.conversationPace
+  };
+}
+
+function peerProfileSummary(peer: MatchPeer): string {
+  const parts = [
+    peer.matchIntent ? optionLabel(INTENT_OPTIONS, peer.matchIntent) : null,
+    peer.languages.length ? peer.languages.map((language) => optionLabel(LANGUAGE_OPTIONS, language)).join(", ") : null,
+    peer.topicTags.length ? peer.topicTags.slice(0, 2).map((topic) => optionLabel(TOPIC_OPTIONS, topic)).join(", ") : null
+  ].filter(Boolean);
+  return parts.length ? parts.join(" / ") : "Broad profile";
+}
+
+function optionLabel<T extends string>(options: Array<{ value: T; label: string }>, value: T): string {
+  return options.find((option) => option.value === value)?.label ?? value;
 }
 
 function mergeChatMessages(current: MatchChatMessage[], incoming: MatchChatMessage[]): MatchChatMessage[] {

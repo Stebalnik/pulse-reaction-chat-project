@@ -276,6 +276,65 @@ test("matchmaking pairs queued users and supports blocking the match", () => {
   }
 });
 
+test("matchmaking respects mutual profile filters", () => {
+  const dir = mkdtempSync(join(tmpdir(), "synvibe-match-filters-"));
+  try {
+    const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
+    store.upsertProfile({
+      localUserId: "SV-FILTRA-000001",
+      displayName: "Ari",
+      handle: "filter_ari",
+      ageBracket: "25_34",
+      languages: ["en"],
+      matchIntent: "dating",
+      preferredAgeBrackets: ["25_34"],
+      preferredLanguages: ["en"],
+      topicTags: ["music", "travel"],
+      conversationPace: "balanced"
+    });
+    store.upsertProfile({
+      localUserId: "SV-FILTRB-000002",
+      displayName: "Bo",
+      handle: "filter_bo",
+      ageBracket: "45_54",
+      languages: ["ru"],
+      matchIntent: "friendship",
+      preferredAgeBrackets: ["45_54"],
+      preferredLanguages: ["ru"],
+      topicTags: ["sports"],
+      conversationPace: "calm"
+    });
+    store.upsertProfile({
+      localUserId: "SV-FILTRC-000003",
+      displayName: "Cam",
+      handle: "filter_cam",
+      ageBracket: "25_34",
+      languages: ["en"],
+      matchIntent: "dating",
+      preferredAgeBrackets: ["25_34"],
+      preferredLanguages: ["en"],
+      topicTags: ["music"],
+      conversationPace: "high_energy"
+    });
+    const sessionA = store.createSession({ localUserId: "SV-FILTRA-000001", route: "/room" });
+    const sessionB = store.createSession({ localUserId: "SV-FILTRB-000002", route: "/room" });
+    const sessionC = store.createSession({ localUserId: "SV-FILTRC-000003", route: "/room" });
+    grantAdultChatTerms(store, "SV-FILTRA-000001", sessionA.id);
+    grantAdultChatTerms(store, "SV-FILTRB-000002", sessionB.id);
+    grantAdultChatTerms(store, "SV-FILTRC-000003", sessionC.id);
+
+    assert.equal(store.joinMatchmaking({ localUserId: "SV-FILTRA-000001", sessionId: sessionA.id }).status, "waiting");
+    assert.equal(store.joinMatchmaking({ localUserId: "SV-FILTRB-000002", sessionId: sessionB.id }).status, "waiting");
+    const compatible = store.joinMatchmaking({ localUserId: "SV-FILTRC-000003", sessionId: sessionC.id });
+
+    assert.equal(compatible.status, "matched");
+    assert.equal(compatible.match.peer.displayName, "Ari");
+    assert.equal(store.getMatchmakingStatus("SV-FILTRB-000002").status, "waiting");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("signaling relay delivers peer messages only for active matches", () => {
   const dir = mkdtempSync(join(tmpdir(), "synvibe-signal-"));
   try {

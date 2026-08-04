@@ -39,7 +39,7 @@ Exit criteria:
 Current status:
 
 - Public routes exist: `/`, `/room`, `/admin`, `/admin/debug`.
-- Real signaling, room queue, active-match text chat, server profile save/load for the current anonymous user ID, operational analytics storage, and adults-only room acknowledgement are implemented in the backend MVP branch stack.
+- Real signaling, room queue, optional mutual profile filters, active-match text chat, server profile save/load for the current anonymous user ID, operational analytics storage, and adults-only room acknowledgement are implemented in the backend MVP branch stack.
 
 ## Week 2 — First pulse pipeline
 

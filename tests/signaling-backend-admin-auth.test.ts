@@ -102,7 +102,14 @@ test("profile API validates handles and returns conflicts without internal error
     assert.equal(
       await status(port, "/api/profiles", undefined, {
         method: "POST",
-        body: { localUserId: "SV-PROFAPI-000001", displayName: "Jo", handle: "@taken_name" }
+        body: { localUserId: "SV-PROFAPI-000001", displayName: "Jo", handle: "jo_valid", languages: ["klingon"] }
+      }),
+      400
+    );
+    assert.equal(
+      await status(port, "/api/profiles", undefined, {
+        method: "POST",
+        body: { localUserId: "SV-PROFAPI-000001", displayName: "Jo", handle: "@taken_name", languages: ["en"], matchIntent: "dating" }
       }),
       200
     );

@@ -91,10 +91,18 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
       sendJson(response, 400, { error: "invalid_profile" });
       return;
     }
+    let preferences: Omit<ProfileRequest, "localUserId" | "displayName" | "handle">;
+    try {
+      preferences = readProfilePreferences(body);
+    } catch {
+      sendJson(response, 400, { error: "invalid_profile" });
+      return;
+    }
     const input: ProfileRequest = {
       localUserId: readString(body, "localUserId", 64),
       displayName,
-      handle
+      handle,
+      ...preferences
     };
     try {
       sendJson(response, 200, store.upsertProfile(input));
@@ -556,6 +564,37 @@ function isValidDisplayName(displayName: string): boolean {
 
 function isValidHandle(handle: string): boolean {
   return /^[a-z0-9_]{3,30}$/.test(handle);
+}
+
+function readProfilePreferences(body: Record<string, unknown>): Omit<ProfileRequest, "localUserId" | "displayName" | "handle"> {
+  return {
+    ...readEnumValue(body, "ageBracket", ["18_24", "25_34", "35_44", "45_54", "55_plus"]),
+    languages: readEnumArray(body, "languages", ["en", "ru", "es", "fr", "de", "other"], 3),
+    ...readEnumValue(body, "matchIntent", ["open_conversation", "friendship", "dating", "long_term"]),
+    preferredAgeBrackets: readEnumArray(body, "preferredAgeBrackets", ["18_24", "25_34", "35_44", "45_54", "55_plus"], 5),
+    preferredLanguages: readEnumArray(body, "preferredLanguages", ["en", "ru", "es", "fr", "de", "other"], 3),
+    topicTags: readEnumArray(body, "topicTags", ["music", "travel", "sports", "tech", "art", "wellness", "games", "food"], 5),
+    ...readEnumValue(body, "conversationPace", ["calm", "balanced", "high_energy"])
+  };
+}
+
+function readEnumValue<T extends string>(body: Record<string, unknown>, key: string, allowed: readonly T[]): Partial<Record<typeof key, T>> {
+  const value = body[key];
+  if (typeof value !== "string" || value.length === 0) return {};
+  if (!allowed.includes(value as T)) throw new Error(`Invalid profile value: ${key}`);
+  return { [key]: value as T };
+}
+
+function readEnumArray<T extends string>(body: Record<string, unknown>, key: string, allowed: readonly T[], maxItems: number): T[] {
+  const value = body[key];
+  if (!Array.isArray(value)) return [];
+  const unique = new Set<T>();
+  for (const item of value) {
+    if (typeof item !== "string" || !allowed.includes(item as T)) throw new Error(`Invalid profile list value: ${key}`);
+    unique.add(item as T);
+    if (unique.size >= maxItems) break;
+  }
+  return Array.from(unique);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

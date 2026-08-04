@@ -14,8 +14,8 @@ Current prototype:
 - public no-login user shell with local anonymous ID and consent/readiness-oriented preview;
 - adults-only safety gate before entering the dating room;
 - separate local physiological-analysis consent and revoke control in the public room;
-- local registration stored on the device and posted to the own-server backend when available;
-- public video-room with camera enable/pause controls and live roulette queue state;
+- local registration and optional search filters stored on the device and posted to the own-server backend when available;
+- public video-room with camera enable/pause controls, live roulette queue state, and mutual profile-filter matching;
 - active-match WebRTC offer/answer/ICE exchange through the own-server signaling relay;
 - local camera preview;
 - continuous local-only pulse-rate estimate from face/skin ROI in the debug console while camera and local analysis consent are active;

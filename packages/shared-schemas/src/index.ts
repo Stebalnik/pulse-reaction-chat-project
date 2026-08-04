@@ -34,6 +34,13 @@ export interface ProfileRequest {
   localUserId: string;
   displayName: string;
   handle: string;
+  ageBracket?: MatchAgeBracket;
+  languages?: MatchLanguage[];
+  matchIntent?: MatchIntent;
+  preferredAgeBrackets?: MatchAgeBracket[];
+  preferredLanguages?: MatchLanguage[];
+  topicTags?: MatchTopicTag[];
+  conversationPace?: ConversationPace;
 }
 
 export interface ProfileRecord {
@@ -41,9 +48,22 @@ export interface ProfileRecord {
   userId: string;
   displayName: string;
   handle: string;
+  ageBracket: MatchAgeBracket | null;
+  languages: MatchLanguage[];
+  matchIntent: MatchIntent | null;
+  preferredAgeBrackets: MatchAgeBracket[];
+  preferredLanguages: MatchLanguage[];
+  topicTags: MatchTopicTag[];
+  conversationPace: ConversationPace | null;
   createdAtIso: string;
   updatedAtIso: string;
 }
+
+export type MatchAgeBracket = "18_24" | "25_34" | "35_44" | "45_54" | "55_plus";
+export type MatchLanguage = "en" | "ru" | "es" | "fr" | "de" | "other";
+export type MatchIntent = "open_conversation" | "friendship" | "dating" | "long_term";
+export type MatchTopicTag = "music" | "travel" | "sports" | "tech" | "art" | "wellness" | "games" | "food";
+export type ConversationPace = "calm" | "balanced" | "high_energy";
 
 export interface SessionRequest {
   localUserId: string;
@@ -210,6 +230,11 @@ export interface MatchPeer {
   localUserId: string;
   displayName: string | null;
   handle: string | null;
+  ageBracket: MatchAgeBracket | null;
+  languages: MatchLanguage[];
+  matchIntent: MatchIntent | null;
+  topicTags: MatchTopicTag[];
+  conversationPace: ConversationPace | null;
 }
 
 export interface MatchRecord {

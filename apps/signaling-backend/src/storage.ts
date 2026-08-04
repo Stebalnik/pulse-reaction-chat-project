@@ -65,6 +65,13 @@ export class SynVibeStore {
         user_id TEXT NOT NULL UNIQUE REFERENCES users(id),
         display_name TEXT NOT NULL,
         handle TEXT NOT NULL UNIQUE,
+        age_bracket TEXT,
+        languages_json TEXT NOT NULL DEFAULT '[]',
+        match_intent TEXT,
+        preferred_age_brackets_json TEXT NOT NULL DEFAULT '[]',
+        preferred_languages_json TEXT NOT NULL DEFAULT '[]',
+        topic_tags_json TEXT NOT NULL DEFAULT '[]',
+        conversation_pace TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -166,6 +173,7 @@ export class SynVibeStore {
         created_at TEXT NOT NULL
       );
     `);
+    this.ensureProfileColumns();
     this.ensureChatMessageColumns();
     this.ensureModerationReportColumns();
   }
@@ -200,10 +208,32 @@ export class SynVibeStore {
     if (existing) {
       this.execute(`
         UPDATE profiles
-        SET display_name = ${sql(input.displayName)}, handle = ${sql(input.handle)}, updated_at = ${sql(now)}
+        SET
+          display_name = ${sql(input.displayName)},
+          handle = ${sql(input.handle)},
+          age_bracket = ${nullableSql(input.ageBracket)},
+          languages_json = ${sql(JSON.stringify(input.languages ?? []))},
+          match_intent = ${nullableSql(input.matchIntent)},
+          preferred_age_brackets_json = ${sql(JSON.stringify(input.preferredAgeBrackets ?? []))},
+          preferred_languages_json = ${sql(JSON.stringify(input.preferredLanguages ?? []))},
+          topic_tags_json = ${sql(JSON.stringify(input.topicTags ?? []))},
+          conversation_pace = ${nullableSql(input.conversationPace)},
+          updated_at = ${sql(now)}
         WHERE id = ${sql(existing.id)};
       `);
-      return mapProfile({ ...existing, display_name: input.displayName, handle: input.handle, updated_at: now });
+      return mapProfile({
+        ...existing,
+        display_name: input.displayName,
+        handle: input.handle,
+        age_bracket: input.ageBracket ?? null,
+        languages_json: JSON.stringify(input.languages ?? []),
+        match_intent: input.matchIntent ?? null,
+        preferred_age_brackets_json: JSON.stringify(input.preferredAgeBrackets ?? []),
+        preferred_languages_json: JSON.stringify(input.preferredLanguages ?? []),
+        topic_tags_json: JSON.stringify(input.topicTags ?? []),
+        conversation_pace: input.conversationPace ?? null,
+        updated_at: now
+      });
     }
 
     const record: ProfileRecord = {
@@ -211,19 +241,47 @@ export class SynVibeStore {
       userId: user.id,
       displayName: input.displayName,
       handle: input.handle,
+      ageBracket: input.ageBracket ?? null,
+      languages: input.languages ?? [],
+      matchIntent: input.matchIntent ?? null,
+      preferredAgeBrackets: input.preferredAgeBrackets ?? [],
+      preferredLanguages: input.preferredLanguages ?? [],
+      topicTags: input.topicTags ?? [],
+      conversationPace: input.conversationPace ?? null,
       createdAtIso: now,
       updatedAtIso: now
     };
     this.execute(`
-      INSERT INTO profiles (id, user_id, display_name, handle, created_at, updated_at)
-      VALUES (${sql(record.id)}, ${sql(record.userId)}, ${sql(record.displayName)}, ${sql(record.handle)}, ${sql(now)}, ${sql(now)});
+      INSERT INTO profiles (
+        id, user_id, display_name, handle, age_bracket, languages_json, match_intent,
+        preferred_age_brackets_json, preferred_languages_json, topic_tags_json, conversation_pace, created_at, updated_at
+      )
+      VALUES (
+        ${sql(record.id)},
+        ${sql(record.userId)},
+        ${sql(record.displayName)},
+        ${sql(record.handle)},
+        ${nullableSql(record.ageBracket)},
+        ${sql(JSON.stringify(record.languages))},
+        ${nullableSql(record.matchIntent)},
+        ${sql(JSON.stringify(record.preferredAgeBrackets))},
+        ${sql(JSON.stringify(record.preferredLanguages))},
+        ${sql(JSON.stringify(record.topicTags))},
+        ${nullableSql(record.conversationPace)},
+        ${sql(now)},
+        ${sql(now)}
+      );
     `);
     return record;
   }
 
   getProfileByLocalUserId(localUserId: string): ProfileRecord | null {
     const user = this.upsertAnonymousUser(localUserId);
-    const row = this.queryOne<ProfileRow>(`SELECT * FROM profiles WHERE user_id = ${sql(user.id)};`);
+    return this.getProfileByUserId(user.id);
+  }
+
+  private getProfileByUserId(userId: string): ProfileRecord | null {
+    const row = this.queryOne<ProfileRow>(`SELECT * FROM profiles WHERE user_id = ${sql(userId)};`);
     return row ? mapProfile(row) : null;
   }
 
@@ -562,7 +620,11 @@ export class SynVibeStore {
       WHERE status = 'waiting' AND user_id != ${sql(user.id)}
       ORDER BY joined_at ASC;
     `);
-    const peer = candidates.find((candidate) => !this.usersBlocked(user.id, candidate.user_id));
+    const requesterProfile = this.getProfileByUserId(user.id);
+    const peer = candidates.find((candidate) => {
+      if (this.usersBlocked(user.id, candidate.user_id)) return false;
+      return profilesMutuallyMatch(requesterProfile, this.getProfileByUserId(candidate.user_id));
+    });
     if (peer) {
       const matchId = randomUUID();
       this.execute(`
@@ -895,7 +957,15 @@ export class SynVibeStore {
     if (!match) throw new Error("Match not found");
     const peerUserId = match.user_a_id === userId ? match.user_b_id : match.user_a_id;
     const row = this.queryOne<PeerRow>(`
-      SELECT users.local_user_id, profiles.display_name, profiles.handle
+      SELECT
+        users.local_user_id,
+        profiles.display_name,
+        profiles.handle,
+        profiles.age_bracket,
+        profiles.languages_json,
+        profiles.match_intent,
+        profiles.topic_tags_json,
+        profiles.conversation_pace
       FROM users
       LEFT JOIN profiles ON profiles.user_id = users.id
       WHERE users.id = ${sql(peerUserId)};
@@ -904,7 +974,12 @@ export class SynVibeStore {
     return {
       localUserId: row.local_user_id,
       displayName: row.display_name,
-      handle: row.handle
+      handle: row.handle,
+      ageBracket: row.age_bracket,
+      languages: parseStringList(row.languages_json ?? "[]") as MatchPeer["languages"],
+      matchIntent: row.match_intent,
+      topicTags: parseStringList(row.topic_tags_json ?? "[]") as MatchPeer["topicTags"],
+      conversationPace: row.conversation_pace
     };
   }
 
@@ -998,6 +1073,17 @@ export class SynVibeStore {
     `);
   }
 
+  private ensureProfileColumns(): void {
+    const columns = new Set(this.query<{ name: string }>("PRAGMA table_info(profiles);").map((row) => row.name));
+    if (!columns.has("age_bracket")) this.execute("ALTER TABLE profiles ADD COLUMN age_bracket TEXT;");
+    if (!columns.has("languages_json")) this.execute("ALTER TABLE profiles ADD COLUMN languages_json TEXT NOT NULL DEFAULT '[]';");
+    if (!columns.has("match_intent")) this.execute("ALTER TABLE profiles ADD COLUMN match_intent TEXT;");
+    if (!columns.has("preferred_age_brackets_json")) this.execute("ALTER TABLE profiles ADD COLUMN preferred_age_brackets_json TEXT NOT NULL DEFAULT '[]';");
+    if (!columns.has("preferred_languages_json")) this.execute("ALTER TABLE profiles ADD COLUMN preferred_languages_json TEXT NOT NULL DEFAULT '[]';");
+    if (!columns.has("topic_tags_json")) this.execute("ALTER TABLE profiles ADD COLUMN topic_tags_json TEXT NOT NULL DEFAULT '[]';");
+    if (!columns.has("conversation_pace")) this.execute("ALTER TABLE profiles ADD COLUMN conversation_pace TEXT;");
+  }
+
   private ensureModerationReportColumns(): void {
     const columns = new Set(this.query<{ name: string }>("PRAGMA table_info(moderation_reports);").map((row) => row.name));
     if (!columns.has("reported_message_id")) this.execute("ALTER TABLE moderation_reports ADD COLUMN reported_message_id TEXT REFERENCES chat_messages(id);");
@@ -1054,6 +1140,13 @@ interface ProfileRow {
   user_id: string;
   display_name: string;
   handle: string;
+  age_bracket: ProfileRecord["ageBracket"];
+  languages_json: string;
+  match_intent: ProfileRecord["matchIntent"];
+  preferred_age_brackets_json: string;
+  preferred_languages_json: string;
+  topic_tags_json: string;
+  conversation_pace: ProfileRecord["conversationPace"];
   created_at: string;
   updated_at: string;
 }
@@ -1095,6 +1188,11 @@ interface PeerRow {
   local_user_id: string;
   display_name: string | null;
   handle: string | null;
+  age_bracket: MatchPeer["ageBracket"];
+  languages_json: string | null;
+  match_intent: MatchPeer["matchIntent"];
+  topic_tags_json: string | null;
+  conversation_pace: MatchPeer["conversationPace"];
 }
 
 interface SignalRow {
@@ -1156,6 +1254,13 @@ function mapProfile(row: ProfileRow): ProfileRecord {
     userId: row.user_id,
     displayName: row.display_name,
     handle: row.handle,
+    ageBracket: row.age_bracket,
+    languages: parseStringList(row.languages_json) as ProfileRecord["languages"],
+    matchIntent: row.match_intent,
+    preferredAgeBrackets: parseStringList(row.preferred_age_brackets_json) as ProfileRecord["preferredAgeBrackets"],
+    preferredLanguages: parseStringList(row.preferred_languages_json) as ProfileRecord["preferredLanguages"],
+    topicTags: parseStringList(row.topic_tags_json) as ProfileRecord["topicTags"],
+    conversationPace: row.conversation_pace,
     createdAtIso: row.created_at,
     updatedAtIso: row.updated_at
   };
@@ -1202,6 +1307,10 @@ function readRetentionHours(raw: string | undefined): number {
 }
 
 function parseReasonCodes(raw: string): string[] {
+  return parseStringList(raw);
+}
+
+function parseStringList(raw: string): string[] {
   try {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
@@ -1221,4 +1330,27 @@ function parsePayload(raw: string): Record<string, unknown> {
 
 function sql(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
+}
+
+function nullableSql(value: string | null | undefined): string {
+  return value ? sql(value) : "NULL";
+}
+
+function profilesMutuallyMatch(left: ProfileRecord | null, right: ProfileRecord | null): boolean {
+  if (!left || !right) return true;
+  return profileAcceptsCandidate(left, right) && profileAcceptsCandidate(right, left);
+}
+
+function profileAcceptsCandidate(profile: ProfileRecord, candidate: ProfileRecord): boolean {
+  if (profile.preferredAgeBrackets.length > 0 && (!candidate.ageBracket || !profile.preferredAgeBrackets.includes(candidate.ageBracket))) return false;
+  if (profile.preferredLanguages.length > 0 && !hasIntersection(profile.preferredLanguages, candidate.languages)) return false;
+  if (profile.matchIntent && candidate.matchIntent && profile.matchIntent !== "open_conversation" && candidate.matchIntent !== "open_conversation" && profile.matchIntent !== candidate.matchIntent) {
+    return false;
+  }
+  if (profile.topicTags.length > 0 && candidate.topicTags.length > 0 && !hasIntersection(profile.topicTags, candidate.topicTags)) return false;
+  return true;
+}
+
+function hasIntersection(left: readonly string[], right: readonly string[]): boolean {
+  return left.some((value) => right.includes(value));
 }

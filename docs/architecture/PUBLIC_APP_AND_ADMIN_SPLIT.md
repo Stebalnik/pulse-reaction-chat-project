@@ -38,12 +38,13 @@ The first matching MVP is implemented in `apps/signaling-backend` with:
 - `waiting_queue`: active queue entries with session linkage;
 - `matches`: active and ended match records;
 - `blocked_users`: block-aware rematching prevention;
+- profile filters: optional age bracket, spoken/preferred languages, conversation intent, topic tags, and pace;
 - adult-chat consent enforcement before queue entry or match creation;
 - `POST /api/matchmaking/join`;
 - `GET /api/matchmaking/status`;
 - `POST /api/matchmaking/leave`.
 
-The browser room joins the live queue after a server session is created, polls status, shows the matched peer profile, records report/block actions as dedicated moderation records, records privacy-safe WebRTC lifecycle events, and uses the signaling relay to exchange WebRTC offer/answer/ICE payloads for active matches. If the backend has no active `adult_chat_terms` grant, matching returns `ineligible` instead of adding the user to `waiting_queue`.
+The browser room joins the live queue after a server session is created, polls status, shows the matched peer profile, records report/block actions as dedicated moderation records, records privacy-safe WebRTC lifecycle events, and uses the signaling relay to exchange WebRTC offer/answer/ICE payloads for active matches. If the backend has no active `adult_chat_terms` grant, matching returns `ineligible` instead of adding the user to `waiting_queue`. Guests with no profile filters can still use broad roulette matching. Registered profiles can add optional search parameters; the backend only creates a filtered match when both profiles accept each other's voluntary parameters. These filters are search constraints, not compatibility, attraction, or emotional-state claims.
 
 ## WebRTC Signaling
 

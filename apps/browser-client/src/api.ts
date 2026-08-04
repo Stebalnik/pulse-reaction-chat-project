@@ -12,6 +12,7 @@ import type {
   ModerationReportRequest,
   ModerationReportResolutionRequest,
   ModerationReportStatusFilter,
+  ProfileRequest,
   ProfileRecord,
   ReactionOutputRequest,
   SessionEndRequest,
@@ -34,9 +35,7 @@ export async function ensureAnonymousUser(localUserId: string): Promise<void> {
 
 export async function saveServerProfile(input: {
   localUserId: string;
-  displayName: string;
-  handle: string;
-}): Promise<ProfileSaveResult> {
+} & Omit<ProfileRequest, "localUserId">): Promise<ProfileSaveResult> {
   try {
     const response = await fetch(`${API_ORIGIN}/api/profiles`, {
       method: "POST",

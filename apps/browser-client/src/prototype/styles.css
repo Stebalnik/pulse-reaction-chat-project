@@ -293,7 +293,7 @@ a {
 .adminGrid {
   margin-top: 24px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
 }
 
@@ -708,6 +708,8 @@ a {
 
 .registerDialog {
   width: min(420px, 100%);
+  max-height: min(720px, calc(100dvh - 36px));
+  overflow: auto;
   display: grid;
   gap: 14px;
   border: 1px solid #d1ddd6;
@@ -761,6 +763,48 @@ a {
   resize: vertical;
   padding: 10px;
   line-height: 1.35;
+}
+
+.chipSelector {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+}
+
+.chipSelector legend {
+  color: #46554e;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.chipSelector div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chipSelector button {
+  min-height: 34px;
+  border: 1px solid #b8c7bf;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #ffffff;
+  color: #40544b;
+  font-weight: 750;
+}
+
+.chipSelector button.active {
+  border-color: #3e735d;
+  background: #e6f5ed;
+  color: #1f513d;
+}
+
+.registerDialog .formHint {
+  margin: 0;
+  color: #60746b;
+  font-size: 12px;
 }
 
 .checkRow {
