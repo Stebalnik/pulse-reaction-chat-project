@@ -850,6 +850,10 @@ export class SynVibeStore {
       chatMessages,
       averageSessionDurationSeconds,
       sufficientSignalRatio: signalCounts.total === 0 ? null : signalCounts.sufficient / signalCounts.total,
+      reactionOutputCount: signalCounts.total,
+      reactionStateCounts: this.reactionStateCounts(),
+      reactionConfidenceCounts: this.reactionConfidenceCounts(),
+      reactionRegionAgreementCounts: this.reactionRegionAgreementCounts(),
       topRejectionReasons: this.topRejectionReasons(),
       reportCount,
       blockCount,
@@ -946,6 +950,33 @@ export class SynVibeStore {
     return Array.from(counts, ([reasonCode, count]) => ({ reasonCode, count }))
       .sort((a, b) => b.count - a.count || a.reasonCode.localeCompare(b.reasonCode))
       .slice(0, 5);
+  }
+
+  private reactionStateCounts(): AdminSummary["reactionStateCounts"] {
+    return this.query<{ state: ReactionOutputRequest["state"]; count: number }>(`
+      SELECT state, COUNT(*) AS count
+      FROM reaction_outputs
+      GROUP BY state
+      ORDER BY count DESC, state ASC;
+    `);
+  }
+
+  private reactionConfidenceCounts(): AdminSummary["reactionConfidenceCounts"] {
+    return this.query<{ confidence: ReactionOutputRequest["confidence"]; count: number }>(`
+      SELECT confidence, COUNT(*) AS count
+      FROM reaction_outputs
+      GROUP BY confidence
+      ORDER BY count DESC, confidence ASC;
+    `);
+  }
+
+  private reactionRegionAgreementCounts(): AdminSummary["reactionRegionAgreementCounts"] {
+    return this.query<{ regionAgreement: ReactionOutputRequest["regionAgreement"]; count: number }>(`
+      SELECT region_agreement AS regionAgreement, COUNT(*) AS count
+      FROM reaction_outputs
+      GROUP BY region_agreement
+      ORDER BY count DESC, region_agreement ASC;
+    `);
   }
 
   private topModerationReasons(): AdminSummary["topModerationReasons"] {

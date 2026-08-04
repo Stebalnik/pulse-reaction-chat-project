@@ -70,14 +70,14 @@ Message-level reports can reference a peer message ID from the active match. The
 
 ## Admin
 
-The `/admin` route reads `GET /api/admin/summary` and `GET /api/admin/moderation/reports` when the own-server backend is available and an admin role token is supplied. It shows pending/auth/forbidden states rather than fake data when the API is offline, unauthorized, out of scope, or not configured. The first backend summary includes visits, room starts, camera grant rate, active sessions, waiting users, active matches, call setup success rate, call disconnect/failure counts, chat message count, sufficient-signal ratio, top rejection reasons, report/block counts, top moderation reasons, and registered-vs-guest counts. The moderation queue lists recent report/block records for safety review, supports `open`, `resolved`, and `dismissed` filters, includes repeated-report indicators for the reported anonymous user ID, shows message-level references when explicitly reported, records reviewer identity on status updates when supplied, required by backend allowlist, or derived from a scoped reviewer token, and supports status updates through `POST /api/admin/moderation/reports/resolve`.
+The `/admin` route reads `GET /api/admin/summary` and `GET /api/admin/moderation/reports` when the own-server backend is available and an admin role token is supplied. It shows pending/auth/forbidden states rather than fake data when the API is offline, unauthorized, out of scope, or not configured. The first backend summary includes visits, room starts, camera grant rate, active sessions, waiting users, active matches, call setup success rate, call disconnect/failure counts, chat message count, sufficient-signal ratio, reaction output count, reaction state/confidence/region-agreement breakdowns, top rejection reasons, report/block counts, top moderation reasons, and registered-vs-guest counts. The moderation queue lists recent report/block records for safety review, supports `open`, `resolved`, and `dismissed` filters, includes repeated-report indicators for the reported anonymous user ID, shows message-level references when explicitly reported, records reviewer identity on status updates when supplied, required by backend allowlist, or derived from a scoped reviewer token, and supports status updates through `POST /api/admin/moderation/reports/resolve`.
 
 Next admin analytics should add:
 
 - acquisition: visits, referrers, landing-to-room conversion;
 - room funnel: camera grant, waiting, peer matched, call duration, disconnect reason;
 - signal quality: sufficient-signal ratio, FPS distribution, ROI source, rejection reason codes;
-- product outputs: badge distribution and baseline maturity, without exposing raw biometric traces;
+- product outputs: baseline maturity and opt-in research feedback, without exposing raw biometric traces;
 - user experience: guest vs registered usage, repeat visits, registration conversion;
 - safety operations: account-backed admin sessions, reviewer deactivation, rotation, and least-privilege access beyond env-configured tokens;
 - operations: errors, API health, signaling queue size.

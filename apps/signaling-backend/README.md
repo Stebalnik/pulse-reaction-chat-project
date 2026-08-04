@@ -11,7 +11,7 @@ Current MVP scope:
 - Adults-only consent enforcement before matchmaking, roulette waiting queue, active match records, match leave handling, reason-coded report/block moderation records, message-level report references, admin review queue with status filters and repeated-report indicators, and block-aware rematching.
 - WebRTC offer/answer/ICE signaling relay scoped to active matches.
 - Active-match text chat scoped to matched participants, with sender delete controls and configurable retention.
-- Admin summary metrics for `/admin`.
+- Admin summary metrics for `/admin`, including reaction output state, confidence, and region-agreement breakdowns without exposing raw biometric traces or precise peer BPM.
 - Token-gated owner admin API access through `SYNVIBE_ADMIN_TOKEN` and `X-SynVibe-Admin-Token`.
 - Least-privilege admin tokens for summary-only metrics and moderation reviewers through `SYNVIBE_ADMIN_SUMMARY_TOKENS` and `SYNVIBE_ADMIN_REVIEWER_TOKENS`.
 - Optional owner-token reviewer identity enforcement for moderation resolution through `SYNVIBE_ADMIN_REVIEWER_IDS` and `X-SynVibe-Reviewer-Id`.

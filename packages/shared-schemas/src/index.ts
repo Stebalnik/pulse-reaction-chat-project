@@ -183,6 +183,10 @@ export interface AdminSummary {
   chatMessages: number;
   averageSessionDurationSeconds: number | null;
   sufficientSignalRatio: number | null;
+  reactionOutputCount: number;
+  reactionStateCounts: Array<{ state: ReactionOutputRequest["state"]; count: number }>;
+  reactionConfidenceCounts: Array<{ confidence: ReactionOutputRequest["confidence"]; count: number }>;
+  reactionRegionAgreementCounts: Array<{ regionAgreement: ReactionOutputRequest["regionAgreement"]; count: number }>;
   topRejectionReasons: Array<{ reasonCode: string; count: number }>;
   reportCount: number;
   blockCount: number;

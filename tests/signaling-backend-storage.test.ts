@@ -59,6 +59,10 @@ test("admin summary counts privacy-safe MVP records", () => {
     assert.equal(summary.blockCount, 0);
     assert.deepEqual(summary.topModerationReasons, []);
     assert.equal(summary.sufficientSignalRatio, 0);
+    assert.equal(summary.reactionOutputCount, 1);
+    assert.deepEqual(summary.reactionStateCounts, [{ state: "INSUFFICIENT_SIGNAL", count: 1 }]);
+    assert.deepEqual(summary.reactionConfidenceCounts, [{ confidence: "low", count: 1 }]);
+    assert.deepEqual(summary.reactionRegionAgreementCounts, [{ regionAgreement: "low", count: 1 }]);
     assert.deepEqual(summary.topRejectionReasons, [
       { reasonCode: "MOTION_HIGH", count: 1 },
       { reasonCode: "ROI_TOO_SMALL", count: 1 }
@@ -104,7 +108,12 @@ test("reaction outputs require active physiological-analysis consent", () => {
       policyVersion: "physiological-analysis-2026-08-04"
     });
     assert.throws(() => store.recordReactionOutput({ ...output, occurredAtIso: new Date().toISOString() }));
-    assert.equal(store.getAdminSummary().sufficientSignalRatio, 1);
+    const summary = store.getAdminSummary();
+    assert.equal(summary.sufficientSignalRatio, 1);
+    assert.equal(summary.reactionOutputCount, 1);
+    assert.deepEqual(summary.reactionStateCounts, [{ state: "NEAR_BASELINE", count: 1 }]);
+    assert.deepEqual(summary.reactionConfidenceCounts, [{ confidence: "medium", count: 1 }]);
+    assert.deepEqual(summary.reactionRegionAgreementCounts, [{ regionAgreement: "high", count: 1 }]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

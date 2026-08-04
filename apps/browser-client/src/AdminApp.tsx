@@ -125,6 +125,7 @@ export function AdminApp(): JSX.Element {
             detail={`${formatCount(summary?.roomStarts)} room starts`}
           />
           <AdminCard icon={<BarChart3 aria-hidden="true" />} label="Signals" value={formatNullableRate(summary?.sufficientSignalRatio)} detail={formatTopReasons(summary)} />
+          <AdminCard icon={<Activity aria-hidden="true" />} label="Outputs" value={formatCount(summary?.reactionOutputCount)} detail={formatReactionOutputs(summary)} />
           <AdminCard
             icon={<Database aria-hidden="true" />}
             label="Safety"
@@ -234,6 +235,23 @@ function formatNullableRate(value: number | null | undefined): string {
 function formatTopReasons(summary: AdminSummary | null): string {
   const top = summary?.topRejectionReasons[0];
   return top ? `${top.reasonCode}: ${top.count}` : "No rejection reasons yet";
+}
+
+function formatReactionOutputs(summary: AdminSummary | null): string {
+  if (!summary) return "Pending";
+  const state = summary.reactionStateCounts[0];
+  const confidence = summary.reactionConfidenceCounts[0];
+  const regionAgreement = summary.reactionRegionAgreementCounts[0];
+  if (!state) return "No cleaned outputs yet";
+  return `${formatReactionState(state.state)}: ${state.count}; ${confidence?.confidence ?? "confidence n/a"}; ${regionAgreement?.regionAgreement ?? "region n/a"} region agreement`;
+}
+
+function formatReactionState(state: AdminSummary["reactionStateCounts"][number]["state"]): string {
+  return state
+    .toLowerCase()
+    .split("_")
+    .map((part) => part[0]!.toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function formatModerationReasons(summary: AdminSummary | null): string {
