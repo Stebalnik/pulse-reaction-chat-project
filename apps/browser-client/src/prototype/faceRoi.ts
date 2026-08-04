@@ -23,7 +23,7 @@ interface FaceDetectorConstructor {
   new (options?: { fastMode?: boolean; maxDetectedFaces?: number }): FaceDetectorLike;
 }
 
-const DETECTION_INTERVAL_MS = 120;
+const DETECTION_INTERVAL_MS = 80;
 const MEDIAPIPE_HOLD_MS = 3_000;
 const SLOW_SMOOTHING = 0.58;
 const FAST_SMOOTHING = 0.34;

@@ -24,7 +24,6 @@ import { getOrCreateAnonymousUserId, loadLocalProfile, saveLocalProfile, type Lo
 import { usePublicReactionOutput, type PublicReactionOutputState } from "./publicReactionOutput.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
-const SHOW_ADMIN_LINK = import.meta.env.VITE_SHOW_ADMIN_LINK === "true";
 const ADULT_CHAT_CONSENT_KEY = "synvibe.consent.adultChatTerms.v1";
 const ADULT_CHAT_POLICY_VERSION = "adult-chat-terms-2026-08-04";
 const PHYSIOLOGICAL_ANALYSIS_CONSENT_KEY = "synvibe.consent.physiologicalAnalysis.v1";
@@ -124,11 +123,6 @@ export function PublicApp(): JSX.Element {
             <UserPlus aria-hidden="true" />
             Register
           </button>
-          {SHOW_ADMIN_LINK && (
-            <a className="textButton ghost" href="/admin">
-              Admin
-            </a>
-          )}
         </div>
       </header>
 
@@ -363,6 +357,8 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const callLifecycleEventsRef = useRef<Set<string>>(new Set());
   const analysisStartEventsRef = useRef<Set<string>>(new Set());
   const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [cameraFacingMode, setCameraFacingMode] = useState<"user" | "environment">("user");
+  const [callLayout, setCallLayout] = useState<"peer_main" | "self_main">("peer_main");
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [physiologicalAnalysisAccepted, setPhysiologicalAnalysisAccepted] = useState(
     () => window.localStorage.getItem(PHYSIOLOGICAL_ANALYSIS_CONSENT_KEY) === PHYSIOLOGICAL_ANALYSIS_POLICY_VERSION
@@ -487,7 +483,8 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          frameRate: { ideal: 60, min: 6 }
+          frameRate: { ideal: 60, min: 6 },
+          facingMode: { ideal: cameraFacingMode }
         },
         audio: false
       })
@@ -510,7 +507,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       setLocalStream(null);
       if (stream) void recordRoomEvent(userId, sessionId, "camera_pause");
     };
-  }, [cameraEnabled, sessionId, userId]);
+  }, [cameraEnabled, cameraFacingMode, sessionId, userId]);
 
   useEffect(() => {
     if (matchStatus.status !== "matched" || !localStream) {
@@ -765,6 +762,11 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
             <Camera aria-hidden="true" />
             {cameraEnabled ? "Pause camera" : "Enable camera"}
           </button>
+          {cameraEnabled && (
+            <button className="secondaryAction compact" type="button" onClick={() => setCameraFacingMode((mode) => (mode === "user" ? "environment" : "user"))}>
+              Flip camera
+            </button>
+          )}
           {physiologicalAnalysisAccepted ? (
             <button className="secondaryAction compact" type="button" onClick={revokePhysiologicalAnalysis}>
               Disable analysis
@@ -777,13 +779,19 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
         </div>
       </div>
 
-      <div className="publicCallGrid">
-        <article className="publicVideoPane">
-          {cameraEnabled ? <video ref={videoRef} autoPlay muted playsInline /> : <EmptyVideo label="Camera off" />}
+      <div className={`publicCallStage ${callLayout}`}>
+        <article
+          className={`publicVideoPane selfPane ${callLayout === "self_main" ? "mainPane" : "pipPane"}`}
+          onClick={() => callLayout !== "self_main" && setCallLayout("self_main")}
+        >
+          {cameraEnabled ? <video ref={videoRef} className={cameraFacingMode === "user" ? "selfVideo mirrored" : "selfVideo"} autoPlay muted playsInline /> : <EmptyVideo label="Camera off" />}
           {cameraError && <div className="publicStatus danger">{cameraError}</div>}
-          <div className="publicVideoLabel">You</div>
+          <div className="publicVideoLabel">{cameraFacingMode === "user" ? "You" : "Rear camera"}</div>
         </article>
-        <article className="publicVideoPane peerPane">
+        <article
+          className={`publicVideoPane peerPane ${callLayout === "peer_main" ? "mainPane" : "pipPane"}`}
+          onClick={() => callLayout !== "peer_main" && setCallLayout("peer_main")}
+        >
           <PeerPane
             status={matchStatus}
             online={matchingOnline}
@@ -797,6 +805,9 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
           />
           <div className="publicVideoLabel">Peer</div>
         </article>
+        <button className="callSwapButton" type="button" onClick={() => setCallLayout((layout) => (layout === "peer_main" ? "self_main" : "peer_main"))}>
+          Swap view
+        </button>
       </div>
       <MatchChatPanel
         messages={chatMessages}

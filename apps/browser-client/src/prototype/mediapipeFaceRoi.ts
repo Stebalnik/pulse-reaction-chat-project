@@ -43,23 +43,36 @@ export class MediapipeFaceRoiTracker {
   }
 
   private async createLandmarker(): Promise<FaceLandmarker | null> {
+    const vision = await FilesetResolver.forVisionTasks(WASM_BASE_PATH);
+    const commonOptions = {
+      runningMode: "VIDEO" as const,
+      numFaces: 1,
+      minFaceDetectionConfidence: 0.45,
+      minFacePresenceConfidence: 0.45,
+      minTrackingConfidence: 0.45,
+      outputFaceBlendshapes: false,
+      outputFacialTransformationMatrixes: true
+    };
     try {
-      const vision = await FilesetResolver.forVisionTasks(WASM_BASE_PATH);
       return await FaceLandmarker.createFromOptions(vision, {
         baseOptions: {
           modelAssetPath: MODEL_ASSET_PATH,
           delegate: "GPU"
         },
-        runningMode: "VIDEO",
-        numFaces: 1,
-        minFaceDetectionConfidence: 0.55,
-        minFacePresenceConfidence: 0.55,
-        minTrackingConfidence: 0.55,
-        outputFaceBlendshapes: false,
-        outputFacialTransformationMatrixes: true
+        ...commonOptions
       });
     } catch {
-      return null;
+      try {
+        return await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: MODEL_ASSET_PATH,
+            delegate: "CPU"
+          },
+          ...commonOptions
+        });
+      } catch {
+        return null;
+      }
     }
   }
 }

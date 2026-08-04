@@ -6,7 +6,7 @@ Routes:
 
 - `/`: public entry with local anonymous SynVibe ID and readiness preview instead of fabricated reaction output.
 - `/room`: public video-chat room with server-backed roulette queue and WebRTC signaling when the backend is available.
-- `/admin`: internal platform/admin shell.
+- `/admin`: internal platform/admin shell, reachable directly and protected by admin auth rather than linked from public navigation.
 - `/admin/debug`: rPPG debug console.
 
 Current prototype:
@@ -16,6 +16,7 @@ Current prototype:
 - separate local physiological-analysis consent and revoke control in the public room;
 - local registration and optional search filters stored on the device and posted to the own-server backend when available;
 - public video-room with camera enable/pause controls, live roulette queue state, and mutual profile-filter matching;
+- WhatsApp-style video stage with peer/self picture-in-picture swap and front/rear camera flip;
 - active-match WebRTC offer/answer/ICE exchange through the own-server signaling relay;
 - local camera preview;
 - continuous local-only pulse-rate estimate from face/skin ROI in the debug console while camera and local analysis consent are active;

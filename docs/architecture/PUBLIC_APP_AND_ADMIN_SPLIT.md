@@ -6,7 +6,7 @@ Status: MVP scaffold.
 
 - `/`: public no-login entry with readiness preview rather than fabricated reaction output.
 - `/room`: public video-chat room with server-backed roulette queue when the backend is available.
-- `/admin`: internal platform control room.
+- `/admin`: internal platform control room, reachable directly and protected by admin auth rather than linked from public navigation.
 - `/admin/debug`: current rPPG/debug console.
 
 ## Identity
@@ -45,6 +45,8 @@ The first matching MVP is implemented in `apps/signaling-backend` with:
 - `POST /api/matchmaking/leave`.
 
 The browser room joins the live queue after a server session is created, polls status, shows the matched peer profile, records report/block actions as dedicated moderation records, records privacy-safe WebRTC lifecycle events, and uses the signaling relay to exchange WebRTC offer/answer/ICE payloads for active matches. If the backend has no active `adult_chat_terms` grant, matching returns `ineligible` instead of adding the user to `waiting_queue`. Guests with no profile filters can still use broad roulette matching. Registered profiles can add optional search parameters; the backend only creates a filtered match when both profiles accept each other's voluntary parameters. These filters are search constraints, not compatibility, attraction, or emotional-state claims.
+
+The public room renders the call as one primary video with a picture-in-picture secondary video. Users can swap peer/self placement with one click and switch between front and rear local cameras when a device exposes both. Front-camera self preview is mirrored locally; peer video is not mirrored.
 
 ## WebRTC Signaling
 
