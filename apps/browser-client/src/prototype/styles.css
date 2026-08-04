@@ -219,7 +219,7 @@ a {
 .heroPreview {
   min-height: 360px;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   gap: 12px;
   border: 1px solid #c9d4ce;
   border-radius: 8px;
@@ -270,6 +270,23 @@ a {
 .previewPeer strong {
   color: #17231f;
   font-size: 13px;
+}
+
+.previewReadiness {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.previewReadiness span {
+  border: 1px solid #dce6e1;
+  border-radius: 999px;
+  padding: 7px 9px;
+  background: #f4faf6;
+  color: #40574c;
+  font-size: 12px;
+  font-weight: 750;
 }
 
 .publicStats,

@@ -220,8 +220,13 @@ function PublicHome({
           </div>
           <div className="previewPeer">
             <Activity aria-hidden="true" />
-            <span>Reaction pattern</span>
-            <strong>SOFT LIFT</strong>
+            <span>Local analysis</span>
+            <strong>Opt-in required</strong>
+          </div>
+          <div className="previewReadiness" aria-label="Launch readiness">
+            <span>Live queue</span>
+            <span>Adults-only gate</span>
+            <span>Pulse private by default</span>
           </div>
         </div>
       </div>

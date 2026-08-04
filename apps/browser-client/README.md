@@ -4,14 +4,14 @@ Browser surface for public no-login entry, camera consent, local video processin
 
 Routes:
 
-- `/`: public entry with local anonymous SynVibe ID.
+- `/`: public entry with local anonymous SynVibe ID and readiness preview instead of fabricated reaction output.
 - `/room`: public video-chat room with server-backed roulette queue and WebRTC signaling when the backend is available.
 - `/admin`: internal platform/admin shell.
 - `/admin/debug`: rPPG debug console.
 
 Current prototype:
 
-- public no-login user shell with local anonymous ID;
+- public no-login user shell with local anonymous ID and consent/readiness-oriented preview;
 - adults-only safety gate before entering the dating room;
 - separate local physiological-analysis consent and revoke control in the public room;
 - local registration stored on the device and posted to the own-server backend when available;

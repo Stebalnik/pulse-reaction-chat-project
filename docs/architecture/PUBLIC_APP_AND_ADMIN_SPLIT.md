@@ -4,7 +4,7 @@ Status: MVP scaffold.
 
 ## Routes
 
-- `/`: public no-login entry.
+- `/`: public no-login entry with readiness preview rather than fabricated reaction output.
 - `/room`: public video-chat room with server-backed roulette queue when the backend is available.
 - `/admin`: internal platform control room.
 - `/admin/debug`: current rPPG/debug console.
