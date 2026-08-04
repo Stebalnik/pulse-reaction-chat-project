@@ -48,3 +48,44 @@ test("admin summary counts privacy-safe MVP records", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("matchmaking pairs queued users and supports blocking the match", () => {
+  const dir = mkdtempSync(join(tmpdir(), "synvibe-match-"));
+  try {
+    const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
+    store.upsertProfile({ localUserId: "SV-USERAA-000001", displayName: "Ari", handle: "ari" });
+    store.upsertProfile({ localUserId: "SV-USERBB-000002", displayName: "Bo", handle: "bo" });
+    const sessionA = store.createSession({ localUserId: "SV-USERAA-000001", route: "/room" });
+    const sessionB = store.createSession({ localUserId: "SV-USERBB-000002", route: "/room" });
+
+    const first = store.joinMatchmaking({ localUserId: "SV-USERAA-000001", sessionId: sessionA.id });
+    assert.equal(first.status, "waiting");
+    assert.equal(first.queuePosition, 1);
+    assert.equal(store.getAdminSummary().waitingUsers, 1);
+
+    const second = store.joinMatchmaking({ localUserId: "SV-USERBB-000002", sessionId: sessionB.id });
+    assert.equal(second.status, "matched");
+    assert.equal(second.match.peer.displayName, "Ari");
+
+    const firstPolled = store.getMatchmakingStatus("SV-USERAA-000001");
+    assert.equal(firstPolled.status, "matched");
+    assert.equal(firstPolled.match.id, second.match.id);
+    assert.equal(firstPolled.match.peer.displayName, "Bo");
+
+    let summary = store.getAdminSummary();
+    assert.equal(summary.waitingUsers, 0);
+    assert.equal(summary.activeMatches, 1);
+
+    const afterBlock = store.leaveMatchmaking({
+      localUserId: "SV-USERAA-000001",
+      matchId: second.match.id,
+      reason: "blocked"
+    });
+    assert.equal(afterBlock.status, "idle");
+
+    summary = store.getAdminSummary();
+    assert.equal(summary.activeMatches, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -1,7 +1,8 @@
 import { Activity, Camera, CircleUserRound, HeartPulse, Play, ShieldCheck, UserPlus, Video } from "lucide-react";
 import type { JSX } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createServerSession, ensureAnonymousUser, recordEvent, saveServerProfile } from "./api.js";
+import type { MatchmakingStatus } from "@pulse-reaction/shared-schemas";
+import { createServerSession, ensureAnonymousUser, joinMatchmaking, leaveMatchmaking, loadMatchmakingStatus, recordEvent, saveServerProfile } from "./api.js";
 import { getOrCreateAnonymousUserId, loadLocalProfile, saveLocalProfile, type LocalProfile } from "./identity.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
@@ -130,10 +131,58 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | undefined>();
+  const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({ status: "idle" });
+  const [matchingOnline, setMatchingOnline] = useState(true);
 
   useEffect(() => {
-    void createServerSession(userId, "/room").then((session) => setSessionId(session?.id));
+    void createServerSession(userId, "/room").then((session) => {
+      setSessionId(session?.id);
+      setMatchingOnline(Boolean(session));
+    });
   }, [userId]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+
+    const refresh = async (): Promise<void> => {
+      const status = await loadMatchmakingStatus(userId);
+      if (!cancelled && status) {
+        setMatchStatus(status);
+        setMatchingOnline(true);
+      }
+    };
+
+    void joinMatchmaking(userId, sessionId).then((status) => {
+      if (cancelled) return;
+      if (status) {
+        setMatchStatus(status);
+        setMatchingOnline(true);
+      } else {
+        setMatchingOnline(false);
+      }
+    });
+    const intervalId = window.setInterval(refresh, 2500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [sessionId, userId]);
+
+  const leaveCurrentMatch = async (reason: "left" | "reported" | "blocked"): Promise<void> => {
+    const matchId = matchStatus.status === "matched" ? matchStatus.match.id : undefined;
+    const status = await leaveMatchmaking({
+      localUserId: userId,
+      ...(matchId ? { matchId } : {}),
+      reason
+    });
+    setMatchStatus(status ?? { status: "idle" });
+    if (reason === "left") {
+      const next = await joinMatchmaking(userId, sessionId);
+      if (next) setMatchStatus(next);
+    }
+  };
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -176,12 +225,37 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       <div className="roomHeader">
         <div>
           <span>Roulette room</span>
-          <strong>{profile?.displayName ?? userId}</strong>
+          <strong>{roomStatusText(matchStatus, matchingOnline)}</strong>
+          <small>{profile?.displayName ?? userId}</small>
         </div>
-        <button className={`primaryAction compact ${cameraEnabled ? "active" : ""}`} type="button" onClick={() => setCameraEnabled((value) => !value)}>
-          <Camera aria-hidden="true" />
-          {cameraEnabled ? "Pause camera" : "Enable camera"}
-        </button>
+        <div className="roomActions">
+          {matchStatus.status === "matched" && (
+            <>
+              <button className="secondaryAction compact" type="button" onClick={() => void leaveCurrentMatch("reported")}>
+                Report
+              </button>
+              <button className="secondaryAction compact danger" type="button" onClick={() => void leaveCurrentMatch("blocked")}>
+                Block
+              </button>
+              <button className="secondaryAction compact" type="button" onClick={() => void leaveCurrentMatch("left")}>
+                Next
+              </button>
+            </>
+          )}
+          {matchStatus.status === "idle" && matchingOnline && (
+            <button
+              className="secondaryAction compact"
+              type="button"
+              onClick={() => void joinMatchmaking(userId, sessionId).then((status) => status && setMatchStatus(status))}
+            >
+              Find peer
+            </button>
+          )}
+          <button className={`primaryAction compact ${cameraEnabled ? "active" : ""}`} type="button" onClick={() => setCameraEnabled((value) => !value)}>
+            <Camera aria-hidden="true" />
+            {cameraEnabled ? "Pause camera" : "Enable camera"}
+          </button>
+        </div>
       </div>
 
       <div className="publicCallGrid">
@@ -191,20 +265,58 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
           <div className="publicVideoLabel">You</div>
         </article>
         <article className="publicVideoPane peerPane">
-          <div className="peerMock">
-            <ShieldCheck aria-hidden="true" />
-            <span>Waiting for peer</span>
-            <strong>Reaction patterns will appear here</strong>
-          </div>
-          <div className="publicReactionStack" aria-label="Peer reaction patterns">
-            <ReactionChip code="STEADY" label="Steady" />
-            <ReactionChip code="SOFT_LIFT" label="Soft lift" />
-            <ReactionChip code="SETTLING" label="Settling" />
-          </div>
+          <PeerPane status={matchStatus} online={matchingOnline} />
           <div className="publicVideoLabel">Peer</div>
         </article>
       </div>
     </section>
+  );
+}
+
+function PeerPane({ status, online }: { status: MatchmakingStatus; online: boolean }): JSX.Element {
+  if (!online) {
+    return (
+      <div className="peerMock">
+        <ShieldCheck aria-hidden="true" />
+        <span>Matching offline</span>
+        <strong>Start the backend to use the live queue</strong>
+      </div>
+    );
+  }
+
+  if (status.status === "matched") {
+    return (
+      <>
+        <div className="peerMock matched">
+          <Activity aria-hidden="true" />
+          <span>Matched</span>
+          <strong>{status.match.peer.displayName ?? status.match.peer.localUserId}</strong>
+          {status.match.peer.handle && <em>@{status.match.peer.handle}</em>}
+        </div>
+        <div className="publicReactionStack" aria-label="Peer reaction pattern availability">
+          <ReactionChip code="PENDING" label="Consented signal" />
+          <ReactionChip code="LOCAL_ONLY" label="Precise BPM private" />
+        </div>
+      </>
+    );
+  }
+
+  if (status.status === "waiting") {
+    return (
+      <div className="peerMock">
+        <ShieldCheck aria-hidden="true" />
+        <span>In live queue</span>
+        <strong>Position {status.queuePosition}</strong>
+      </div>
+    );
+  }
+
+  return (
+    <div className="peerMock">
+      <ShieldCheck aria-hidden="true" />
+      <span>Ready</span>
+      <strong>Join the live queue</strong>
+    </div>
   );
 }
 
@@ -281,6 +393,13 @@ function ReactionChip({ code, label }: { code: string; label: string }): JSX.Ele
       <strong>{code}</strong>
     </div>
   );
+}
+
+function roomStatusText(status: MatchmakingStatus, online: boolean): string {
+  if (!online) return "Matching backend offline";
+  if (status.status === "matched") return `Matched with ${status.match.peer.displayName ?? status.match.peer.localUserId}`;
+  if (status.status === "waiting") return `Waiting in queue, position ${status.queuePosition}`;
+  return "Ready to match";
 }
 
 function stopVideo(video: HTMLVideoElement | null): void {

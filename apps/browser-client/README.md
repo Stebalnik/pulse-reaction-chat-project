@@ -5,15 +5,15 @@ Browser surface for public no-login entry, camera consent, local video processin
 Routes:
 
 - `/`: public entry with local anonymous SynVibe ID.
-- `/room`: public video-chat room shell.
+- `/room`: public video-chat room with server-backed roulette queue when the backend is available.
 - `/admin`: internal platform/admin shell.
 - `/admin/debug`: rPPG debug console.
 
 Current prototype:
 
 - public no-login user shell with local anonymous ID;
-- local registration placeholder stored on the device until server accounts are implemented;
-- public video-room shell with camera enable/pause controls;
+- local registration stored on the device and posted to the own-server backend when available;
+- public video-room with camera enable/pause controls and live roulette queue state;
 - local camera preview;
 - continuous local-only pulse-rate estimate from face/skin ROI while camera and local analysis consent are active;
 - on-device MediaPipe Face Landmarker ROI when the model loads successfully;
@@ -29,7 +29,7 @@ Current prototype:
 - live estimator diagnostics with CHROM/POS/GREEN/PEAK method estimates, recent BPM history, median, and spread;
 - admin/debug separation for local signal tuning and future analytics;
 - automatic local debug session logging with downloadable JSON metrics for ROI, quality gates, method estimates, and badge state;
-- temporary bot peer;
+- server-backed peer match panel with report, block, and next controls;
 - simple chat UI.
 
 Run with:

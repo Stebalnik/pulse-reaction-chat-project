@@ -10,6 +10,7 @@ export type SynVibeEventType =
   | "match_wait"
   | "match_start"
   | "match_end"
+  | "match_leave"
   | "report"
   | "block";
 
@@ -80,9 +81,39 @@ export interface AdminSummary {
   cameraGrants: number;
   cameraGrantRate: number;
   activeSessions: number;
+  waitingUsers: number;
+  activeMatches: number;
   averageSessionDurationSeconds: number | null;
   sufficientSignalRatio: number | null;
   topRejectionReasons: Array<{ reasonCode: string; count: number }>;
   registeredUsers: number;
   guestUsers: number;
 }
+
+export interface MatchmakingJoinRequest {
+  localUserId: string;
+  sessionId?: string;
+}
+
+export interface MatchmakingLeaveRequest {
+  localUserId: string;
+  matchId?: string;
+  reason: "left" | "reported" | "blocked";
+}
+
+export interface MatchPeer {
+  localUserId: string;
+  displayName: string | null;
+  handle: string | null;
+}
+
+export interface MatchRecord {
+  id: string;
+  startedAtIso: string;
+  peer: MatchPeer;
+}
+
+export type MatchmakingStatus =
+  | { status: "idle" }
+  | { status: "waiting"; joinedAtIso: string; queuePosition: number }
+  | { status: "matched"; match: MatchRecord };

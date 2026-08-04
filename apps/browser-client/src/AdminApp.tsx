@@ -48,10 +48,20 @@ export function AdminApp(): JSX.Element {
 
         <div className="adminGrid">
           <AdminCard icon={<UsersRound aria-hidden="true" />} label="Users" value={formatCount(summary?.registeredUsers)} detail={`${formatCount(summary?.guestUsers)} guests`} />
-          <AdminCard icon={<Gauge aria-hidden="true" />} label="Experience" value={formatRate(summary?.cameraGrantRate)} detail={`${formatCount(summary?.roomStarts)} room starts`} />
+          <AdminCard
+            icon={<Gauge aria-hidden="true" />}
+            label="Experience"
+            value={formatRate(summary?.cameraGrantRate)}
+            detail={`${formatCount(summary?.roomStarts)} room starts`}
+          />
           <AdminCard icon={<BarChart3 aria-hidden="true" />} label="Signals" value={formatNullableRate(summary?.sufficientSignalRatio)} detail={formatTopReasons(summary)} />
           <AdminCard icon={<Database aria-hidden="true" />} label="Storage" value="Own server" detail="No external analytics database connected" />
-          <AdminCard icon={<ShieldCheck aria-hidden="true" />} label="Privacy" value="Device-first" detail="Raw video and raw traces stay local by default" />
+          <AdminCard
+            icon={<ShieldCheck aria-hidden="true" />}
+            label="Matching"
+            value={formatCount(summary?.activeMatches)}
+            detail={`${formatCount(summary?.waitingUsers)} waiting`}
+          />
           <AdminCard icon={<Bug aria-hidden="true" />} label="Events" value={formatCount(summary?.visits)} detail={`${formatCount(summary?.activeSessions)} active sessions`} />
         </div>
       </section>

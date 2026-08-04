@@ -10,7 +10,11 @@ import type {
   ProfileRequest,
   ReactionOutputRequest,
   SessionRecord,
-  SessionRequest
+  SessionRequest,
+  MatchmakingJoinRequest,
+  MatchmakingLeaveRequest,
+  MatchmakingStatus,
+  MatchPeer
 } from "@pulse-reaction/shared-schemas";
 
 const DEFAULT_DB_PATH = resolve(process.cwd(), "data/synvibe.sqlite");
@@ -66,6 +70,31 @@ export class SynVibeStore {
         quality_score REAL NOT NULL,
         region_agreement TEXT NOT NULL,
         created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS waiting_queue (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        session_id TEXT REFERENCES sessions(id),
+        status TEXT NOT NULL,
+        joined_at TEXT NOT NULL,
+        matched_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS matches (
+        id TEXT PRIMARY KEY,
+        user_a_id TEXT NOT NULL REFERENCES users(id),
+        user_b_id TEXT NOT NULL REFERENCES users(id),
+        session_a_id TEXT REFERENCES sessions(id),
+        session_b_id TEXT REFERENCES sessions(id),
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        ended_at TEXT,
+        ended_reason TEXT
+      );
+      CREATE TABLE IF NOT EXISTS blocked_users (
+        blocker_user_id TEXT NOT NULL REFERENCES users(id),
+        blocked_user_id TEXT NOT NULL REFERENCES users(id),
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (blocker_user_id, blocked_user_id)
       );
     `);
   }
@@ -176,6 +205,139 @@ export class SynVibeStore {
     `);
   }
 
+  joinMatchmaking(input: MatchmakingJoinRequest): MatchmakingStatus {
+    const user = this.upsertAnonymousUser(input.localUserId);
+    const current = this.getMatchmakingStatus(input.localUserId);
+    if (current.status === "matched") return current;
+
+    const now = new Date().toISOString();
+    const candidates = this.query<WaitingQueueRow>(`
+      SELECT * FROM waiting_queue
+      WHERE status = 'waiting' AND user_id != ${sql(user.id)}
+      ORDER BY joined_at ASC;
+    `);
+    const peer = candidates.find((candidate) => !this.usersBlocked(user.id, candidate.user_id));
+    if (peer) {
+      const matchId = randomUUID();
+      this.execute(`
+        UPDATE waiting_queue SET status = 'matched', matched_at = ${sql(now)} WHERE id = ${sql(peer.id)};
+        UPDATE waiting_queue SET status = 'matched', matched_at = ${sql(now)} WHERE user_id = ${sql(user.id)} AND status = 'waiting';
+        INSERT INTO matches (id, user_a_id, user_b_id, session_a_id, session_b_id, status, created_at, ended_at, ended_reason)
+        VALUES (
+          ${sql(matchId)},
+          ${sql(peer.user_id)},
+          ${sql(user.id)},
+          ${peer.session_id ? sql(peer.session_id) : "NULL"},
+          ${input.sessionId ? sql(input.sessionId) : "NULL"},
+          'active',
+          ${sql(now)},
+          NULL,
+          NULL
+        );
+      `);
+      return {
+        status: "matched",
+        match: {
+          id: matchId,
+          startedAtIso: now,
+          peer: this.getPeerForUser(matchId, user.id)
+        }
+      };
+    }
+
+    const existingWait = this.queryOne<WaitingQueueRow>(`
+      SELECT * FROM waiting_queue WHERE user_id = ${sql(user.id)} AND status = 'waiting';
+    `);
+    if (existingWait) {
+      return {
+        status: "waiting",
+        joinedAtIso: existingWait.joined_at,
+        queuePosition: this.queuePosition(existingWait.joined_at)
+      };
+    }
+
+    this.execute(`
+      INSERT INTO waiting_queue (id, user_id, session_id, status, joined_at, matched_at)
+      VALUES (${sql(randomUUID())}, ${sql(user.id)}, ${input.sessionId ? sql(input.sessionId) : "NULL"}, 'waiting', ${sql(now)}, NULL);
+    `);
+    return {
+      status: "waiting",
+      joinedAtIso: now,
+      queuePosition: this.queuePosition(now)
+    };
+  }
+
+  getMatchmakingStatus(localUserId: string): MatchmakingStatus {
+    const user = this.upsertAnonymousUser(localUserId);
+    const activeMatch = this.queryOne<MatchRow>(`
+      SELECT * FROM matches
+      WHERE status = 'active' AND (user_a_id = ${sql(user.id)} OR user_b_id = ${sql(user.id)})
+      ORDER BY created_at DESC
+      LIMIT 1;
+    `);
+    if (activeMatch) {
+      return {
+        status: "matched",
+        match: {
+          id: activeMatch.id,
+          startedAtIso: activeMatch.created_at,
+          peer: this.getPeerForUser(activeMatch.id, user.id)
+        }
+      };
+    }
+
+    const wait = this.queryOne<WaitingQueueRow>(`
+      SELECT * FROM waiting_queue
+      WHERE user_id = ${sql(user.id)} AND status = 'waiting'
+      ORDER BY joined_at DESC
+      LIMIT 1;
+    `);
+    if (wait) {
+      return {
+        status: "waiting",
+        joinedAtIso: wait.joined_at,
+        queuePosition: this.queuePosition(wait.joined_at)
+      };
+    }
+
+    return { status: "idle" };
+  }
+
+  leaveMatchmaking(input: MatchmakingLeaveRequest): MatchmakingStatus {
+    const user = this.upsertAnonymousUser(input.localUserId);
+    const now = new Date().toISOString();
+    this.execute(`
+      UPDATE waiting_queue
+      SET status = 'cancelled'
+      WHERE user_id = ${sql(user.id)} AND status = 'waiting';
+    `);
+
+    const match = input.matchId
+      ? this.queryOne<MatchRow>(`SELECT * FROM matches WHERE id = ${sql(input.matchId)} AND status = 'active';`)
+      : this.queryOne<MatchRow>(`
+          SELECT * FROM matches
+          WHERE status = 'active' AND (user_a_id = ${sql(user.id)} OR user_b_id = ${sql(user.id)})
+          ORDER BY created_at DESC
+          LIMIT 1;
+        `);
+    if (match) {
+      this.execute(`
+        UPDATE matches
+        SET status = 'ended', ended_at = ${sql(now)}, ended_reason = ${sql(input.reason)}
+        WHERE id = ${sql(match.id)};
+      `);
+      if (input.reason === "blocked") {
+        const peerUserId = match.user_a_id === user.id ? match.user_b_id : match.user_a_id;
+        this.execute(`
+          INSERT OR IGNORE INTO blocked_users (blocker_user_id, blocked_user_id, created_at)
+          VALUES (${sql(user.id)}, ${sql(peerUserId)}, ${sql(now)});
+        `);
+      }
+    }
+
+    return { status: "idle" };
+  }
+
   getAdminSummary(): AdminSummary {
     const visits = this.countEvents("visit");
     const roomStarts = this.countEvents("room_start");
@@ -183,6 +345,8 @@ export class SynVibeStore {
     const registeredUsers = this.scalar("SELECT COUNT(*) AS value FROM profiles;");
     const totalUsers = this.scalar("SELECT COUNT(*) AS value FROM users;");
     const activeSessions = this.scalar("SELECT COUNT(*) AS value FROM sessions WHERE ended_at IS NULL;");
+    const waitingUsers = this.scalar("SELECT COUNT(*) AS value FROM waiting_queue WHERE status = 'waiting';");
+    const activeMatches = this.scalar("SELECT COUNT(*) AS value FROM matches WHERE status = 'active';");
     const averageSessionDurationSeconds = this.queryOne<{ value: number | null }>(`
       SELECT AVG(strftime('%s', ended_at) - strftime('%s', started_at)) AS value
       FROM sessions
@@ -202,6 +366,8 @@ export class SynVibeStore {
       cameraGrants,
       cameraGrantRate: roomStarts === 0 ? 0 : cameraGrants / roomStarts,
       activeSessions,
+      waitingUsers,
+      activeMatches,
       averageSessionDurationSeconds,
       sufficientSignalRatio: signalCounts.total === 0 ? null : signalCounts.sufficient / signalCounts.total,
       topRejectionReasons: this.topRejectionReasons(),
@@ -212,6 +378,38 @@ export class SynVibeStore {
 
   private countEvents(type: string): number {
     return this.scalar(`SELECT COUNT(*) AS value FROM events WHERE type = ${sql(type)};`);
+  }
+
+  private queuePosition(joinedAtIso: string): number {
+    return this.scalar(`SELECT COUNT(*) AS value FROM waiting_queue WHERE status = 'waiting' AND joined_at <= ${sql(joinedAtIso)};`);
+  }
+
+  private usersBlocked(userAId: string, userBId: string): boolean {
+    return (
+      this.scalar(`
+        SELECT COUNT(*) AS value FROM blocked_users
+        WHERE (blocker_user_id = ${sql(userAId)} AND blocked_user_id = ${sql(userBId)})
+          OR (blocker_user_id = ${sql(userBId)} AND blocked_user_id = ${sql(userAId)});
+      `) > 0
+    );
+  }
+
+  private getPeerForUser(matchId: string, userId: string): MatchPeer {
+    const match = this.queryOne<MatchRow>(`SELECT * FROM matches WHERE id = ${sql(matchId)};`);
+    if (!match) throw new Error("Match not found");
+    const peerUserId = match.user_a_id === userId ? match.user_b_id : match.user_a_id;
+    const row = this.queryOne<PeerRow>(`
+      SELECT users.local_user_id, profiles.display_name, profiles.handle
+      FROM users
+      LEFT JOIN profiles ON profiles.user_id = users.id
+      WHERE users.id = ${sql(peerUserId)};
+    `);
+    if (!row) throw new Error("Peer not found");
+    return {
+      localUserId: row.local_user_id,
+      displayName: row.display_name,
+      handle: row.handle
+    };
   }
 
   private topRejectionReasons(): Array<{ reasonCode: string; count: number }> {
@@ -269,6 +467,33 @@ interface ProfileRow {
 
 interface ReactionReasonRow {
   reason_codes_json: string;
+}
+
+interface WaitingQueueRow {
+  id: string;
+  user_id: string;
+  session_id: string | null;
+  status: string;
+  joined_at: string;
+  matched_at: string | null;
+}
+
+interface MatchRow {
+  id: string;
+  user_a_id: string;
+  user_b_id: string;
+  session_a_id: string | null;
+  session_b_id: string | null;
+  status: string;
+  created_at: string;
+  ended_at: string | null;
+  ended_reason: string | null;
+}
+
+interface PeerRow {
+  local_user_id: string;
+  display_name: string | null;
+  handle: string | null;
 }
 
 function mapUser(row: UserRow): AnonymousUserRecord {

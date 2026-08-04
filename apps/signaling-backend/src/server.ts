@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import type { EventRequest, ProfileRequest, ReactionOutputRequest, SessionRequest } from "@pulse-reaction/shared-schemas";
+import type { EventRequest, MatchmakingJoinRequest, MatchmakingLeaveRequest, ProfileRequest, ReactionOutputRequest, SessionRequest } from "@pulse-reaction/shared-schemas";
 import { SynVibeStore } from "./storage.js";
 
 const PORT = Number(process.env.SIGNALING_PORT ?? process.env.PORT ?? 1060);
@@ -74,6 +74,56 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     };
     store.recordEvent(input);
     sendJson(response, 202, { ok: true });
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/matchmaking/join") {
+    const body = await readJson(request);
+    const sessionId = readOptionalString(body, "sessionId", 64);
+    const input: MatchmakingJoinRequest = {
+      localUserId: readString(body, "localUserId", 64),
+      ...(sessionId ? { sessionId } : {})
+    };
+    const status = store.joinMatchmaking(input);
+    store.recordEvent({
+      localUserId: input.localUserId,
+      ...(sessionId ? { sessionId } : {}),
+      type: status.status === "matched" ? "match_start" : "match_wait",
+      route: "/room",
+      metadata:
+        status.status === "matched"
+          ? { matchId: status.match.id }
+          : status.status === "waiting"
+            ? { queuePosition: status.queuePosition }
+            : {}
+    });
+    sendJson(response, 200, status);
+    return;
+  }
+  if (request.method === "GET" && url.pathname === "/api/matchmaking/status") {
+    const localUserId = url.searchParams.get("localUserId");
+    if (!localUserId) {
+      sendJson(response, 400, { error: "missing_local_user_id" });
+      return;
+    }
+    sendJson(response, 200, store.getMatchmakingStatus(localUserId.slice(0, 64)));
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/matchmaking/leave") {
+    const body = await readJson(request);
+    const matchId = readOptionalString(body, "matchId", 64);
+    const input: MatchmakingLeaveRequest = {
+      localUserId: readString(body, "localUserId", 64),
+      ...(matchId ? { matchId } : {}),
+      reason: readString(body, "reason", 20) as MatchmakingLeaveRequest["reason"]
+    };
+    const status = store.leaveMatchmaking(input);
+    store.recordEvent({
+      localUserId: input.localUserId,
+      type: input.reason === "reported" ? "report" : input.reason === "blocked" ? "block" : "match_leave",
+      route: "/room",
+      metadata: { matchId: input.matchId ?? null, reason: input.reason }
+    });
+    sendJson(response, 200, status);
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/reaction-outputs") {

@@ -5,7 +5,7 @@ Status: MVP scaffold.
 ## Routes
 
 - `/`: public no-login entry.
-- `/room`: public video-chat room shell.
+- `/room`: public video-chat room with server-backed roulette queue when the backend is available.
 - `/admin`: internal platform control room.
 - `/admin/debug`: current rPPG/debug console.
 
@@ -22,9 +22,22 @@ Server-backed identity now has a first MVP implementation in `apps/signaling-bac
 
 The browser client posts anonymous user/profile/event records when the API is available and falls back to local-only behavior when it is not.
 
+## Matching
+
+The first matching MVP is implemented in `apps/signaling-backend` with:
+
+- `waiting_queue`: active queue entries with session linkage;
+- `matches`: active and ended match records;
+- `blocked_users`: block-aware rematching prevention;
+- `POST /api/matchmaking/join`;
+- `GET /api/matchmaking/status`;
+- `POST /api/matchmaking/leave`.
+
+The browser room joins the live queue after a server session is created, polls status, shows the matched peer profile, and records report/block/next actions. Media relay and WebRTC offer/answer/candidate exchange are still the next signaling layer.
+
 ## Admin
 
-The `/admin` route reads `GET /api/admin/summary` when the own-server backend is available. It shows pending states rather than fake data when the API is offline. The first backend summary includes visits, room starts, camera grant rate, active sessions, sufficient-signal ratio, top rejection reasons, and registered-vs-guest counts.
+The `/admin` route reads `GET /api/admin/summary` when the own-server backend is available. It shows pending states rather than fake data when the API is offline. The first backend summary includes visits, room starts, camera grant rate, active sessions, waiting users, active matches, sufficient-signal ratio, top rejection reasons, and registered-vs-guest counts.
 
 Next admin analytics should add:
 
@@ -41,4 +54,4 @@ Public UI must not claim to detect specific emotions, attraction, honesty, inten
 
 ## Next Backend Step
 
-Continue in `apps/signaling-backend` with a single-server MVP on the SynVibe server. SQLite remains the first storage layer for operational simplicity. The next backend step is simple admin access control before exposing operational data, followed by roulette signaling and WebRTC offer/answer/candidate relay.
+Continue in `apps/signaling-backend` with a single-server MVP on the SynVibe server. SQLite remains the first storage layer for operational simplicity. The next backend step is simple admin access control before exposing operational data, followed by WebRTC offer/answer/candidate relay for matched peers.
