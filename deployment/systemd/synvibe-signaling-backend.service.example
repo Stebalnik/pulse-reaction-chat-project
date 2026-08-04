@@ -6,6 +6,9 @@ After=network.target
 Type=simple
 WorkingDirectory=/opt/synvibe/pulse-reaction-chat-project
 EnvironmentFile=/etc/synvibe/signaling-backend.env
+Environment=HOME=/var/lib/synvibe
+Environment=XDG_CACHE_HOME=/var/lib/synvibe/.cache
+Environment=COREPACK_HOME=/var/lib/synvibe/.cache/node/corepack
 ExecStart=/usr/bin/env pnpm --filter @pulse-reaction/signaling-backend start
 Restart=always
 RestartSec=3
