@@ -50,6 +50,12 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     sendJson(response, 200, store.getAdminSummary());
     return;
   }
+  if (request.method === "GET" && url.pathname === "/api/admin/moderation/reports") {
+    if (!isAdminAuthorized(request, response)) return;
+    const limit = Number(url.searchParams.get("limit") ?? "20");
+    sendJson(response, 200, store.getModerationReports(Number.isFinite(limit) ? limit : 20));
+    return;
+  }
   if (request.method === "POST" && url.pathname === "/api/users/anonymous") {
     const body = await readJson(request);
     const localUserId = readString(body, "localUserId", 64);

@@ -1,8 +1,8 @@
 import { Activity, BarChart3, Bug, Database, Gauge, ShieldCheck, UsersRound } from "lucide-react";
 import type { JSX } from "react";
 import { useEffect, useState } from "react";
-import type { AdminSummary } from "@pulse-reaction/shared-schemas";
-import { loadAdminSummary } from "./api.js";
+import type { AdminSummary, ModerationReportQueueItem } from "@pulse-reaction/shared-schemas";
+import { loadAdminSummary, loadModerationReports } from "./api.js";
 import { App as DebugApp } from "./prototype/App.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
@@ -10,6 +10,7 @@ const ADMIN_TOKEN_STORAGE_KEY = "synvibe.adminToken";
 
 export function AdminApp(): JSX.Element {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
+  const [moderationReports, setModerationReports] = useState<ModerationReportQueueItem[]>([]);
   const [activeAdminToken, setActiveAdminToken] = useState(() => window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) ?? "");
   const [adminTokenDraft, setAdminTokenDraft] = useState(() => window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) ?? "");
   const [adminStatus, setAdminStatus] = useState<"loading" | "ready" | "auth_required" | "not_configured" | "offline">("loading");
@@ -22,8 +23,12 @@ export function AdminApp(): JSX.Element {
         setAdminStatus("ready");
       } else {
         setSummary(null);
+        setModerationReports([]);
         setAdminStatus(result.status);
       }
+    });
+    void loadModerationReports(activeAdminToken.trim() || null).then((result) => {
+      if (result.status === "ok") setModerationReports(result.queue.reports);
     });
   }, [activeAdminToken]);
 
@@ -105,6 +110,31 @@ export function AdminApp(): JSX.Element {
           />
           <AdminCard icon={<Bug aria-hidden="true" />} label="Events" value={formatCount(summary?.visits)} detail={`${formatCount(summary?.chatMessages)} chat messages`} />
         </div>
+
+        <section className="moderationQueue" aria-label="Moderation queue">
+          <div className="moderationQueueHeader">
+            <span>Safety review</span>
+            <strong>{formatCount(moderationReports.length)} recent</strong>
+          </div>
+          {moderationReports.length === 0 ? (
+            <p>No report or block records yet.</p>
+          ) : (
+            <div className="moderationRows">
+              {moderationReports.map((report) => (
+                <article className="moderationRow" key={report.id}>
+                  <div>
+                    <span>{report.type}</span>
+                    <strong>{report.reason}</strong>
+                  </div>
+                  <p>
+                    {report.reporterLocalUserId} to {report.reportedLocalUserId ?? "unknown"}
+                  </p>
+                  <small>{report.notes || report.matchId || formatDateTime(report.createdAtIso)}</small>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
       </section>
     </main>
   );
@@ -131,6 +161,10 @@ function formatTopReasons(summary: AdminSummary | null): string {
 function formatModerationReasons(summary: AdminSummary | null): string {
   const top = summary?.topModerationReasons[0];
   return top ? `${top.reason}: ${top.count}` : "reports / blocks";
+}
+
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
 function adminStatusText(status: "loading" | "ready" | "auth_required" | "not_configured" | "offline"): string {

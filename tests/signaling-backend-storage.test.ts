@@ -139,16 +139,24 @@ test("matchmaking pairs queued users and supports blocking the match", () => {
       matchId: second.match.id,
       reportedLocalUserId: "SV-USERBB-000002",
       type: "block",
-      reason: "safety"
+      reason: "harassment",
+      notes: "Ignored boundary after warning"
     });
     assert.equal(moderationRecord.type, "block");
-    assert.equal(moderationRecord.reason, "safety");
+    assert.equal(moderationRecord.reason, "harassment");
+
+    const queue = store.getModerationReports(10);
+    assert.equal(queue.reports.length, 1);
+    assert.equal(queue.reports[0]?.reporterLocalUserId, "SV-USERAA-000001");
+    assert.equal(queue.reports[0]?.reportedLocalUserId, "SV-USERBB-000002");
+    assert.equal(queue.reports[0]?.reason, "harassment");
+    assert.equal(queue.reports[0]?.notes, "Ignored boundary after warning");
 
     summary = store.getAdminSummary();
     assert.equal(summary.activeMatches, 0);
     assert.equal(summary.reportCount, 0);
     assert.equal(summary.blockCount, 1);
-    assert.deepEqual(summary.topModerationReasons, [{ reason: "safety", count: 1 }]);
+    assert.deepEqual(summary.topModerationReasons, [{ reason: "harassment", count: 1 }]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

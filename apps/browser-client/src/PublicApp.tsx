@@ -1,7 +1,7 @@
 import { Activity, Camera, CircleUserRound, HeartPulse, MessageCircle, Play, Send, ShieldCheck, UserPlus, Video } from "lucide-react";
 import type { JSX, MutableRefObject, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MatchChatMessage, MatchmakingStatus, WebRtcSignalMessage } from "@pulse-reaction/shared-schemas";
+import type { MatchChatMessage, MatchmakingStatus, ModerationReportReason, WebRtcSignalMessage } from "@pulse-reaction/shared-schemas";
 import {
   createServerSession,
   endServerSession,
@@ -25,6 +25,13 @@ const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
 const SHOW_ADMIN_LINK = import.meta.env.VITE_SHOW_ADMIN_LINK === "true";
 const ADULT_CHAT_CONSENT_KEY = "synvibe.consent.adultChatTerms.v1";
 const ADULT_CHAT_POLICY_VERSION = "adult-chat-terms-2026-08-04";
+const MODERATION_REASONS: Array<{ value: ModerationReportReason; label: string }> = [
+  { value: "safety", label: "Safety concern" },
+  { value: "harassment", label: "Harassment" },
+  { value: "underage", label: "Underage concern" },
+  { value: "spam", label: "Spam or scam" },
+  { value: "other", label: "Other" }
+];
 
 export function PublicApp(): JSX.Element {
   const userId = useMemo(() => getOrCreateAnonymousUserId(), []);
@@ -297,6 +304,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const [chatMessages, setChatMessages] = useState<MatchChatMessage[]>([]);
   const [chatDraft, setChatDraft] = useState("");
   const [chatOnline, setChatOnline] = useState(true);
+  const [moderationAction, setModerationAction] = useState<"report" | "block" | null>(null);
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({ status: "idle" });
   const [matchingOnline, setMatchingOnline] = useState(true);
@@ -354,17 +362,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
 
   const leaveCurrentMatch = async (reason: "left" | "reported" | "blocked"): Promise<void> => {
     const matchId = matchStatus.status === "matched" ? matchStatus.match.id : undefined;
-    const reportedLocalUserId = matchStatus.status === "matched" ? matchStatus.match.peer.localUserId : undefined;
     closePeerConnection(peerConnectionRef, remoteVideoRef, setHasRemoteStream, setConnectionState);
-    if (reason !== "left") {
-      await recordModerationReport({
-        localUserId: userId,
-        ...(matchId ? { matchId } : {}),
-        ...(reportedLocalUserId ? { reportedLocalUserId } : {}),
-        type: reason === "blocked" ? "block" : "report",
-        reason: "safety"
-      });
-    }
     const status = await leaveMatchmaking({
       localUserId: userId,
       ...(matchId ? { matchId } : {}),
@@ -375,6 +373,23 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       const next = await joinMatchmaking(userId, sessionId);
       if (next) setMatchStatus(next);
     }
+  };
+
+  const submitModerationAction = async (input: { reason: ModerationReportReason; notes?: string }): Promise<void> => {
+    if (!moderationAction || matchStatus.status !== "matched") return;
+    const matchId = matchStatus.match.id;
+    const reportedLocalUserId = matchStatus.match.peer.localUserId;
+    await recordModerationReport({
+      localUserId: userId,
+      matchId,
+      reportedLocalUserId,
+      type: moderationAction,
+      reason: input.reason,
+      ...(input.notes ? { notes: input.notes } : {})
+    });
+    const leaveReason = moderationAction === "block" ? "blocked" : "reported";
+    setModerationAction(null);
+    await leaveCurrentMatch(leaveReason);
   };
 
   useEffect(() => {
@@ -574,10 +589,10 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
         <div className="roomActions">
           {matchStatus.status === "matched" && (
             <>
-              <button className="secondaryAction compact" type="button" onClick={() => void leaveCurrentMatch("reported")}>
+              <button className="secondaryAction compact" type="button" onClick={() => setModerationAction("report")}>
                 Report
               </button>
-              <button className="secondaryAction compact danger" type="button" onClick={() => void leaveCurrentMatch("blocked")}>
+              <button className="secondaryAction compact danger" type="button" onClick={() => setModerationAction("block")}>
                 Block
               </button>
               <button className="secondaryAction compact" type="button" onClick={() => void leaveCurrentMatch("left")}>
@@ -628,7 +643,65 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
         disabled={matchStatus.status !== "matched"}
         online={chatOnline && matchingOnline}
       />
+      {moderationAction && (
+        <ModerationDialog
+          action={moderationAction}
+          onClose={() => setModerationAction(null)}
+          onSubmit={(input) => void submitModerationAction(input)}
+        />
+      )}
     </section>
+  );
+}
+
+function ModerationDialog({
+  action,
+  onClose,
+  onSubmit
+}: {
+  action: "report" | "block";
+  onClose: () => void;
+  onSubmit: (input: { reason: ModerationReportReason; notes?: string }) => void;
+}): JSX.Element {
+  const [reason, setReason] = useState<ModerationReportReason>("safety");
+  const [notes, setNotes] = useState("");
+  return (
+    <div className="dialogBackdrop" role="presentation">
+      <form
+        className="registerDialog"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit({ reason, ...(notes.trim() ? { notes: notes.trim() } : {}) });
+        }}
+      >
+        <div>
+          <h2>{action === "block" ? "Block participant" : "Report participant"}</h2>
+          <p>{action === "block" ? "Block prevents rematching with this participant." : "Reports help review safety issues in matched chats."}</p>
+        </div>
+        <label>
+          Reason
+          <select value={reason} onChange={(event) => setReason(event.target.value as ModerationReportReason)}>
+            {MODERATION_REASONS.map((option) => (
+              <option value={option.value} key={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Notes
+          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={500} />
+        </label>
+        <div className="dialogActions">
+          <button className="secondaryAction compact" type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button className={`primaryAction compact ${action === "block" ? "danger" : ""}`} type="submit">
+            {action === "block" ? "Block" : "Report"}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 

@@ -201,6 +201,11 @@ a {
   border-color: #6e4639;
 }
 
+.primaryAction.danger {
+  border-color: #b85142;
+  background: #b85142;
+}
+
 .secondaryAction {
   background: #ffffff;
   color: #22332c;
@@ -651,11 +656,21 @@ a {
   font-weight: 750;
 }
 
-.registerDialog input {
+.registerDialog input,
+.registerDialog select,
+.registerDialog textarea {
   height: 40px;
   border: 1px solid #b8c7bf;
   border-radius: 8px;
   padding: 0 10px;
+  color: #17221e;
+}
+
+.registerDialog textarea {
+  min-height: 88px;
+  resize: vertical;
+  padding: 10px;
+  line-height: 1.35;
 }
 
 .checkRow {
@@ -770,6 +785,72 @@ a {
   color: #5f7067;
   font-size: 13px;
   line-height: 1.35;
+}
+
+.moderationQueue {
+  margin-top: 14px;
+  border: 1px solid #cbd7d1;
+  border-radius: 8px;
+  padding: 14px;
+  background: #ffffff;
+}
+
+.moderationQueueHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.moderationQueueHeader span {
+  color: #17231f;
+  font-weight: 850;
+}
+
+.moderationQueueHeader strong {
+  color: #687a72;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.moderationQueue > p {
+  margin: 12px 0 0;
+  color: #63736b;
+}
+
+.moderationRows {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.moderationRow {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(120px, 0.6fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #d8e2dd;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfb;
+}
+
+.moderationRow span,
+.moderationRow small {
+  color: #687a72;
+  font-size: 12px;
+}
+
+.moderationRow strong {
+  display: block;
+  color: #17231f;
+}
+
+.moderationRow p,
+.moderationRow small {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .appShell {
@@ -1704,6 +1785,10 @@ a {
   .publicStats,
   .adminGrid,
   .publicCallGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .moderationRow {
     grid-template-columns: 1fr;
   }
 

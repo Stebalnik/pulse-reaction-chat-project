@@ -6,6 +6,7 @@ import type {
   MatchChatMessage,
   MatchChatMessageRequest,
   MatchmakingStatus,
+  ModerationReportQueue,
   ModerationReportRequest,
   ProfileRecord,
   SessionEndRequest,
@@ -140,6 +141,12 @@ export type AdminSummaryResult =
   | { status: "not_configured" }
   | { status: "offline" };
 
+export type ModerationReportsResult =
+  | { status: "ok"; queue: ModerationReportQueue }
+  | { status: "auth_required" }
+  | { status: "not_configured" }
+  | { status: "offline" };
+
 export async function loadAdminSummary(adminToken: string | null): Promise<AdminSummaryResult> {
   try {
     const response = await fetch(`${API_ORIGIN}/api/admin/summary`, {
@@ -149,6 +156,20 @@ export async function loadAdminSummary(adminToken: string | null): Promise<Admin
     if (response.status === 503) return { status: "not_configured" };
     if (!response.ok) return { status: "offline" };
     return { status: "ok", summary: (await response.json()) as AdminSummary };
+  } catch {
+    return { status: "offline" };
+  }
+}
+
+export async function loadModerationReports(adminToken: string | null): Promise<ModerationReportsResult> {
+  try {
+    const response = await fetch(`${API_ORIGIN}/api/admin/moderation/reports?limit=20`, {
+      headers: adminToken ? { "x-synvibe-admin-token": adminToken } : {}
+    });
+    if (response.status === 401) return { status: "auth_required" };
+    if (response.status === 503) return { status: "not_configured" };
+    if (!response.ok) return { status: "offline" };
+    return { status: "ok", queue: (await response.json()) as ModerationReportQueue };
   } catch {
     return { status: "offline" };
   }

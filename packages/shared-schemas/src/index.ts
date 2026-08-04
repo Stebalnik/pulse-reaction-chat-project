@@ -128,6 +128,21 @@ export interface ModerationReportRecord {
   createdAtIso: string;
 }
 
+export interface ModerationReportQueueItem {
+  id: string;
+  reporterLocalUserId: string;
+  reportedLocalUserId: string | null;
+  matchId: string | null;
+  type: ModerationReportType;
+  reason: ModerationReportReason;
+  notes: string | null;
+  createdAtIso: string;
+}
+
+export interface ModerationReportQueue {
+  reports: ModerationReportQueueItem[];
+}
+
 export interface AdminSummary {
   generatedAtIso: string;
   visits: number;

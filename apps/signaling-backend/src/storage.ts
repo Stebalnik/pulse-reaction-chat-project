@@ -19,6 +19,7 @@ import type {
   MatchChatBatch,
   MatchChatMessage,
   MatchChatMessageRequest,
+  ModerationReportQueue,
   WebRtcSignalBatch,
   WebRtcSignalMessage,
   WebRtcSignalRequest,
@@ -339,6 +340,37 @@ export class SynVibeStore {
       );
     `);
     return record;
+  }
+
+  getModerationReports(limit: number): ModerationReportQueue {
+    const rows = this.query<ModerationReportQueueRow>(`
+      SELECT
+        moderation_reports.id,
+        reporter.local_user_id AS reporter_local_user_id,
+        reported.local_user_id AS reported_local_user_id,
+        moderation_reports.match_id,
+        moderation_reports.type,
+        moderation_reports.reason,
+        moderation_reports.notes,
+        moderation_reports.created_at
+      FROM moderation_reports
+      JOIN users AS reporter ON reporter.id = moderation_reports.reporter_user_id
+      LEFT JOIN users AS reported ON reported.id = moderation_reports.reported_user_id
+      ORDER BY moderation_reports.created_at DESC, moderation_reports.id DESC
+      LIMIT ${Math.max(1, Math.min(100, Math.floor(limit)))};
+    `);
+    return {
+      reports: rows.map((row) => ({
+        id: row.id,
+        reporterLocalUserId: row.reporter_local_user_id,
+        reportedLocalUserId: row.reported_local_user_id,
+        matchId: row.match_id,
+        type: row.type,
+        reason: row.reason,
+        notes: row.notes,
+        createdAtIso: row.created_at
+      }))
+    };
   }
 
   joinMatchmaking(input: MatchmakingJoinRequest): MatchmakingStatus {
@@ -782,6 +814,17 @@ interface ChatMessageRow {
   sender_user_id: string;
   local_user_id: string;
   body: string;
+  created_at: string;
+}
+
+interface ModerationReportQueueRow {
+  id: string;
+  reporter_local_user_id: string;
+  reported_local_user_id: string | null;
+  match_id: string | null;
+  type: "report" | "block";
+  reason: "safety" | "harassment" | "underage" | "spam" | "other";
+  notes: string | null;
   created_at: string;
 }
 

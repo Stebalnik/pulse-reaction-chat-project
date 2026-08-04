@@ -8,7 +8,7 @@ Current MVP scope:
 - SQLite storage at `SYNVIBE_DB_PATH`, defaulting to `data/synvibe.sqlite`.
 - Anonymous users, profiles, sessions with explicit end records, operational events, and cleaned reaction-output records.
 - Dedicated consent-event records for adults-only chat terms, camera access, physiological analysis, and research feedback.
-- Roulette waiting queue, active match records, match leave handling, dedicated report/block moderation records, and block-aware rematching.
+- Roulette waiting queue, active match records, match leave handling, reason-coded report/block moderation records, admin review queue, and block-aware rematching.
 - WebRTC offer/answer/ICE signaling relay scoped to active matches.
 - Active-match text chat scoped to matched participants.
 - Admin summary metrics for `/admin`.
@@ -55,6 +55,7 @@ Endpoints:
 - `POST /api/events`
 - `POST /api/consent-events`
 - `POST /api/moderation/reports`
+- `GET /api/admin/moderation/reports`
 - `POST /api/matchmaking/join`
 - `GET /api/matchmaking/status`
 - `POST /api/matchmaking/leave`

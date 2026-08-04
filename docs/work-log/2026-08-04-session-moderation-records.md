@@ -20,7 +20,7 @@ The server previously created sessions but did not end them, so duration metrics
 
 ## Assumptions and constraints
 
-- The first moderation reason is coarse `safety` from the current one-click Report/Block UI.
+- Superseded by `2026-08-04-moderation-review-queue.md`: Report/Block now captures selected reason and optional notes.
 - The backend stores operational safety metadata only.
 - This does not introduce direct emotion, attraction, compatibility, honesty, intent, or medical labels.
 - Raw video, raw audio, raw RGB traces, raw biometric time series, and precise peer BPM remain out of default backend storage.
@@ -48,6 +48,6 @@ Not deployed in this slice. The backend deploy script and smoke script from the 
 
 ## Recommended next steps
 
-1. Add a small Report reason picker and moderation-review admin queue.
-2. Add public-room connection lifecycle metrics for peer connected, disconnected, and failed.
+1. Add report resolution status and reviewer notes.
+2. Add repeated-offender indicators and admin filtering.
 3. Add separate physiological-analysis consent before any cleaned reaction-output upload from the browser.

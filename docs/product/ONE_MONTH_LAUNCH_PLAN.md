@@ -78,7 +78,7 @@ Exit criteria:
 - Production deploy flow and optional installer/package flow.
 - Crash/error logging without raw video or biometric time-series retention by default.
 - Opt-in research feedback flow.
-- Abuse controls, report/block path, dedicated moderation records, and basic safety summary metrics.
+- Abuse controls, reason-coded report/block path, dedicated moderation records, moderation review queue, and basic safety summary metrics.
 - Smoke tests across supported desktop targets.
 - Beta launch checklist and rollback plan.
 
@@ -105,7 +105,7 @@ Exit criteria:
 - Camera permission success rate.
 - Percentage of sessions with sufficient signal for the local user.
 - Abstention rate by reason code.
-- Report/block count by coarse safety reason.
+- Report/block count by selected safety reason.
 - False-positive review from opt-in annotated feedback.
 - Report/block usage and safety incidents.
 - Retention opt-in rate and deletion request handling time.
