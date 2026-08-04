@@ -29,6 +29,18 @@ SYNVIBE_ADMIN_TOKEN=<private random token>
 
 If `SYNVIBE_ADMIN_TOKEN` is missing, `/api/admin/*` returns `admin_auth_not_configured` instead of exposing operational data.
 
+Deploy:
+
+```bash
+SERVER_HOST=root@165.232.145.239 scripts/deploy-signaling-backend.sh
+```
+
+Smoke public routing:
+
+```bash
+ADMIN_TOKEN=<private token> scripts/smoke-production-api.sh
+```
+
 Endpoints:
 
 - `GET /health`

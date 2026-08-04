@@ -41,6 +41,24 @@ Templates:
 - `deployment/systemd/synvibe-signaling-backend.service.example`
 - `apps/signaling-backend/.env.production.example`
 
+Automation:
+
+- `scripts/deploy-browser-client.sh` deploys the static browser bundle.
+- `scripts/deploy-signaling-backend.sh` syncs the repository, installs dependencies, installs/restarts the systemd service, optionally installs nginx proxy config, and checks local backend health.
+- `scripts/smoke-production-api.sh` checks public `/api/health`, verifies `/api/admin/summary` rejects missing tokens, and optionally checks authenticated admin summary when `ADMIN_TOKEN` is set.
+
+Backend deploy command:
+
+```bash
+SERVER_HOST=root@165.232.145.239 scripts/deploy-signaling-backend.sh
+```
+
+Production API smoke command:
+
+```bash
+ADMIN_TOKEN=<private token> scripts/smoke-production-api.sh
+```
+
 Current server status:
 
 - Server SSH target: `root@165.232.145.239`
