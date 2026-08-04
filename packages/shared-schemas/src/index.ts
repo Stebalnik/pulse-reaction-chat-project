@@ -111,11 +111,13 @@ export type ModerationReportType = "report" | "block";
 export type ModerationReportReason = "safety" | "harassment" | "underage" | "spam" | "other";
 export type ModerationReportStatus = "open" | "resolved" | "dismissed";
 export type ModerationReportStatusFilter = "all" | ModerationReportStatus;
+export type ModerationReportedMessageStatus = "retained" | "deleted" | "expired_or_unavailable";
 
 export interface ModerationReportRequest {
   localUserId: string;
   matchId?: string;
   reportedLocalUserId?: string;
+  reportedMessageId?: string;
   type: ModerationReportType;
   reason: ModerationReportReason;
   notes?: string;
@@ -126,6 +128,7 @@ export interface ModerationReportRecord {
   reporterUserId: string;
   reportedUserId: string | null;
   matchId: string | null;
+  reportedMessageId: string | null;
   type: ModerationReportType;
   reason: ModerationReportReason;
   status: ModerationReportStatus;
@@ -143,6 +146,10 @@ export interface ModerationReportQueueItem {
   reporterLocalUserId: string;
   reportedLocalUserId: string | null;
   matchId: string | null;
+  reportedMessageId: string | null;
+  reportedMessageStatus: ModerationReportedMessageStatus | null;
+  reportedMessageSenderLocalUserId: string | null;
+  reportedMessageExcerpt: string | null;
   type: ModerationReportType;
   reason: ModerationReportReason;
   status: ModerationReportStatus;

@@ -154,11 +154,13 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     const body = await readJson(request);
     const matchId = readOptionalString(body, "matchId", 64);
     const reportedLocalUserId = readOptionalString(body, "reportedLocalUserId", 64);
+    const reportedMessageId = readOptionalString(body, "reportedMessageId", 64);
     const notes = readOptionalString(body, "notes", 500);
     const input: ModerationReportRequest = {
       localUserId: readString(body, "localUserId", 64),
       ...(matchId ? { matchId } : {}),
       ...(reportedLocalUserId ? { reportedLocalUserId } : {}),
+      ...(reportedMessageId ? { reportedMessageId } : {}),
       type: readModerationReportType(body),
       reason: readModerationReportReason(body),
       ...(notes ? { notes } : {})

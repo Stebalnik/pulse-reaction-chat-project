@@ -49,6 +49,6 @@ Not deployed in this slice.
 
 ## Recommended next steps
 
-1. Add message-level report references that preserve deletion and retention boundaries.
-2. Add reviewer identity after authenticated admin accounts exist.
-3. Add WebSocket transport once HTTP polling becomes the bottleneck.
+1. Add reviewer identity after authenticated admin accounts exist.
+2. Add WebSocket transport once HTTP polling becomes the bottleneck.
+3. Add separate physiological-analysis consent before any cleaned reaction-output upload from the browser.

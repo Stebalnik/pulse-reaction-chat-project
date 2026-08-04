@@ -1,4 +1,4 @@
-import { Activity, Camera, CircleUserRound, HeartPulse, MessageCircle, Play, Send, ShieldCheck, Trash2, UserPlus, Video } from "lucide-react";
+import { Activity, Camera, CircleUserRound, Flag, HeartPulse, MessageCircle, Play, Send, ShieldCheck, Trash2, UserPlus, Video } from "lucide-react";
 import type { JSX, MutableRefObject, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MatchChatMessage, MatchmakingStatus, ModerationReportReason, WebRtcSignalMessage } from "@pulse-reaction/shared-schemas";
@@ -305,7 +305,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const [chatMessages, setChatMessages] = useState<MatchChatMessage[]>([]);
   const [chatDraft, setChatDraft] = useState("");
   const [chatOnline, setChatOnline] = useState(true);
-  const [moderationAction, setModerationAction] = useState<"report" | "block" | null>(null);
+  const [moderationAction, setModerationAction] = useState<{ type: "report" | "block"; reportedMessageId?: string } | null>(null);
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({ status: "idle" });
   const [matchingOnline, setMatchingOnline] = useState(true);
@@ -384,11 +384,12 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       localUserId: userId,
       matchId,
       reportedLocalUserId,
-      type: moderationAction,
+      ...(moderationAction.reportedMessageId ? { reportedMessageId: moderationAction.reportedMessageId } : {}),
+      type: moderationAction.type,
       reason: input.reason,
       ...(input.notes ? { notes: input.notes } : {})
     });
-    const leaveReason = moderationAction === "block" ? "blocked" : "reported";
+    const leaveReason = moderationAction.type === "block" ? "blocked" : "reported";
     setModerationAction(null);
     await leaveCurrentMatch(leaveReason);
   };
@@ -601,10 +602,10 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
         <div className="roomActions">
           {matchStatus.status === "matched" && (
             <>
-              <button className="secondaryAction compact" type="button" onClick={() => setModerationAction("report")}>
+              <button className="secondaryAction compact" type="button" onClick={() => setModerationAction({ type: "report" })}>
                 Report
               </button>
-              <button className="secondaryAction compact danger" type="button" onClick={() => setModerationAction("block")}>
+              <button className="secondaryAction compact danger" type="button" onClick={() => setModerationAction({ type: "block" })}>
                 Block
               </button>
               <button className="secondaryAction compact" type="button" onClick={() => void leaveCurrentMatch("left")}>
@@ -652,6 +653,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
         onDraftChange={setChatDraft}
         onSubmit={() => void submitChatMessage()}
         onDelete={(messageId) => void deleteOwnChatMessage(messageId)}
+        onReportMessage={(messageId) => setModerationAction({ type: "report", reportedMessageId: messageId })}
         localUserId={userId}
         disabled={matchStatus.status !== "matched"}
         online={chatOnline && matchingOnline}
@@ -672,7 +674,7 @@ function ModerationDialog({
   onClose,
   onSubmit
 }: {
-  action: "report" | "block";
+  action: { type: "report" | "block"; reportedMessageId?: string };
   onClose: () => void;
   onSubmit: (input: { reason: ModerationReportReason; notes?: string }) => void;
 }): JSX.Element {
@@ -688,8 +690,14 @@ function ModerationDialog({
         }}
       >
         <div>
-          <h2>{action === "block" ? "Block participant" : "Report participant"}</h2>
-          <p>{action === "block" ? "Block prevents rematching with this participant." : "Reports help review safety issues in matched chats."}</p>
+          <h2>{action.type === "block" ? "Block participant" : action.reportedMessageId ? "Report message" : "Report participant"}</h2>
+          <p>
+            {action.type === "block"
+              ? "Block prevents rematching with this participant."
+              : action.reportedMessageId
+                ? "Reports can reference this message while respecting deletion and retention settings."
+                : "Reports help review safety issues in matched chats."}
+          </p>
         </div>
         <label>
           Reason
@@ -709,8 +717,8 @@ function ModerationDialog({
           <button className="secondaryAction compact" type="button" onClick={onClose}>
             Cancel
           </button>
-          <button className={`primaryAction compact ${action === "block" ? "danger" : ""}`} type="submit">
-            {action === "block" ? "Block" : "Report"}
+          <button className={`primaryAction compact ${action.type === "block" ? "danger" : ""}`} type="submit">
+            {action.type === "block" ? "Block" : "Report"}
           </button>
         </div>
       </form>
@@ -724,6 +732,7 @@ function MatchChatPanel({
   onDraftChange,
   onSubmit,
   onDelete,
+  onReportMessage,
   localUserId,
   disabled,
   online
@@ -733,6 +742,7 @@ function MatchChatPanel({
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
   onDelete: (messageId: string) => void;
+  onReportMessage: (messageId: string) => void;
   localUserId: string;
   disabled: boolean;
   online: boolean;
@@ -756,6 +766,11 @@ function MatchChatPanel({
               {message.senderLocalUserId === localUserId && !message.deletedAtIso && (
                 <button className="messageDeleteButton" type="button" onClick={() => onDelete(message.id)} title="Delete message" aria-label="Delete message">
                   <Trash2 aria-hidden="true" />
+                </button>
+              )}
+              {message.senderLocalUserId !== localUserId && !message.deletedAtIso && (
+                <button className="messageDeleteButton" type="button" onClick={() => onReportMessage(message.id)} title="Report message" aria-label="Report message">
+                  <Flag aria-hidden="true" />
                 </button>
               )}
             </div>

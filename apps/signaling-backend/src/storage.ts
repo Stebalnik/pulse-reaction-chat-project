@@ -30,6 +30,7 @@ import type {
   ConsentEventRequest,
   ModerationReportRecord,
   ModerationReportRequest,
+  ModerationReportedMessageStatus,
   ModerationReportResolutionRequest
 } from "@pulse-reaction/shared-schemas";
 
@@ -147,6 +148,7 @@ export class SynVibeStore {
         reporter_user_id TEXT NOT NULL REFERENCES users(id),
         reported_user_id TEXT REFERENCES users(id),
         match_id TEXT REFERENCES matches(id),
+        reported_message_id TEXT REFERENCES chat_messages(id),
         type TEXT NOT NULL,
         reason TEXT NOT NULL,
         notes TEXT,
@@ -327,6 +329,7 @@ export class SynVibeStore {
   }
 
   recordModerationReport(input: ModerationReportRequest): ModerationReportRecord {
+    this.pruneExpiredChatMessages();
     const reporter = this.upsertAnonymousUser(input.localUserId);
     const reported = input.reportedLocalUserId ? this.upsertAnonymousUser(input.reportedLocalUserId) : null;
     const now = new Date().toISOString();
@@ -335,19 +338,22 @@ export class SynVibeStore {
       reporterUserId: reporter.id,
       reportedUserId: reported?.id ?? null,
       matchId: input.matchId ?? null,
+      reportedMessageId: input.reportedMessageId ?? null,
       type: input.type,
       reason: input.reason,
       status: "open",
       createdAtIso: now
     };
     if (record.matchId) this.ensureMatchBelongsToReporter(record.matchId, reporter.id);
+    if (record.reportedMessageId) this.ensureReportedMessageReference(record, reporter.id);
     this.execute(`
-      INSERT INTO moderation_reports (id, reporter_user_id, reported_user_id, match_id, type, reason, notes, created_at)
+      INSERT INTO moderation_reports (id, reporter_user_id, reported_user_id, match_id, reported_message_id, type, reason, notes, created_at)
       VALUES (
         ${sql(record.id)},
         ${sql(record.reporterUserId)},
         ${record.reportedUserId ? sql(record.reportedUserId) : "NULL"},
         ${record.matchId ? sql(record.matchId) : "NULL"},
+        ${record.reportedMessageId ? sql(record.reportedMessageId) : "NULL"},
         ${sql(record.type)},
         ${sql(record.reason)},
         ${input.notes ? sql(input.notes) : "NULL"},
@@ -358,12 +364,14 @@ export class SynVibeStore {
   }
 
   getModerationReports(limit: number, statusFilter: ModerationReportStatusFilter = "all"): ModerationReportQueue {
+    this.pruneExpiredChatMessages();
     const statusClause = statusFilter === "all" ? "" : `WHERE COALESCE(moderation_reports.status, 'open') = ${sql(statusFilter)}`;
     const rows = this.query<ModerationReportQueueRow>(`
       SELECT
         moderation_reports.id,
         reporter.local_user_id AS reporter_local_user_id,
         reported.local_user_id AS reported_local_user_id,
+        message_sender.local_user_id AS reported_message_sender_local_user_id,
         (
           SELECT COUNT(*)
           FROM moderation_reports AS repeat_reports
@@ -376,6 +384,17 @@ export class SynVibeStore {
             AND COALESCE(repeat_reports.status, 'open') = 'open'
         ) AS reported_user_open_reports,
         moderation_reports.match_id,
+        moderation_reports.reported_message_id,
+        CASE
+          WHEN moderation_reports.reported_message_id IS NULL THEN NULL
+          WHEN reported_message.id IS NULL THEN 'expired_or_unavailable'
+          WHEN reported_message.deleted_at IS NOT NULL THEN 'deleted'
+          ELSE 'retained'
+        END AS reported_message_status,
+        CASE
+          WHEN reported_message.id IS NOT NULL AND reported_message.deleted_at IS NULL THEN substr(reported_message.body, 1, 160)
+          ELSE NULL
+        END AS reported_message_excerpt,
         moderation_reports.type,
         moderation_reports.reason,
         moderation_reports.notes,
@@ -386,6 +405,8 @@ export class SynVibeStore {
       FROM moderation_reports
       JOIN users AS reporter ON reporter.id = moderation_reports.reporter_user_id
       LEFT JOIN users AS reported ON reported.id = moderation_reports.reported_user_id
+      LEFT JOIN chat_messages AS reported_message ON reported_message.id = moderation_reports.reported_message_id
+      LEFT JOIN users AS message_sender ON message_sender.id = reported_message.sender_user_id
       ${statusClause}
       ORDER BY CASE COALESCE(moderation_reports.status, 'open') WHEN 'open' THEN 0 ELSE 1 END, moderation_reports.created_at DESC, moderation_reports.id DESC
       LIMIT ${Math.max(1, Math.min(100, Math.floor(limit)))};
@@ -396,6 +417,10 @@ export class SynVibeStore {
         reporterLocalUserId: row.reporter_local_user_id,
         reportedLocalUserId: row.reported_local_user_id,
         matchId: row.match_id,
+        reportedMessageId: row.reported_message_id,
+        reportedMessageStatus: row.reported_message_status,
+        reportedMessageSenderLocalUserId: row.reported_message_sender_local_user_id,
+        reportedMessageExcerpt: row.reported_message_excerpt,
         type: row.type,
         reason: row.reason,
         status: row.status ?? "open",
@@ -410,11 +435,13 @@ export class SynVibeStore {
   }
 
   resolveModerationReport(input: ModerationReportResolutionRequest): ModerationReportQueueItem {
+    this.pruneExpiredChatMessages();
     const existing = this.queryOne<ModerationReportQueueRow>(`
       SELECT
         moderation_reports.id,
         reporter.local_user_id AS reporter_local_user_id,
         reported.local_user_id AS reported_local_user_id,
+        message_sender.local_user_id AS reported_message_sender_local_user_id,
         (
           SELECT COUNT(*)
           FROM moderation_reports AS repeat_reports
@@ -427,6 +454,17 @@ export class SynVibeStore {
             AND COALESCE(repeat_reports.status, 'open') = 'open'
         ) AS reported_user_open_reports,
         moderation_reports.match_id,
+        moderation_reports.reported_message_id,
+        CASE
+          WHEN moderation_reports.reported_message_id IS NULL THEN NULL
+          WHEN reported_message.id IS NULL THEN 'expired_or_unavailable'
+          WHEN reported_message.deleted_at IS NOT NULL THEN 'deleted'
+          ELSE 'retained'
+        END AS reported_message_status,
+        CASE
+          WHEN reported_message.id IS NOT NULL AND reported_message.deleted_at IS NULL THEN substr(reported_message.body, 1, 160)
+          ELSE NULL
+        END AS reported_message_excerpt,
         moderation_reports.type,
         moderation_reports.reason,
         moderation_reports.notes,
@@ -437,6 +475,8 @@ export class SynVibeStore {
       FROM moderation_reports
       JOIN users AS reporter ON reporter.id = moderation_reports.reporter_user_id
       LEFT JOIN users AS reported ON reported.id = moderation_reports.reported_user_id
+      LEFT JOIN chat_messages AS reported_message ON reported_message.id = moderation_reports.reported_message_id
+      LEFT JOIN users AS message_sender ON message_sender.id = reported_message.sender_user_id
       WHERE moderation_reports.id = ${sql(input.reportId)};
     `);
     if (!existing) throw new Error("Moderation report not found");
@@ -455,6 +495,10 @@ export class SynVibeStore {
       reporterLocalUserId: existing.reporter_local_user_id,
       reportedLocalUserId: existing.reported_local_user_id,
       matchId: existing.match_id,
+      reportedMessageId: existing.reported_message_id,
+      reportedMessageStatus: existing.reported_message_status,
+      reportedMessageSenderLocalUserId: existing.reported_message_sender_local_user_id,
+      reportedMessageExcerpt: existing.reported_message_excerpt,
       type: existing.type,
       reason: existing.reason,
       status: input.status,
@@ -839,6 +883,26 @@ export class SynVibeStore {
     if (matchCount === 0) throw new Error("Match not found for reporter");
   }
 
+  private ensureReportedMessageReference(record: ModerationReportRecord, reporterUserId: string): void {
+    if (!record.matchId) throw new Error("Reported message requires match id");
+    if (!record.reportedUserId) throw new Error("Reported message requires reported user id");
+    const message = this.queryOne<ChatMessageRow>(`
+      SELECT
+        chat_messages.*,
+        sender.local_user_id,
+        deleted_by.local_user_id AS deleted_by_local_user_id,
+        COALESCE(chat_messages.deleted_at, chat_messages.created_at) || ':' || chat_messages.id AS delivery_cursor
+      FROM chat_messages
+      JOIN users AS sender ON sender.id = chat_messages.sender_user_id
+      LEFT JOIN users AS deleted_by ON deleted_by.id = chat_messages.deleted_by_user_id
+      WHERE chat_messages.id = ${sql(record.reportedMessageId ?? "")}
+        AND chat_messages.match_id = ${sql(record.matchId)};
+    `);
+    if (!message) throw new Error("Reported message not found for match");
+    if (message.sender_user_id === reporterUserId) throw new Error("Reporter cannot report their own message");
+    if (message.sender_user_id !== record.reportedUserId) throw new Error("Reported message sender does not match reported user");
+  }
+
   private topRejectionReasons(): Array<{ reasonCode: string; count: number }> {
     const rows = this.query<ReactionReasonRow>(`
       SELECT reason_codes_json FROM reaction_outputs WHERE state = 'INSUFFICIENT_SIGNAL';
@@ -865,6 +929,7 @@ export class SynVibeStore {
 
   private ensureModerationReportColumns(): void {
     const columns = new Set(this.query<{ name: string }>("PRAGMA table_info(moderation_reports);").map((row) => row.name));
+    if (!columns.has("reported_message_id")) this.execute("ALTER TABLE moderation_reports ADD COLUMN reported_message_id TEXT REFERENCES chat_messages(id);");
     if (!columns.has("status")) this.execute("ALTER TABLE moderation_reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open';");
     if (!columns.has("reviewer_notes")) this.execute("ALTER TABLE moderation_reports ADD COLUMN reviewer_notes TEXT;");
     if (!columns.has("resolved_at")) this.execute("ALTER TABLE moderation_reports ADD COLUMN resolved_at TEXT;");
@@ -987,9 +1052,13 @@ interface ModerationReportQueueRow {
   id: string;
   reporter_local_user_id: string;
   reported_local_user_id: string | null;
+  reported_message_sender_local_user_id: string | null;
   reported_user_total_reports: number;
   reported_user_open_reports: number;
   match_id: string | null;
+  reported_message_id: string | null;
+  reported_message_status: ModerationReportedMessageStatus | null;
+  reported_message_excerpt: string | null;
   type: "report" | "block";
   reason: "safety" | "harassment" | "underage" | "spam" | "other";
   status: "open" | "resolved" | "dismissed";

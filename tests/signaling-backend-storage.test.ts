@@ -336,6 +336,78 @@ test("match chat retention prunes expired message rows", () => {
   }
 });
 
+test("moderation reports can reference retained or deleted peer messages", () => {
+  const dir = mkdtempSync(join(tmpdir(), "synvibe-message-report-"));
+  const previousRetention = process.env.SYNVIBE_CHAT_RETENTION_HOURS;
+  process.env.SYNVIBE_CHAT_RETENTION_HOURS = "1";
+  try {
+    const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
+    const first = store.joinMatchmaking({ localUserId: "SV-MSGRP-000001" });
+    assert.equal(first.status, "waiting");
+    const second = store.joinMatchmaking({ localUserId: "SV-MSGRP-000002" });
+    assert.equal(second.status, "matched");
+    const matchId = second.match.id;
+    const peerMessage = store.recordChatMessage({
+      localUserId: "SV-MSGRP-000002",
+      matchId,
+      body: "A specific message to review safely"
+    });
+    const ownMessage = store.recordChatMessage({
+      localUserId: "SV-MSGRP-000001",
+      matchId,
+      body: "Do not let me report myself"
+    });
+
+    const report = store.recordModerationReport({
+      localUserId: "SV-MSGRP-000001",
+      matchId,
+      reportedLocalUserId: "SV-MSGRP-000002",
+      reportedMessageId: peerMessage.id,
+      type: "report",
+      reason: "harassment",
+      notes: "Message crossed a boundary"
+    });
+    assert.equal(report.reportedMessageId, peerMessage.id);
+
+    let queue = store.getModerationReports(10, "open");
+    assert.equal(queue.reports[0]?.reportedMessageId, peerMessage.id);
+    assert.equal(queue.reports[0]?.reportedMessageStatus, "retained");
+    assert.equal(queue.reports[0]?.reportedMessageSenderLocalUserId, "SV-MSGRP-000002");
+    assert.equal(queue.reports[0]?.reportedMessageExcerpt, "A specific message to review safely");
+
+    store.deleteChatMessage({ localUserId: "SV-MSGRP-000002", matchId, messageId: peerMessage.id });
+    queue = store.getModerationReports(10, "open");
+    assert.equal(queue.reports[0]?.reportedMessageStatus, "deleted");
+    assert.equal(queue.reports[0]?.reportedMessageExcerpt, null);
+
+    execFileSync("sqlite3", [
+      store.dbPath,
+      `UPDATE chat_messages SET created_at = '2000-01-01T00:00:00.000Z' WHERE id = '${peerMessage.id.replaceAll("'", "''")}';`
+    ]);
+    queue = store.getModerationReports(10, "open");
+    assert.equal(queue.reports[0]?.reportedMessageStatus, "expired_or_unavailable");
+    assert.equal(queue.reports[0]?.reportedMessageExcerpt, null);
+
+    assert.throws(() =>
+      store.recordModerationReport({
+        localUserId: "SV-MSGRP-000001",
+        matchId,
+        reportedLocalUserId: "SV-MSGRP-000002",
+        reportedMessageId: ownMessage.id,
+        type: "report",
+        reason: "other"
+      })
+    );
+  } finally {
+    if (previousRetention === undefined) {
+      delete process.env.SYNVIBE_CHAT_RETENTION_HOURS;
+    } else {
+      process.env.SYNVIBE_CHAT_RETENTION_HOURS = previousRetention;
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("records adults-only chat consent as a dedicated consent event", () => {
   const dir = mkdtempSync(join(tmpdir(), "synvibe-consent-"));
   try {

@@ -48,6 +48,6 @@ Not deployed in this slice. The backend deploy script and smoke script from the 
 
 ## Recommended next steps
 
-1. Add message-level report references that preserve deletion and retention boundaries.
+1. Add reviewer identity after authenticated admin accounts exist.
 2. Add separate physiological-analysis consent before any cleaned reaction-output upload from the browser.
-3. Add reviewer identity after authenticated admin accounts exist.
+3. Add WebSocket transport once HTTP polling becomes the bottleneck.

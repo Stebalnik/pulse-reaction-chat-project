@@ -158,6 +158,13 @@ export function AdminApp(): JSX.Element {
                         Repeats: {report.reportedUserOpenReports} open / {report.reportedUserTotalReports} total
                       </small>
                     )}
+                    {report.reportedMessageId && (
+                      <small>
+                        Message: {report.reportedMessageId} ({report.reportedMessageStatus ?? "unknown"}
+                        {report.reportedMessageSenderLocalUserId ? ` by ${report.reportedMessageSenderLocalUserId}` : ""})
+                      </small>
+                    )}
+                    {report.reportedMessageExcerpt && <small>Excerpt: {report.reportedMessageExcerpt}</small>}
                     {report.reviewerNotes && <small>Review: {report.reviewerNotes}</small>}
                     {report.resolvedAtIso && <small>{formatDateTime(report.resolvedAtIso)}</small>}
                     <textarea
