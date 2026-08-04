@@ -1,5 +1,6 @@
 import type {
   AdminSummary,
+  ConsentEventRequest,
   EventRequest,
   MatchmakingStatus,
   ProfileRecord,
@@ -28,6 +29,10 @@ export async function createServerSession(localUserId: string, route: string): P
 
 export async function recordEvent(input: EventRequest): Promise<void> {
   await post("/api/events", input);
+}
+
+export async function recordConsentEvent(input: ConsentEventRequest): Promise<void> {
+  await post("/api/consent-events", input);
 }
 
 export async function joinMatchmaking(localUserId: string, sessionId: string | undefined): Promise<MatchmakingStatus | null> {

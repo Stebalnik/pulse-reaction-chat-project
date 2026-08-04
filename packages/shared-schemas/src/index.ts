@@ -74,6 +74,28 @@ export interface ReactionOutputRequest {
   regionAgreement: "not_reported" | "low" | "medium" | "high";
 }
 
+export type ConsentEventType = "adult_chat_terms" | "camera_access" | "physiological_analysis" | "research_feedback";
+export type ConsentDecision = "granted" | "revoked";
+
+export interface ConsentEventRequest {
+  localUserId: string;
+  sessionId?: string;
+  type: ConsentEventType;
+  decision: ConsentDecision;
+  policyVersion: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ConsentEventRecord {
+  id: string;
+  userId: string;
+  sessionId: string | null;
+  type: ConsentEventType;
+  decision: ConsentDecision;
+  policyVersion: string;
+  createdAtIso: string;
+}
+
 export interface AdminSummary {
   generatedAtIso: string;
   visits: number;

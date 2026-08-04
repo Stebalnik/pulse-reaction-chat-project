@@ -9,6 +9,7 @@ import {
   leaveMatchmaking,
   loadMatchmakingStatus,
   loadSignals,
+  recordConsentEvent,
   recordEvent,
   saveServerProfile,
   sendSignal
@@ -17,14 +18,22 @@ import { getOrCreateAnonymousUserId, loadLocalProfile, saveLocalProfile, type Lo
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
 const SHOW_ADMIN_LINK = import.meta.env.VITE_SHOW_ADMIN_LINK === "true";
+const ADULT_CHAT_CONSENT_KEY = "synvibe.consent.adultChatTerms.v1";
+const ADULT_CHAT_POLICY_VERSION = "adult-chat-terms-2026-08-04";
 
 export function PublicApp(): JSX.Element {
   const userId = useMemo(() => getOrCreateAnonymousUserId(), []);
   const [profile, setProfile] = useState<LocalProfile | null>(() => loadLocalProfile());
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [safetyGateOpen, setSafetyGateOpen] = useState(false);
+  const [adultChatAccepted, setAdultChatAccepted] = useState(() => window.localStorage.getItem(ADULT_CHAT_CONSENT_KEY) === ADULT_CHAT_POLICY_VERSION);
   const [inRoom, setInRoom] = useState(location.pathname === "/room");
 
   const enterRoom = (): void => {
+    if (!adultChatAccepted) {
+      setSafetyGateOpen(true);
+      return;
+    }
     history.pushState(null, "", "/room");
     void recordEvent({ localUserId: userId, type: "room_start", route: "/room" });
     setInRoom(true);
@@ -63,8 +72,20 @@ export function PublicApp(): JSX.Element {
         </div>
       </header>
 
-      {inRoom ? (
+      {inRoom && adultChatAccepted ? (
         <PublicRoom userId={userId} profile={profile} />
+      ) : inRoom ? (
+        <PublicSafetyGate
+          onAccept={() => {
+            acceptAdultChatTerms(userId);
+            setAdultChatAccepted(true);
+            void recordEvent({ localUserId: userId, type: "room_start", route: "/room" });
+          }}
+          onLeave={() => {
+            history.pushState(null, "", "/");
+            setInRoom(false);
+          }}
+        />
       ) : (
         <PublicHome userId={userId} profile={profile} onEnterRoom={enterRoom} onRegister={() => setRegisterOpen(true)} />
       )}
@@ -81,8 +102,34 @@ export function PublicApp(): JSX.Element {
           }}
         />
       )}
+
+      {safetyGateOpen && (
+        <SafetyGateDialog
+          onClose={() => setSafetyGateOpen(false)}
+          onAccept={() => {
+            acceptAdultChatTerms(userId);
+            setAdultChatAccepted(true);
+            setSafetyGateOpen(false);
+            history.pushState(null, "", "/room");
+            void recordEvent({ localUserId: userId, type: "room_start", route: "/room" });
+            setInRoom(true);
+          }}
+        />
+      )}
     </main>
   );
+}
+
+function acceptAdultChatTerms(userId: string): void {
+  window.localStorage.setItem(ADULT_CHAT_CONSENT_KEY, ADULT_CHAT_POLICY_VERSION);
+  void recordConsentEvent({
+    localUserId: userId,
+    type: "adult_chat_terms",
+    decision: "granted",
+    policyVersion: ADULT_CHAT_POLICY_VERSION,
+    metadata: { route: "/room" }
+  });
+  void recordEvent({ localUserId: userId, type: "consent_grant", route: "/room", metadata: { consentType: "adult_chat_terms" } });
 }
 
 function PublicHome({
@@ -136,6 +183,83 @@ function PublicHome({
         <MetricBlock label="Chat history" value={profile ? "Reserved" : "Registration required"} />
       </div>
     </section>
+  );
+}
+
+function PublicSafetyGate({ onAccept, onLeave }: { onAccept: () => void; onLeave: () => void }): JSX.Element {
+  const [adultConfirmed, setAdultConfirmed] = useState(false);
+  const [safetyConfirmed, setSafetyConfirmed] = useState(false);
+  const canContinue = adultConfirmed && safetyConfirmed;
+
+  return (
+    <section className="publicHome">
+      <div className="adminHero">
+        <span className="productSignal">Safety gate</span>
+        <h1>Adults-only video chat</h1>
+        <p>
+          Continue only if you are 18 or older and agree to use report, block, and pause controls when needed. Physiological
+          analysis and sharing require separate opt-in consent.
+        </p>
+        <div className="safetyChecks">
+          <label className="checkRow">
+            <input checked={adultConfirmed} onChange={(event) => setAdultConfirmed(event.target.checked)} type="checkbox" />
+            I confirm I am 18 or older.
+          </label>
+          <label className="checkRow">
+            <input checked={safetyConfirmed} onChange={(event) => setSafetyConfirmed(event.target.checked)} type="checkbox" />
+            I will not use reaction patterns to pressure another person.
+          </label>
+        </div>
+        <div className="heroActions">
+          <button className="primaryAction" type="button" onClick={onAccept} disabled={!canContinue}>
+            <ShieldCheck aria-hidden="true" />
+            I agree
+          </button>
+          <button className="secondaryAction" type="button" onClick={onLeave}>
+            Leave
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SafetyGateDialog({ onClose, onAccept }: { onClose: () => void; onAccept: () => void }): JSX.Element {
+  const [adultConfirmed, setAdultConfirmed] = useState(false);
+  const [safetyConfirmed, setSafetyConfirmed] = useState(false);
+  const canContinue = adultConfirmed && safetyConfirmed;
+
+  return (
+    <div className="dialogBackdrop" role="presentation">
+      <form
+        className="registerDialog"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (canContinue) onAccept();
+        }}
+      >
+        <div>
+          <h2>Adults-only chat</h2>
+          <p>SynVibe requires adults-only use, immediate pause/report/block controls, and separate opt-in before physiological analysis.</p>
+        </div>
+        <label className="checkRow">
+          <input checked={adultConfirmed} onChange={(event) => setAdultConfirmed(event.target.checked)} type="checkbox" />
+          I confirm I am 18 or older.
+        </label>
+        <label className="checkRow">
+          <input checked={safetyConfirmed} onChange={(event) => setSafetyConfirmed(event.target.checked)} type="checkbox" />
+          I will not use reaction patterns to pressure another person.
+        </label>
+        <div className="dialogActions">
+          <button className="secondaryAction compact" type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="primaryAction compact" type="submit" disabled={!canContinue}>
+            Continue
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 

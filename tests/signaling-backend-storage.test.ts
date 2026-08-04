@@ -135,3 +135,27 @@ test("signaling relay delivers peer messages only for active matches", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("records adults-only chat consent as a dedicated consent event", () => {
+  const dir = mkdtempSync(join(tmpdir(), "synvibe-consent-"));
+  try {
+    const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
+    const session = store.createSession({ localUserId: "SV-CONSNT-000001", route: "/room" });
+
+    const record = store.recordConsentEvent({
+      localUserId: "SV-CONSNT-000001",
+      sessionId: session.id,
+      type: "adult_chat_terms",
+      decision: "granted",
+      policyVersion: "adult-chat-terms-2026-08-04",
+      metadata: { route: "/room" }
+    });
+
+    assert.equal(record.sessionId, session.id);
+    assert.equal(record.type, "adult_chat_terms");
+    assert.equal(record.decision, "granted");
+    assert.equal(record.policyVersion, "adult-chat-terms-2026-08-04");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

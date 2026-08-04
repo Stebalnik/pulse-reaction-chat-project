@@ -17,7 +17,9 @@ import type {
   MatchPeer,
   WebRtcSignalBatch,
   WebRtcSignalMessage,
-  WebRtcSignalRequest
+  WebRtcSignalRequest,
+  ConsentEventRecord,
+  ConsentEventRequest
 } from "@pulse-reaction/shared-schemas";
 
 const DEFAULT_DB_PATH = resolve(process.cwd(), "data/synvibe.sqlite");
@@ -105,6 +107,16 @@ export class SynVibeStore {
         sender_user_id TEXT NOT NULL REFERENCES users(id),
         type TEXT NOT NULL,
         payload_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS consent_events (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id),
+        session_id TEXT REFERENCES sessions(id),
+        type TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        policy_version TEXT NOT NULL,
+        metadata_json TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
     `);
@@ -214,6 +226,34 @@ export class SynVibeStore {
         ${sql(new Date().toISOString())}
       );
     `);
+  }
+
+  recordConsentEvent(input: ConsentEventRequest): ConsentEventRecord {
+    const user = this.upsertAnonymousUser(input.localUserId);
+    const now = new Date().toISOString();
+    const record: ConsentEventRecord = {
+      id: randomUUID(),
+      userId: user.id,
+      sessionId: input.sessionId ?? null,
+      type: input.type,
+      decision: input.decision,
+      policyVersion: input.policyVersion,
+      createdAtIso: now
+    };
+    this.execute(`
+      INSERT INTO consent_events (id, user_id, session_id, type, decision, policy_version, metadata_json, created_at)
+      VALUES (
+        ${sql(record.id)},
+        ${sql(record.userId)},
+        ${record.sessionId ? sql(record.sessionId) : "NULL"},
+        ${sql(record.type)},
+        ${sql(record.decision)},
+        ${sql(record.policyVersion)},
+        ${sql(JSON.stringify(input.metadata ?? {}))},
+        ${sql(now)}
+      );
+    `);
+    return record;
   }
 
   joinMatchmaking(input: MatchmakingJoinRequest): MatchmakingStatus {

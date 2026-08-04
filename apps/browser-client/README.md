@@ -12,6 +12,7 @@ Routes:
 Current prototype:
 
 - public no-login user shell with local anonymous ID;
+- adults-only safety gate before entering the dating room;
 - local registration stored on the device and posted to the own-server backend when available;
 - public video-room with camera enable/pause controls and live roulette queue state;
 - active-match WebRTC offer/answer/ICE exchange through the own-server signaling relay;

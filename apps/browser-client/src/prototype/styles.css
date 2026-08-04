@@ -567,6 +567,28 @@ a {
   padding: 0 10px;
 }
 
+.checkRow {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  color: #34443c;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.checkRow input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  padding: 0;
+}
+
+.safetyChecks {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
 .dialogActions {
   display: flex;
   justify-content: flex-end;

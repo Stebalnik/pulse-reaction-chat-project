@@ -18,9 +18,12 @@ Server-backed identity now has a first MVP implementation in `apps/signaling-bac
 - `users`: anonymous ID, optional registered profile, created/last seen timestamps;
 - `sessions`: session ID, user ID, route, device class, consent state, start/end timestamps;
 - `events`: visit, room start, camera grant, analysis start, peer connect, disconnect, registration start, registration complete;
+- `consent_events`: adults-only chat terms, camera access, physiological analysis, and research feedback decisions;
 - `reaction_outputs`: cleaned output only, with model version, method version, confidence, quality metrics, reason codes, and no raw video.
 
 The browser client posts anonymous user/profile/event records when the API is available and falls back to local-only behavior when it is not.
+
+The public room is adults-only. Browser entry and direct `/room` navigation require local adults-only acknowledgement before matching begins. The acknowledgement is also posted to `POST /api/consent-events` when the backend is available.
 
 ## Matching
 

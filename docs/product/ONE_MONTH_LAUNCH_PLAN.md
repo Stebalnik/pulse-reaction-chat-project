@@ -39,7 +39,7 @@ Exit criteria:
 Current status:
 
 - Public routes exist: `/`, `/room`, `/admin`, `/admin/debug`.
-- Real signaling, room queue, persistent profiles, and analytics storage are pending.
+- Real signaling, room queue, server profiles, operational analytics storage, and adults-only room acknowledgement are implemented in the backend MVP branch stack.
 
 ## Week 2 — First pulse pipeline
 

@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import type {
+  ConsentEventRequest,
   EventRequest,
   MatchmakingJoinRequest,
   MatchmakingLeaveRequest,
@@ -85,6 +86,21 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     };
     store.recordEvent(input);
     sendJson(response, 202, { ok: true });
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/consent-events") {
+    const body = await readJson(request);
+    const sessionId = readOptionalString(body, "sessionId", 64);
+    const metadata = readRecord(body, "metadata");
+    const input: ConsentEventRequest = {
+      localUserId: readString(body, "localUserId", 64),
+      ...(sessionId ? { sessionId } : {}),
+      type: readConsentType(body),
+      decision: readConsentDecision(body),
+      policyVersion: readString(body, "policyVersion", 80),
+      ...(metadata ? { metadata } : {})
+    };
+    sendJson(response, 201, store.recordConsentEvent(input));
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/matchmaking/join") {
@@ -265,6 +281,18 @@ function readSignalType(body: Record<string, unknown>): WebRtcSignalRequest["typ
   const type = readString(body, "type", 20);
   if (type === "offer" || type === "answer" || type === "candidate") return type;
   throw new Error(`Invalid signal type: ${type}`);
+}
+
+function readConsentType(body: Record<string, unknown>): ConsentEventRequest["type"] {
+  const type = readString(body, "type", 40);
+  if (type === "adult_chat_terms" || type === "camera_access" || type === "physiological_analysis" || type === "research_feedback") return type;
+  throw new Error(`Invalid consent type: ${type}`);
+}
+
+function readConsentDecision(body: Record<string, unknown>): ConsentEventRequest["decision"] {
+  const decision = readString(body, "decision", 20);
+  if (decision === "granted" || decision === "revoked") return decision;
+  throw new Error(`Invalid consent decision: ${decision}`);
 }
 
 function normalizeHandle(handle: string): string {
