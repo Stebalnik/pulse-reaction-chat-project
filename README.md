@@ -20,9 +20,11 @@ The product must never claim to read thoughts, attraction, truthfulness, or exac
 - `docs/architecture/SYSTEM.md` — target system architecture.
 - `docs/architecture/LOCAL_DEVELOPMENT.md` — local ports and environment defaults.
 - `docs/architecture/DOMAIN_AND_DEPLOYMENT.md` — production domain and server deployment setup.
+- `docs/architecture/PUBLIC_APP_AND_ADMIN_SPLIT.md` — public routes, admin/debug split, and backend analytics plan.
 - `docs/architecture/TECH_STACK_DECISION.md` — proposed stack and monorepo shape.
 - `docs/product/REACTION_MODEL.md` — normalized reaction model.
 - `docs/product/ONE_MONTH_LAUNCH_PLAN.md` — desktop-first launch plan.
+- `docs/work-log/` — durable project handoff journal for meaningful changes.
 - `docs/safety/PRODUCT_GUARDRAILS.md` — consent, privacy, claims, and UX restrictions.
 - `knowledge/README.md` — evidence storage and update rules.
 
@@ -36,4 +38,4 @@ The reserved public domain is `synvibe.app`. The first production browser protot
 
 ## Current status
 
-Prototype browser client and on-device pulse-rate engine are available for local testing. No medical or unsupported interpretation claims are validated.
+The production browser surface has a public no-login entry, a public room shell, an admin shell, and the rPPG debug console at `/admin/debug`. The on-device pulse-rate engine is available for continued testing. The next major milestone is an own-server backend for anonymous users, registered profiles, sessions, analytics events, signaling, and cleaned reaction-pattern output storage.

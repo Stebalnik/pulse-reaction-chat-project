@@ -127,6 +127,23 @@ Recommended commits:
 
 Never combine bulk paper ingestion, architecture changes, and product feature code in one commit.
 
+## 8.1 Project work log
+
+Maintain a human-readable project journal in `docs/work-log/`.
+
+For meaningful tasks, add or update one dated Markdown entry that records:
+
+- what changed;
+- why it changed;
+- assumptions and constraints;
+- user-facing impact;
+- data/privacy implications;
+- commands and checks run;
+- deployment status when applicable;
+- recommended next steps.
+
+Use concise handoff language so a future agent can continue from the log without reconstructing context from chat history. Do not put secrets, credentials, raw biometric traces, raw video, or private user data in the work log.
+
 ## 9. Definition of done
 
 A task is complete only when:
