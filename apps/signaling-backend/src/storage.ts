@@ -20,13 +20,15 @@ import type {
   MatchChatMessage,
   MatchChatMessageRequest,
   ModerationReportQueue,
+  ModerationReportQueueItem,
   WebRtcSignalBatch,
   WebRtcSignalMessage,
   WebRtcSignalRequest,
   ConsentEventRecord,
   ConsentEventRequest,
   ModerationReportRecord,
-  ModerationReportRequest
+  ModerationReportRequest,
+  ModerationReportResolutionRequest
 } from "@pulse-reaction/shared-schemas";
 
 const DEFAULT_DB_PATH = resolve(process.cwd(), "data/synvibe.sqlite");
@@ -141,9 +143,13 @@ export class SynVibeStore {
         type TEXT NOT NULL,
         reason TEXT NOT NULL,
         notes TEXT,
+        status TEXT NOT NULL DEFAULT 'open',
+        reviewer_notes TEXT,
+        resolved_at TEXT,
         created_at TEXT NOT NULL
       );
     `);
+    this.ensureModerationReportColumns();
   }
 
   upsertAnonymousUser(localUserId: string): AnonymousUserRecord {
@@ -323,6 +329,7 @@ export class SynVibeStore {
       matchId: input.matchId ?? null,
       type: input.type,
       reason: input.reason,
+      status: "open",
       createdAtIso: now
     };
     if (record.matchId) this.ensureMatchBelongsToReporter(record.matchId, reporter.id);
@@ -352,11 +359,14 @@ export class SynVibeStore {
         moderation_reports.type,
         moderation_reports.reason,
         moderation_reports.notes,
+        COALESCE(moderation_reports.status, 'open') AS status,
+        moderation_reports.reviewer_notes,
+        moderation_reports.resolved_at,
         moderation_reports.created_at
       FROM moderation_reports
       JOIN users AS reporter ON reporter.id = moderation_reports.reporter_user_id
       LEFT JOIN users AS reported ON reported.id = moderation_reports.reported_user_id
-      ORDER BY moderation_reports.created_at DESC, moderation_reports.id DESC
+      ORDER BY CASE COALESCE(moderation_reports.status, 'open') WHEN 'open' THEN 0 ELSE 1 END, moderation_reports.created_at DESC, moderation_reports.id DESC
       LIMIT ${Math.max(1, Math.min(100, Math.floor(limit)))};
     `);
     return {
@@ -367,9 +377,57 @@ export class SynVibeStore {
         matchId: row.match_id,
         type: row.type,
         reason: row.reason,
+        status: row.status ?? "open",
         notes: row.notes,
-        createdAtIso: row.created_at
+        reviewerNotes: row.reviewer_notes,
+        createdAtIso: row.created_at,
+        resolvedAtIso: row.resolved_at
       }))
+    };
+  }
+
+  resolveModerationReport(input: ModerationReportResolutionRequest): ModerationReportQueueItem {
+    const existing = this.queryOne<ModerationReportQueueRow>(`
+      SELECT
+        moderation_reports.id,
+        reporter.local_user_id AS reporter_local_user_id,
+        reported.local_user_id AS reported_local_user_id,
+        moderation_reports.match_id,
+        moderation_reports.type,
+        moderation_reports.reason,
+        moderation_reports.notes,
+        COALESCE(moderation_reports.status, 'open') AS status,
+        moderation_reports.reviewer_notes,
+        moderation_reports.resolved_at,
+        moderation_reports.created_at
+      FROM moderation_reports
+      JOIN users AS reporter ON reporter.id = moderation_reports.reporter_user_id
+      LEFT JOIN users AS reported ON reported.id = moderation_reports.reported_user_id
+      WHERE moderation_reports.id = ${sql(input.reportId)};
+    `);
+    if (!existing) throw new Error("Moderation report not found");
+    const now = new Date().toISOString();
+    const resolvedAt = input.status === "open" ? null : now;
+    this.execute(`
+      UPDATE moderation_reports
+      SET
+        status = ${sql(input.status)},
+        reviewer_notes = ${input.reviewerNotes ? sql(input.reviewerNotes) : "NULL"},
+        resolved_at = ${resolvedAt ? sql(resolvedAt) : "NULL"}
+      WHERE id = ${sql(input.reportId)};
+    `);
+    return {
+      id: existing.id,
+      reporterLocalUserId: existing.reporter_local_user_id,
+      reportedLocalUserId: existing.reported_local_user_id,
+      matchId: existing.match_id,
+      type: existing.type,
+      reason: existing.reason,
+      status: input.status,
+      notes: existing.notes,
+      reviewerNotes: input.reviewerNotes ?? null,
+      createdAtIso: existing.created_at,
+      resolvedAtIso: resolvedAt
     };
   }
 
@@ -720,6 +778,13 @@ export class SynVibeStore {
     `);
   }
 
+  private ensureModerationReportColumns(): void {
+    const columns = new Set(this.query<{ name: string }>("PRAGMA table_info(moderation_reports);").map((row) => row.name));
+    if (!columns.has("status")) this.execute("ALTER TABLE moderation_reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open';");
+    if (!columns.has("reviewer_notes")) this.execute("ALTER TABLE moderation_reports ADD COLUMN reviewer_notes TEXT;");
+    if (!columns.has("resolved_at")) this.execute("ALTER TABLE moderation_reports ADD COLUMN resolved_at TEXT;");
+  }
+
   private getUserByLocalId(localUserId: string): AnonymousUserRecord | null {
     const row = this.queryOne<UserRow>(`SELECT * FROM users WHERE local_user_id = ${sql(localUserId)};`);
     return row ? mapUser(row) : null;
@@ -824,7 +889,10 @@ interface ModerationReportQueueRow {
   match_id: string | null;
   type: "report" | "block";
   reason: "safety" | "harassment" | "underage" | "spam" | "other";
+  status: "open" | "resolved" | "dismissed";
   notes: string | null;
+  reviewer_notes: string | null;
+  resolved_at: string | null;
   created_at: string;
 }
 

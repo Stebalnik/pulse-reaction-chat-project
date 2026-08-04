@@ -150,7 +150,21 @@ test("matchmaking pairs queued users and supports blocking the match", () => {
     assert.equal(queue.reports[0]?.reporterLocalUserId, "SV-USERAA-000001");
     assert.equal(queue.reports[0]?.reportedLocalUserId, "SV-USERBB-000002");
     assert.equal(queue.reports[0]?.reason, "harassment");
+    assert.equal(queue.reports[0]?.status, "open");
     assert.equal(queue.reports[0]?.notes, "Ignored boundary after warning");
+
+    const resolved = store.resolveModerationReport({
+      reportId: moderationRecord.id,
+      status: "resolved",
+      reviewerNotes: "Reviewed and kept block in place"
+    });
+    assert.equal(resolved.status, "resolved");
+    assert.equal(resolved.reviewerNotes, "Reviewed and kept block in place");
+    assert.ok(resolved.resolvedAtIso);
+
+    const reopened = store.resolveModerationReport({ reportId: moderationRecord.id, status: "open" });
+    assert.equal(reopened.status, "open");
+    assert.equal(reopened.resolvedAtIso, null);
 
     summary = store.getAdminSummary();
     assert.equal(summary.activeMatches, 0);

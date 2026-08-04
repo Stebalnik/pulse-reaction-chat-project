@@ -78,7 +78,7 @@ Exit criteria:
 - Production deploy flow and optional installer/package flow.
 - Crash/error logging without raw video or biometric time-series retention by default.
 - Opt-in research feedback flow.
-- Abuse controls, reason-coded report/block path, dedicated moderation records, moderation review queue, and basic safety summary metrics.
+- Abuse controls, reason-coded report/block path, dedicated moderation records, moderation review queue with resolution status, and basic safety summary metrics.
 - Smoke tests across supported desktop targets.
 - Beta launch checklist and rollback plan.
 

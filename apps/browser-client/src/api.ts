@@ -7,7 +7,9 @@ import type {
   MatchChatMessageRequest,
   MatchmakingStatus,
   ModerationReportQueue,
+  ModerationReportQueueItem,
   ModerationReportRequest,
+  ModerationReportResolutionRequest,
   ProfileRecord,
   SessionEndRequest,
   SessionRecord,
@@ -172,6 +174,23 @@ export async function loadModerationReports(adminToken: string | null): Promise<
     return { status: "ok", queue: (await response.json()) as ModerationReportQueue };
   } catch {
     return { status: "offline" };
+  }
+}
+
+export async function resolveModerationReport(adminToken: string | null, input: ModerationReportResolutionRequest): Promise<ModerationReportQueueItem | null> {
+  try {
+    const response = await fetch(`${API_ORIGIN}/api/admin/moderation/reports/resolve`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(adminToken ? { "x-synvibe-admin-token": adminToken } : {})
+      },
+      body: JSON.stringify(input)
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as ModerationReportQueueItem;
+  } catch {
+    return null;
   }
 }
 

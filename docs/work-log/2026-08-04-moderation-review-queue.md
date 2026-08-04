@@ -19,7 +19,7 @@ Report/block records existed, but the public room only captured a generic `safet
 
 ## Assumptions and constraints
 
-- The queue is read-only in this slice.
+- Superseded by `2026-08-04-moderation-resolution-workflow.md`: the queue now supports `open`, `resolved`, and `dismissed` status.
 - Admin access uses the existing `SYNVIBE_ADMIN_TOKEN`.
 - Optional notes are capped at 500 characters by the backend.
 - The queue does not include raw media, physiological traces, precise peer BPM, or direct emotion labels.
@@ -49,6 +49,6 @@ Not deployed in this slice.
 
 ## Recommended next steps
 
-1. Add report resolution status and reviewer notes.
+1. Add repeated-offender indicators and admin filtering.
 2. Add message-level report references after chat retention/deletion policy is finalized.
-3. Add repeated-offender indicators and admin filtering.
+3. Add reviewer identity after authenticated admin accounts exist.

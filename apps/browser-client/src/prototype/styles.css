@@ -853,6 +853,27 @@ a {
   overflow-wrap: anywhere;
 }
 
+.moderationReviewControls {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.moderationReviewControls textarea {
+  min-height: 58px;
+  border: 1px solid #bac7c1;
+  border-radius: 8px;
+  padding: 8px;
+  resize: vertical;
+  color: #17221e;
+}
+
+.moderationReviewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
 .appShell {
   height: 100dvh;
   display: grid;

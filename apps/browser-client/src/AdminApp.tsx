@@ -2,7 +2,7 @@ import { Activity, BarChart3, Bug, Database, Gauge, ShieldCheck, UsersRound } fr
 import type { JSX } from "react";
 import { useEffect, useState } from "react";
 import type { AdminSummary, ModerationReportQueueItem } from "@pulse-reaction/shared-schemas";
-import { loadAdminSummary, loadModerationReports } from "./api.js";
+import { loadAdminSummary, loadModerationReports, resolveModerationReport } from "./api.js";
 import { App as DebugApp } from "./prototype/App.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
@@ -11,6 +11,7 @@ const ADMIN_TOKEN_STORAGE_KEY = "synvibe.adminToken";
 export function AdminApp(): JSX.Element {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [moderationReports, setModerationReports] = useState<ModerationReportQueueItem[]>([]);
+  const [reviewerNotes, setReviewerNotes] = useState<Record<string, string>>({});
   const [activeAdminToken, setActiveAdminToken] = useState(() => window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) ?? "");
   const [adminTokenDraft, setAdminTokenDraft] = useState(() => window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) ?? "");
   const [adminStatus, setAdminStatus] = useState<"loading" | "ready" | "auth_required" | "not_configured" | "offline">("loading");
@@ -35,6 +36,16 @@ export function AdminApp(): JSX.Element {
   if (location.pathname.startsWith("/admin/debug")) {
     return <DebugApp />;
   }
+
+  const updateModerationStatus = async (reportId: string, status: "open" | "resolved" | "dismissed"): Promise<void> => {
+    const updated = await resolveModerationReport(activeAdminToken.trim() || null, {
+      reportId,
+      status,
+      ...(reviewerNotes[reportId]?.trim() ? { reviewerNotes: reviewerNotes[reportId]!.trim() } : {})
+    });
+    if (!updated) return;
+    setModerationReports((current) => current.map((report) => (report.id === updated.id ? updated : report)));
+  };
 
   return (
     <main className="adminShell">
@@ -123,13 +134,42 @@ export function AdminApp(): JSX.Element {
               {moderationReports.map((report) => (
                 <article className="moderationRow" key={report.id}>
                   <div>
-                    <span>{report.type}</span>
+                    <span>
+                      {report.type} / {report.status}
+                    </span>
                     <strong>{report.reason}</strong>
                   </div>
                   <p>
                     {report.reporterLocalUserId} to {report.reportedLocalUserId ?? "unknown"}
                   </p>
-                  <small>{report.notes || report.matchId || formatDateTime(report.createdAtIso)}</small>
+                  <div className="moderationReviewControls">
+                    <small>{report.notes || report.matchId || formatDateTime(report.createdAtIso)}</small>
+                    {report.reviewerNotes && <small>Review: {report.reviewerNotes}</small>}
+                    {report.resolvedAtIso && <small>{formatDateTime(report.resolvedAtIso)}</small>}
+                    <textarea
+                      value={reviewerNotes[report.id] ?? ""}
+                      onChange={(event) => setReviewerNotes((current) => ({ ...current, [report.id]: event.target.value }))}
+                      placeholder="Reviewer note"
+                      maxLength={500}
+                    />
+                    <div className="moderationReviewActions">
+                      {report.status !== "resolved" && (
+                        <button className="secondaryAction compact" type="button" onClick={() => void updateModerationStatus(report.id, "resolved")}>
+                          Resolve
+                        </button>
+                      )}
+                      {report.status !== "dismissed" && (
+                        <button className="secondaryAction compact" type="button" onClick={() => void updateModerationStatus(report.id, "dismissed")}>
+                          Dismiss
+                        </button>
+                      )}
+                      {report.status !== "open" && (
+                        <button className="secondaryAction compact" type="button" onClick={() => void updateModerationStatus(report.id, "open")}>
+                          Reopen
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </article>
               ))}
             </div>

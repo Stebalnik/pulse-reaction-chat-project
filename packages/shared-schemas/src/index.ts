@@ -108,6 +108,7 @@ export interface ConsentEventRecord {
 
 export type ModerationReportType = "report" | "block";
 export type ModerationReportReason = "safety" | "harassment" | "underage" | "spam" | "other";
+export type ModerationReportStatus = "open" | "resolved" | "dismissed";
 
 export interface ModerationReportRequest {
   localUserId: string;
@@ -125,7 +126,14 @@ export interface ModerationReportRecord {
   matchId: string | null;
   type: ModerationReportType;
   reason: ModerationReportReason;
+  status: ModerationReportStatus;
   createdAtIso: string;
+}
+
+export interface ModerationReportResolutionRequest {
+  reportId: string;
+  status: ModerationReportStatus;
+  reviewerNotes?: string;
 }
 
 export interface ModerationReportQueueItem {
@@ -135,8 +143,11 @@ export interface ModerationReportQueueItem {
   matchId: string | null;
   type: ModerationReportType;
   reason: ModerationReportReason;
+  status: ModerationReportStatus;
   notes: string | null;
+  reviewerNotes: string | null;
   createdAtIso: string;
+  resolvedAtIso: string | null;
 }
 
 export interface ModerationReportQueue {

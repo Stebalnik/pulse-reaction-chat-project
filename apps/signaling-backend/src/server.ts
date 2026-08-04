@@ -7,6 +7,7 @@ import type {
   MatchmakingJoinRequest,
   MatchmakingLeaveRequest,
   ModerationReportRequest,
+  ModerationReportResolutionRequest,
   ProfileRequest,
   ReactionOutputRequest,
   SessionEndRequest,
@@ -54,6 +55,18 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     if (!isAdminAuthorized(request, response)) return;
     const limit = Number(url.searchParams.get("limit") ?? "20");
     sendJson(response, 200, store.getModerationReports(Number.isFinite(limit) ? limit : 20));
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/admin/moderation/reports/resolve") {
+    if (!isAdminAuthorized(request, response)) return;
+    const body = await readJson(request);
+    const reviewerNotes = readOptionalString(body, "reviewerNotes", 500);
+    const input: ModerationReportResolutionRequest = {
+      reportId: readString(body, "reportId", 64),
+      status: readModerationReportStatus(body),
+      ...(reviewerNotes ? { reviewerNotes } : {})
+    };
+    sendJson(response, 200, store.resolveModerationReport(input));
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/users/anonymous") {
@@ -371,6 +384,12 @@ function readModerationReportReason(body: Record<string, unknown>): ModerationRe
     return reason;
   }
   throw new Error(`Invalid moderation report reason: ${reason}`);
+}
+
+function readModerationReportStatus(body: Record<string, unknown>): ModerationReportResolutionRequest["status"] {
+  const status = readString(body, "status", 20);
+  if (status === "open" || status === "resolved" || status === "dismissed") return status;
+  throw new Error(`Invalid moderation report status: ${status}`);
 }
 
 function readSignalType(body: Record<string, unknown>): WebRtcSignalRequest["type"] {

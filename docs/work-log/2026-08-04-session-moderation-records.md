@@ -48,6 +48,6 @@ Not deployed in this slice. The backend deploy script and smoke script from the 
 
 ## Recommended next steps
 
-1. Add report resolution status and reviewer notes.
-2. Add repeated-offender indicators and admin filtering.
+1. Add repeated-offender indicators and admin filtering.
+2. Add chat retention/deletion policy and user-visible deletion controls.
 3. Add separate physiological-analysis consent before any cleaned reaction-output upload from the browser.
