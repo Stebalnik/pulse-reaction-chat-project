@@ -16,6 +16,7 @@ import {
 import { getOrCreateAnonymousUserId, loadLocalProfile, saveLocalProfile, type LocalProfile } from "./identity.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
+const SHOW_ADMIN_LINK = import.meta.env.VITE_SHOW_ADMIN_LINK === "true";
 
 export function PublicApp(): JSX.Element {
   const userId = useMemo(() => getOrCreateAnonymousUserId(), []);
@@ -54,9 +55,11 @@ export function PublicApp(): JSX.Element {
             <UserPlus aria-hidden="true" />
             Register
           </button>
-          <a className="textButton ghost" href="/admin">
-            Admin
-          </a>
+          {SHOW_ADMIN_LINK && (
+            <a className="textButton ghost" href="/admin">
+              Admin
+            </a>
+          )}
         </div>
       </header>
 

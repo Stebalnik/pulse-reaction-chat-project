@@ -600,6 +600,39 @@ a {
   margin-top: 18px;
 }
 
+.adminTokenForm {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+
+.adminTokenForm label {
+  min-width: min(320px, 100%);
+  display: grid;
+  gap: 6px;
+  color: #46554e;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.adminTokenForm input {
+  height: 38px;
+  border: 1px solid #b8c7bf;
+  border-radius: 8px;
+  padding: 0 10px;
+}
+
+.adminTokenForm span {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  color: #5f7067;
+  font-size: 13px;
+  font-weight: 750;
+}
+
 .adminGrid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }

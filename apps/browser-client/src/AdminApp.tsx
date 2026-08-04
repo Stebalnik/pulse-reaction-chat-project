@@ -6,14 +6,26 @@ import { loadAdminSummary } from "./api.js";
 import { App as DebugApp } from "./prototype/App.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
+const ADMIN_TOKEN_STORAGE_KEY = "synvibe.adminToken";
 
 export function AdminApp(): JSX.Element {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
+  const [activeAdminToken, setActiveAdminToken] = useState(() => window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) ?? "");
+  const [adminTokenDraft, setAdminTokenDraft] = useState(() => window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) ?? "");
+  const [adminStatus, setAdminStatus] = useState<"loading" | "ready" | "auth_required" | "not_configured" | "offline">("loading");
 
   useEffect(() => {
     if (location.pathname.startsWith("/admin/debug")) return;
-    void loadAdminSummary().then(setSummary);
-  }, []);
+    void loadAdminSummary(activeAdminToken.trim() || null).then((result) => {
+      if (result.status === "ok") {
+        setSummary(result.summary);
+        setAdminStatus("ready");
+      } else {
+        setSummary(null);
+        setAdminStatus(result.status);
+      }
+    });
+  }, [activeAdminToken]);
 
   if (location.pathname.startsWith("/admin/debug")) {
     return <DebugApp />;
@@ -40,6 +52,30 @@ export function AdminApp(): JSX.Element {
             The live rPPG console is separated from the public user flow. This view reads privacy-safe operational metrics from
             the own-server backend when it is available.
           </p>
+          <form
+            className="adminTokenForm"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const nextToken = adminTokenDraft.trim();
+              window.localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, nextToken);
+              setActiveAdminToken(nextToken);
+            }}
+          >
+            <label>
+              Admin token
+              <input
+                value={adminTokenDraft}
+                onChange={(event) => setAdminTokenDraft(event.target.value)}
+                placeholder="Paste private token"
+                type="password"
+                autoComplete="off"
+              />
+            </label>
+            <button className="primaryAction compact" type="submit">
+              Unlock
+            </button>
+            <span>{adminStatusText(adminStatus)}</span>
+          </form>
           <a className="primaryAction compact" href="/admin/debug">
             <Bug aria-hidden="true" />
             Open debug console
@@ -85,6 +121,14 @@ function formatNullableRate(value: number | null | undefined): string {
 function formatTopReasons(summary: AdminSummary | null): string {
   const top = summary?.topRejectionReasons[0];
   return top ? `${top.reasonCode}: ${top.count}` : "No rejection reasons yet";
+}
+
+function adminStatusText(status: "loading" | "ready" | "auth_required" | "not_configured" | "offline"): string {
+  if (status === "ready") return "Connected";
+  if (status === "auth_required") return "Token required";
+  if (status === "not_configured") return "Backend token not configured";
+  if (status === "offline") return "Backend offline";
+  return "Checking";
 }
 
 function AdminCard({ icon, label, value, detail }: { icon: JSX.Element; label: string; value: string; detail: string }): JSX.Element {

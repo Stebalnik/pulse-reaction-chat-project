@@ -1,0 +1,21 @@
+[Unit]
+Description=SynVibe signaling backend
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/synvibe/pulse-reaction-chat-project
+EnvironmentFile=/etc/synvibe/signaling-backend.env
+ExecStart=/usr/bin/env pnpm --filter @pulse-reaction/signaling-backend start
+Restart=always
+RestartSec=3
+User=www-data
+Group=www-data
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/synvibe
+
+[Install]
+WantedBy=multi-user.target

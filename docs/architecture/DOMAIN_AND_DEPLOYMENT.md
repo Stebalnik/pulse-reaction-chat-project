@@ -26,6 +26,21 @@ Server deployment source:
 3. Switch `/var/www/synvibe.app/current` to the new release.
 4. Serve `current` through nginx for `synvibe.app` and `www.synvibe.app`.
 
+Backend deployment source:
+
+1. Run `apps/signaling-backend` as a local-only service on `127.0.0.1:1060`.
+2. Store production environment values in `/etc/synvibe/signaling-backend.env`.
+3. Store SQLite data in `/var/lib/synvibe/synvibe.sqlite`.
+4. Proxy `/api/` from nginx to `http://127.0.0.1:1060`.
+5. Protect `/admin` and `/admin/debug` with nginx basic auth.
+6. Require `SYNVIBE_ADMIN_TOKEN` for `/api/admin/*`; the browser sends it through `X-SynVibe-Admin-Token` after the admin enters it.
+
+Templates:
+
+- `deployment/nginx/synvibe.app.conf.example`
+- `deployment/systemd/synvibe-signaling-backend.service.example`
+- `apps/signaling-backend/.env.production.example`
+
 Current server status:
 
 - Server SSH target: `root@165.232.145.239`
@@ -93,6 +108,15 @@ For `www.synvibe.app`:
 
 Keep `DNS only` for the initial launch. Cloudflare proxying can be reconsidered as a separate deployment decision after WebSocket, WebRTC signaling, and certificate behavior are tested end to end.
 
+## Admin Access
+
+Use two layers for the first private admin release:
+
+1. Nginx basic auth for `/admin` and `/admin/debug`, using `/etc/nginx/synvibe-admin.htpasswd`.
+2. Backend token auth for `/api/admin/*`, using `SYNVIBE_ADMIN_TOKEN`.
+
+The admin token is not compiled into the browser bundle. The admin enters it locally in `/admin`, and the browser stores it in local storage for subsequent summary requests.
+
 If GitHub Pages becomes primary again, replace these records with the GitHub Pages A/AAAA records and `www -> Stebalnik.github.io`.
 
 Do not create wildcard DNS records for this launch unless a later threat model explicitly approves them.
@@ -101,6 +125,6 @@ Do not create wildcard DNS records for this launch unless a later threat model e
 
 - `synvibe.app` is the intended public domain for the first browser prototype.
 - The dedicated server is the primary deployment target because the product will need signaling, WebSocket sessions, API routes, and future desktop distribution support.
-- Signaling and desktop distribution will need separate deployment decisions after the local prototype is validated.
+- TURN configuration and desktop distribution will need separate deployment decisions after the local prototype is validated.
 - No raw video, biometric time series, or precise BPM sharing is enabled by this static browser deployment.
 - DNS propagation can take up to 24 hours after registrar records are changed.

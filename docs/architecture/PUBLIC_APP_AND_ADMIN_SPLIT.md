@@ -47,7 +47,7 @@ Only users who belong to an active match can post or read signaling messages for
 
 ## Admin
 
-The `/admin` route reads `GET /api/admin/summary` when the own-server backend is available. It shows pending states rather than fake data when the API is offline. The first backend summary includes visits, room starts, camera grant rate, active sessions, waiting users, active matches, sufficient-signal ratio, top rejection reasons, and registered-vs-guest counts.
+The `/admin` route reads `GET /api/admin/summary` when the own-server backend is available and an admin token is supplied. It shows pending/auth states rather than fake data when the API is offline, unauthorized, or not configured. The first backend summary includes visits, room starts, camera grant rate, active sessions, waiting users, active matches, sufficient-signal ratio, top rejection reasons, and registered-vs-guest counts.
 
 Next admin analytics should add:
 
@@ -64,4 +64,4 @@ Public UI must not claim to detect specific emotions, attraction, honesty, inten
 
 ## Next Backend Step
 
-Continue in `apps/signaling-backend` with a single-server MVP on the SynVibe server. SQLite remains the first storage layer for operational simplicity. The next backend step is simple admin access control before exposing operational data, followed by deployment wiring for the backend routes behind `synvibe.app`.
+Continue in `apps/signaling-backend` with a single-server MVP on the SynVibe server. SQLite remains the first storage layer for operational simplicity. The next backend step is deploying the service behind nginx, then testing two real browser windows with camera permissions and adding TURN for stricter networks.

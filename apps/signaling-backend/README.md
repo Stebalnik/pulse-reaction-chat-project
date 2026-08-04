@@ -10,6 +10,7 @@ Current MVP scope:
 - Roulette waiting queue, active match records, match leave/report/block handling, and block-aware rematching.
 - WebRTC offer/answer/ICE signaling relay scoped to active matches.
 - Admin summary metrics for `/admin`.
+- Token-gated admin API access through `SYNVIBE_ADMIN_TOKEN` and `X-SynVibe-Admin-Token`.
 
 Run locally:
 
@@ -17,9 +18,21 @@ Run locally:
 pnpm --filter @pulse-reaction/signaling-backend dev
 ```
 
+Production environment:
+
+```bash
+SIGNALING_PORT=1060
+LOCAL_APP_ORIGIN=https://synvibe.app
+SYNVIBE_DB_PATH=/var/lib/synvibe/synvibe.sqlite
+SYNVIBE_ADMIN_TOKEN=<private random token>
+```
+
+If `SYNVIBE_ADMIN_TOKEN` is missing, `/api/admin/*` returns `admin_auth_not_configured` instead of exposing operational data.
+
 Endpoints:
 
 - `GET /health`
+- `GET /api/health`
 - `POST /api/users/anonymous`
 - `POST /api/profiles`
 - `POST /api/sessions`

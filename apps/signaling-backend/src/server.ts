@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import type {
   EventRequest,
   MatchmakingJoinRequest,
@@ -11,6 +12,7 @@ import type {
 import { SynVibeStore } from "./storage.js";
 
 const PORT = Number(process.env.SIGNALING_PORT ?? process.env.PORT ?? 1060);
+const ADMIN_TOKEN = process.env.SYNVIBE_ADMIN_TOKEN ?? null;
 const store = new SynVibeStore();
 
 const server = createServer(async (request, response) => {
@@ -35,11 +37,12 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
   }
 
   const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
-  if (request.method === "GET" && url.pathname === "/health") {
+  if (request.method === "GET" && (url.pathname === "/health" || url.pathname === "/api/health")) {
     sendJson(response, 200, { ok: true });
     return;
   }
   if (request.method === "GET" && url.pathname === "/api/admin/summary") {
+    if (!isAdminAuthorized(request, response)) return;
     sendJson(response, 200, store.getAdminSummary());
     return;
   }
@@ -187,6 +190,25 @@ function setCors(response: ServerResponse): void {
 function sendJson(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(body));
+}
+
+function isAdminAuthorized(request: IncomingMessage, response: ServerResponse): boolean {
+  if (!ADMIN_TOKEN) {
+    sendJson(response, 503, { error: "admin_auth_not_configured" });
+    return false;
+  }
+  const suppliedToken = request.headers["x-synvibe-admin-token"];
+  if (typeof suppliedToken !== "string" || !tokensEqual(suppliedToken, ADMIN_TOKEN)) {
+    sendJson(response, 401, { error: "admin_auth_required" });
+    return false;
+  }
+  return true;
+}
+
+function tokensEqual(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }
 
 async function readJson(request: IncomingMessage): Promise<Record<string, unknown>> {
