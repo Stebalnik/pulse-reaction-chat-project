@@ -65,6 +65,20 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     sendJson(response, 200, store.upsertProfile(input));
     return;
   }
+  if (request.method === "GET" && url.pathname === "/api/profiles") {
+    const localUserId = url.searchParams.get("localUserId");
+    if (!localUserId) {
+      sendJson(response, 400, { error: "missing_local_user_id" });
+      return;
+    }
+    const profile = store.getProfileByLocalUserId(localUserId.slice(0, 64));
+    if (!profile) {
+      sendJson(response, 404, { error: "profile_not_found" });
+      return;
+    }
+    sendJson(response, 200, profile);
+    return;
+  }
   if (request.method === "POST" && url.pathname === "/api/sessions") {
     const body = await readJson(request);
     const input: SessionRequest = {

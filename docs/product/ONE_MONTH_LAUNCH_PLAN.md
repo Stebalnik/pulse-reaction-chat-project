@@ -27,7 +27,7 @@ The beta must describe outputs as physiological dynamics relative to baseline. I
 - Local port `1059` configured for development.
 - Connect desktop client to existing signaling server or local signaling adapter.
 - Camera permission flow, preview, pause, and call teardown.
-- Basic roulette matching flow with block/report placeholders.
+- Basic roulette matching flow with report/block controls.
 - Shared event and session schemas drafted.
 
 Exit criteria:
@@ -39,7 +39,7 @@ Exit criteria:
 Current status:
 
 - Public routes exist: `/`, `/room`, `/admin`, `/admin/debug`.
-- Real signaling, room queue, server profiles, operational analytics storage, and adults-only room acknowledgement are implemented in the backend MVP branch stack.
+- Real signaling, room queue, server profile save/load for the current anonymous user ID, operational analytics storage, and adults-only room acknowledgement are implemented in the backend MVP branch stack.
 
 ## Week 2 — First pulse pipeline
 

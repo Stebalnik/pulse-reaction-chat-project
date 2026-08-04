@@ -47,6 +47,7 @@ Endpoints:
 - `GET /health`
 - `GET /api/health`
 - `POST /api/users/anonymous`
+- `GET /api/profiles?localUserId=...`
 - `POST /api/profiles`
 - `POST /api/sessions`
 - `POST /api/sessions/end`

@@ -184,6 +184,12 @@ export class SynVibeStore {
     return record;
   }
 
+  getProfileByLocalUserId(localUserId: string): ProfileRecord | null {
+    const user = this.upsertAnonymousUser(localUserId);
+    const row = this.queryOne<ProfileRow>(`SELECT * FROM profiles WHERE user_id = ${sql(user.id)};`);
+    return row ? mapProfile(row) : null;
+  }
+
   createSession(input: SessionRequest): SessionRecord {
     const user = this.upsertAnonymousUser(input.localUserId);
     const now = new Date().toISOString();

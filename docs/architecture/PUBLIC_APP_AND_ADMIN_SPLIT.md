@@ -22,7 +22,7 @@ Server-backed identity now has a first MVP implementation in `apps/signaling-bac
 - `moderation_reports`: report/block actions with coarse safety reason, reporter/reported user IDs, optional match linkage, and no raw media or biometric traces;
 - `reaction_outputs`: cleaned output only, with model version, method version, confidence, quality metrics, reason codes, and no raw video.
 
-The browser client posts anonymous user/profile/event records when the API is available and falls back to local-only behavior when it is not.
+The browser client posts anonymous user/profile/event records when the API is available, loads the server profile for the current anonymous ID, and falls back to local-only profile behavior when the backend is not reachable.
 
 The public room is adults-only. Browser entry and direct `/room` navigation require local adults-only acknowledgement before matching begins. The acknowledgement is also posted to `POST /api/consent-events` when the backend is available.
 

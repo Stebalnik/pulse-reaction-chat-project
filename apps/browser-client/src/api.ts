@@ -25,6 +25,16 @@ export async function saveServerProfile(input: {
   return post<ProfileRecord>("/api/profiles", input);
 }
 
+export async function loadServerProfile(localUserId: string): Promise<ProfileRecord | null> {
+  try {
+    const response = await fetch(`${API_ORIGIN}/api/profiles?localUserId=${encodeURIComponent(localUserId)}`);
+    if (!response.ok) return null;
+    return (await response.json()) as ProfileRecord;
+  } catch {
+    return null;
+  }
+}
+
 export async function createServerSession(localUserId: string, route: string): Promise<SessionRecord | null> {
   return post<SessionRecord>("/api/sessions", { localUserId, route });
 }

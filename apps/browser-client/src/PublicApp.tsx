@@ -9,6 +9,7 @@ import {
   joinMatchmaking,
   leaveMatchmaking,
   loadMatchmakingStatus,
+  loadServerProfile,
   loadSignals,
   recordConsentEvent,
   recordEvent,
@@ -27,6 +28,7 @@ export function PublicApp(): JSX.Element {
   const userId = useMemo(() => getOrCreateAnonymousUserId(), []);
   const [profile, setProfile] = useState<LocalProfile | null>(() => loadLocalProfile());
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [profileSyncStatus, setProfileSyncStatus] = useState<"unknown" | "server" | "local_only">("unknown");
   const [safetyGateOpen, setSafetyGateOpen] = useState(false);
   const [adultChatAccepted, setAdultChatAccepted] = useState(() => window.localStorage.getItem(ADULT_CHAT_CONSENT_KEY) === ADULT_CHAT_POLICY_VERSION);
   const [inRoom, setInRoom] = useState(location.pathname === "/room");
@@ -44,6 +46,12 @@ export function PublicApp(): JSX.Element {
   useEffect(() => {
     void ensureAnonymousUser(userId);
     void recordEvent({ localUserId: userId, type: "visit", route: location.pathname });
+    void loadServerProfile(userId).then((serverProfile) => {
+      if (!serverProfile) return;
+      const saved = saveLocalProfile({ displayName: serverProfile.displayName, handle: serverProfile.handle });
+      setProfile(saved);
+      setProfileSyncStatus("server");
+    });
   }, [userId]);
 
   useEffect(() => {
@@ -89,7 +97,7 @@ export function PublicApp(): JSX.Element {
           }}
         />
       ) : (
-        <PublicHome userId={userId} profile={profile} onEnterRoom={enterRoom} onRegister={() => setRegisterOpen(true)} />
+        <PublicHome userId={userId} profile={profile} profileSyncStatus={profileSyncStatus} onEnterRoom={enterRoom} onRegister={() => setRegisterOpen(true)} />
       )}
 
       {registerOpen && (
@@ -99,7 +107,9 @@ export function PublicApp(): JSX.Element {
           onSave={(next) => {
             const saved = saveLocalProfile(next);
             setProfile(saved);
-            void saveServerProfile({ localUserId: userId, displayName: saved.displayName, handle: saved.handle });
+            void saveServerProfile({ localUserId: userId, displayName: saved.displayName, handle: saved.handle }).then((serverProfile) => {
+              setProfileSyncStatus(serverProfile ? "server" : "local_only");
+            });
             setRegisterOpen(false);
           }}
         />
@@ -137,11 +147,13 @@ function acceptAdultChatTerms(userId: string): void {
 function PublicHome({
   userId,
   profile,
+  profileSyncStatus,
   onEnterRoom,
   onRegister
 }: {
   userId: string;
   profile: LocalProfile | null;
+  profileSyncStatus: "unknown" | "server" | "local_only";
   onEnterRoom: () => void;
   onRegister: () => void;
 }): JSX.Element {
@@ -152,8 +164,8 @@ function PublicHome({
           <span className="productSignal">Live video roulette</span>
           <h1>See reaction patterns while you talk.</h1>
           <p>
-            Start instantly as {profile?.displayName ?? "a guest"}. Your device receives an ID now; a registered profile can unlock
-            saved rooms and contact features later.
+            Start instantly as {profile?.displayName ?? "a guest"}. Your profile name can be saved to the SynVibe server for live matching,
+            while precise pulse data stays private by default.
           </p>
           <div className="heroActions">
             <button className="primaryAction" type="button" onClick={onEnterRoom}>
@@ -182,7 +194,7 @@ function PublicHome({
       <div className="publicStats">
         <MetricBlock label="Your ID" value={userId} />
         <MetricBlock label="Mode" value={profile ? "Registered profile" : "Guest access"} />
-        <MetricBlock label="Chat history" value={profile ? "Reserved" : "Registration required"} />
+        <MetricBlock label="Profile sync" value={profileSyncText(profileSyncStatus, profile)} />
       </div>
     </section>
   );
@@ -641,7 +653,7 @@ function RegisterDialog({
       >
         <div>
           <h2>Register profile</h2>
-          <p>Registration reserves your name on this device for the current MVP. Server accounts are the next release layer.</p>
+          <p>Registration saves your display name and handle for matching. It does not share precise pulse data with another participant.</p>
         </div>
         <label>
           Display name
@@ -696,6 +708,13 @@ function roomStatusText(status: MatchmakingStatus, online: boolean): string {
   if (status.status === "matched") return `Matched with ${status.match.peer.displayName ?? status.match.peer.localUserId}`;
   if (status.status === "waiting") return `Waiting in queue, position ${status.queuePosition}`;
   return "Ready to match";
+}
+
+function profileSyncText(status: "unknown" | "server" | "local_only", profile: LocalProfile | null): string {
+  if (!profile) return "Not registered";
+  if (status === "server") return "Server saved";
+  if (status === "local_only") return "Local only";
+  return "Checking";
 }
 
 function ensurePeerConnection({

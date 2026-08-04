@@ -79,6 +79,26 @@ test("ending a session records exit state for admin duration metrics", () => {
   }
 });
 
+test("profiles can be loaded and updated by anonymous user id", () => {
+  const dir = mkdtempSync(join(tmpdir(), "synvibe-profile-"));
+  try {
+    const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
+    const localUserId = "SV-PROFIL-000001";
+
+    assert.equal(store.getProfileByLocalUserId(localUserId), null);
+    const first = store.upsertProfile({ localUserId, displayName: "Mira", handle: "mira" });
+    const loaded = store.getProfileByLocalUserId(localUserId);
+    const updated = store.upsertProfile({ localUserId, displayName: "Mira K", handle: "mira_k" });
+
+    assert.equal(loaded?.id, first.id);
+    assert.equal(loaded?.displayName, "Mira");
+    assert.equal(updated.id, first.id);
+    assert.equal(store.getProfileByLocalUserId(localUserId)?.handle, "mira_k");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("matchmaking pairs queued users and supports blocking the match", () => {
   const dir = mkdtempSync(join(tmpdir(), "synvibe-match-"));
   try {
