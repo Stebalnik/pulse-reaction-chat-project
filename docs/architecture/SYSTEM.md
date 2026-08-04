@@ -14,12 +14,14 @@
 
 ### Signaling/backend
 
-- authentication and age gating;
+- anonymous users, optional registered profiles, authentication, and age gating;
 - matchmaking;
 - WebRTC signaling;
+- operational sessions and analytics events;
 - feature flags and model versions;
 - abuse prevention;
 - optional aggregate telemetry with explicit consent;
+- cleaned reaction-pattern output storage for consented product improvement;
 - no default raw-video storage.
 
 ## Processing pipeline
@@ -72,3 +74,12 @@ UI updates must be smoothed and delayed enough to avoid flashing artifacts. The 
 ## Data contracts
 
 Use schemas in `schemas/`. Raw estimates, quality decisions, baseline state, and reaction state must be independently versioned.
+
+## Current implementation notes
+
+- `packages/rppg-engine` implements the first on-device RGB trace to HR-estimate core.
+- The package starts after face/ROI extraction and before baseline/reaction inference.
+- It must remain usable in a desktop renderer, Web Worker, or browser client without server-side video processing.
+- `apps/browser-client` now provides public routes at `/` and `/room`, plus admin routes at `/admin` and `/admin/debug`.
+- The current public room is a shell; real matching and signaling are still backend work.
+- The next backend milestone should add own-server storage for users, profiles, sessions, analytics events, consent events, room events, and cleaned outputs. Raw video and raw biometric traces remain out of default storage.

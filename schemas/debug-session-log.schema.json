@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DebugSessionLog",
+  "type": "object",
+  "required": ["schemaVersion", "sessionId", "startedAtIso", "updatedAtIso", "eventCount", "assumptions", "events"],
+  "properties": {
+    "schemaVersion": {"const": "debug-session-log-0.1.1"},
+    "sessionId": {"type": "string"},
+    "startedAtIso": {"type": "string"},
+    "updatedAtIso": {"type": "string"},
+    "eventCount": {"type": "integer", "minimum": 0},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["timestampMs", "wallClockIso", "eventType", "roi", "estimate", "diagnostics", "regionAgreement", "trend", "badge", "sampling", "calibration"],
+        "properties": {
+          "timestampMs": {"type": "number"},
+          "wallClockIso": {"type": "string"},
+          "eventType": {"const": "frame"},
+          "cameraEnabled": {"type": "boolean"},
+          "analysisEnabled": {"type": "boolean"},
+          "video": {
+            "type": "object",
+            "properties": {
+              "width": {"type": "integer"},
+              "height": {"type": "integer"}
+            }
+          },
+          "roi": {
+            "type": "object",
+            "required": ["source", "areaRatio", "validRegionCount", "regionCount", "skinCoverage", "landmarkCount"],
+            "properties": {
+              "source": {"enum": ["mediapipe", "face", "skin", "fallback"]},
+              "detectorSupported": {"type": "boolean"},
+              "landmarkCount": {"type": "integer", "minimum": 0},
+              "x": {"type": "number"},
+              "y": {"type": "number"},
+              "width": {"type": "number"},
+              "height": {"type": "number"},
+              "areaRatio": {"type": "number"},
+              "validRegionCount": {"type": "integer"},
+              "regionCount": {"type": "integer"},
+              "skinCoverage": {"type": "number", "minimum": 0, "maximum": 1}
+            }
+          },
+          "estimate": {"type": "object"},
+          "diagnostics": {"type": "object"},
+          "regionAgreement": {
+            "type": "object",
+            "required": ["validGroupCount", "spreadBpm", "stable", "estimates"],
+            "properties": {
+              "validGroupCount": {"type": "integer", "minimum": 0, "maximum": 3},
+              "spreadBpm": {"type": ["number", "null"], "minimum": 0},
+              "stable": {"type": ["boolean", "null"]},
+              "estimates": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["groupId", "bpm", "signalQuality", "sampleCount", "reasonCodes"],
+                  "properties": {
+                    "groupId": {"enum": ["forehead", "left-cheek", "right-cheek"]},
+                    "bpm": {"type": ["number", "null"]},
+                    "signalQuality": {"type": "number", "minimum": 0, "maximum": 1},
+                    "sampleCount": {"type": "integer", "minimum": 0},
+                    "reasonCodes": {"type": "array", "items": {"type": "string"}}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "trend": {"type": "object"},
+          "badge": {"type": "object"},
+          "sampling": {"type": "object"},
+          "calibration": {
+            "type": "object",
+            "required": ["groundTruthBpm", "selectedReferenceMethod", "closestMethod", "methodErrors"],
+            "properties": {
+              "groundTruthBpm": {"type": ["number", "null"], "minimum": 35, "maximum": 220},
+              "selectedReferenceMethod": {"type": ["string", "null"], "enum": ["GREEN", "CHROM", "POS", null]},
+              "closestMethod": {"type": ["string", "null"], "enum": ["GREEN", "CHROM", "POS", "PEAK_INTERVAL", null]},
+              "methodErrors": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["method", "errorBpm"],
+                  "properties": {
+                    "method": {"enum": ["GREEN", "CHROM", "POS", "PEAK_INTERVAL"]},
+                    "errorBpm": {"type": ["number", "null"], "minimum": 0}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -4,6 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "echo \"browser-client scaffold only\""
+    "dev": "vite --host 127.0.0.1 --port 1059",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 1059",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.0",
+    "@pulse-reaction/rppg-engine": "workspace:*",
+    "@vitejs/plugin-react": "^6.0.4",
+    "lucide-react": "^1.27.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "vite": "^8.1.5"
   }
 }

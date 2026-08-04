@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReactionBadge",
+  "type": "object",
+  "required": ["schemaVersion", "code", "sourceState", "confidence", "modelVersion"],
+  "properties": {
+    "schemaVersion": {"const": "reaction-badge-0.1.0"},
+    "code": {
+      "enum": ["STATIC", "TUNING", "STEADY", "SOFT_LIFT", "QUICK_LIFT", "SURGE", "PEAK", "SETTLING", "COOLDOWN"]
+    },
+    "sourceState": {
+      "enum": ["INSUFFICIENT_SIGNAL", "CALIBRATING_BASELINE", "NEAR_BASELINE", "POSSIBLE_ACTIVATION", "HIGH_ACTIVATION", "RECOVERY"]
+    },
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "modelVersion": {"type": "string"},
+    "reasonCodes": {"type": "array", "items": {"type": "string"}},
+    "alternativeExplanations": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

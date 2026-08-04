@@ -1,0 +1,636 @@
+import {
+  estimateHeartRateDiagnostics,
+  projectChrom,
+  projectGreen,
+  projectPos,
+  type HeartRateDiagnostics,
+  type HeartRateEstimate,
+  type ReasonCode,
+  type RgbTraceSample
+} from "@pulse-reaction/rppg-engine";
+
+export interface RoiRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface RoiPoint {
+  x: number;
+  y: number;
+}
+
+export interface PulseRoiRegion extends RoiRect {
+  id: string;
+  polygon?: RoiPoint[];
+}
+
+export interface PulseSamplerSnapshot {
+  sampleCount: number;
+  sampleRateHz: number;
+  skinCoverage: number;
+  validRegionCount: number;
+  estimate: HeartRateEstimate;
+  diagnostics: HeartRateDiagnostics;
+  signals: PulseMethodSignal[];
+  regionAgreement: PulseRegionAgreement;
+}
+
+export interface PulseMethodSignal {
+  method: "GREEN" | "CHROM" | "POS";
+  points: number[];
+  latest: number | null;
+}
+
+export interface PulseRegionEstimate {
+  groupId: PulseRegionGroupId;
+  bpm: number | null;
+  signalQuality: number;
+  sampleCount: number;
+  reasonCodes: ReasonCode[];
+}
+
+export interface PulseRegionAgreement {
+  estimates: PulseRegionEstimate[];
+  validGroupCount: number;
+  spreadBpm: number | null;
+  stable: boolean | null;
+}
+
+type PulseRegionGroupId = "forehead" | "left-cheek" | "right-cheek";
+
+const MAX_TRACE_MS = 24_000;
+const MIN_REGION_AGREEMENT_GROUPS = 2;
+const MAX_REGION_AGREEMENT_SPREAD_BPM = 14;
+const REGION_AGREEMENT_MIN_QUALITY = 0.2;
+const TEMPORAL_HISTORY_MS = 24_000;
+const TEMPORAL_HISTORY_SIZE = 12;
+const MIN_TEMPORAL_HISTORY = 5;
+const MAX_LOW_CONFIDENCE_JUMP_BPM = 16;
+const TEMPORAL_OUTLIER_QUALITY_GATE = 0.5;
+const TEMPORAL_OUTLIER_CONFIRM_MS = 8_000;
+const TEMPORAL_OUTLIER_CONFIRM_COUNT = 8;
+const TEMPORAL_OUTLIER_CLUSTER_BPM = 8;
+const METHOD_AGREEMENT_FAST_CONFIRM_MS = 3_000;
+const METHOD_AGREEMENT_FAST_CONFIRM_COUNT = 3;
+const METHOD_AGREEMENT_FAST_CONFIRM_SPREAD_BPM = 2;
+const METHOD_AGREEMENT_FAST_CONFIRM_MIN_METHODS = 3;
+const METHOD_AGREEMENT_FAST_CONFIRM_MIN_QUALITY = 0.32;
+const MIN_REGION_SKIN_COVERAGE = 0.08;
+const MIN_REGION_SKIN_PIXELS = 24;
+const MAX_REGION_LUMA_DEVIATION = 0.38;
+
+interface BpmHistoryEntry {
+  timestampMs: number;
+  bpm: number;
+}
+
+interface PendingTemporalJump {
+  startedAtMs: number;
+  lastSeenAtMs: number;
+  centerBpm: number;
+  count: number;
+}
+
+export class PulseSampler {
+  private readonly canvas = document.createElement("canvas");
+  private readonly context = this.canvas.getContext("2d", { willReadFrequently: true });
+  private readonly samples: RgbTraceSample[] = [];
+  private readonly regionSamples = new Map<PulseRegionGroupId, RgbTraceSample[]>();
+  private readonly acceptedBpmHistory: BpmHistoryEntry[] = [];
+  private pendingTemporalJump: PendingTemporalJump | null = null;
+  private previousLuma: number | null = null;
+
+  sample(video: HTMLVideoElement, regions: readonly PulseRoiRegion[], timestampMs = performance.now()): PulseSamplerSnapshot | null {
+    if (!this.context || video.videoWidth <= 0 || video.videoHeight <= 0) {
+      return null;
+    }
+
+    this.canvas.width = video.videoWidth;
+    this.canvas.height = video.videoHeight;
+    this.context.drawImage(video, 0, 0, this.canvas.width, this.canvas.height);
+
+    if (regions.length === 0) {
+      return null;
+    }
+
+    const skin = averageSkinRegions(this.context, regions, this.canvas.width, this.canvas.height);
+    const channels = skin.channels;
+    const illumination = (channels.r + channels.g + channels.b) / 3;
+    const normalized = normalizeChromaticity(channels, illumination);
+    const motionScore =
+      this.previousLuma === null ? 0 : Math.min(1, Math.abs(illumination - this.previousLuma) / Math.max(illumination, 1));
+    this.previousLuma = illumination;
+
+    const lastSample = this.samples.at(-1);
+    if (lastSample && timestampMs <= lastSample.timestampMs) {
+      return null;
+    }
+
+    const now = timestampMs;
+    this.samples.push({
+      timestampMs: now,
+      r: normalized.r,
+      g: normalized.g,
+      b: normalized.b,
+      roiCoverage: skin.coverage,
+      motionScore,
+      illumination
+    });
+    this.pushRegionSamples(skin.groupSamples, now, motionScore);
+
+    while (this.samples.length > 0 && now - this.samples[0]!.timestampMs > MAX_TRACE_MS) {
+      this.samples.shift();
+    }
+    for (const samples of this.regionSamples.values()) {
+      while (samples.length > 0 && now - samples[0]!.timestampMs > MAX_TRACE_MS) {
+        samples.shift();
+      }
+    }
+
+    const engineConfig = browserEngineConfig();
+    const regionAgreement = estimateRegionAgreement(this.regionSamples, engineConfig);
+    const diagnostics = stabilizeDiagnostics(
+      applyRegionAgreementGate(estimateHeartRateDiagnostics(this.samples, engineConfig), regionAgreement),
+      this.acceptedBpmHistory,
+      this.pendingTemporalJump
+    );
+    this.pendingTemporalJump = diagnostics.pendingTemporalJump;
+
+    return {
+      sampleCount: this.samples.length,
+      sampleRateHz: sampleRateHz(this.samples),
+      skinCoverage: skin.coverage,
+      validRegionCount: skin.validRegionCount,
+      estimate: diagnostics.diagnostics.estimate,
+      diagnostics: diagnostics.diagnostics,
+      signals: methodSignals(this.samples),
+      regionAgreement
+    };
+  }
+
+  reset(): void {
+    this.samples.length = 0;
+    this.regionSamples.clear();
+    this.acceptedBpmHistory.length = 0;
+    this.pendingTemporalJump = null;
+    this.previousLuma = null;
+  }
+
+  private pushRegionSamples(groupSamples: readonly PulseRegionGroupSample[], timestampMs: number, motionScore: number): void {
+    for (const group of groupSamples) {
+      const illumination = (group.channels.r + group.channels.g + group.channels.b) / 3;
+      const normalized = normalizeChromaticity(group.channels, illumination);
+      const samples = this.regionSamples.get(group.groupId) ?? [];
+      samples.push({
+        timestampMs,
+        r: normalized.r,
+        g: normalized.g,
+        b: normalized.b,
+        roiCoverage: group.coverage,
+        motionScore,
+        illumination
+      });
+      this.regionSamples.set(group.groupId, samples);
+    }
+  }
+}
+
+function browserEngineConfig() {
+  return {
+    method: "FUSION" as const,
+    minWindowMs: 12_000,
+    minSamples: 180,
+    minRoiCoverage: 0.18,
+    maxRoiCoverageStd: 0.22,
+    minSpectralQuality: 0.18,
+    maxMotionScore: 0.75,
+    maxIlluminationInstability: 0.28,
+    maxFusionBpmSpread: 10,
+    hrBandHz: {
+      min: 0.85,
+      max: 3.2
+    }
+  };
+}
+
+function estimateRegionAgreement(
+  regionSamples: ReadonlyMap<PulseRegionGroupId, readonly RgbTraceSample[]>,
+  engineConfig: ReturnType<typeof browserEngineConfig>
+): PulseRegionAgreement {
+  const estimates = (["forehead", "left-cheek", "right-cheek"] as const).map((groupId) => {
+    const samples = regionSamples.get(groupId) ?? [];
+    const diagnostics = estimateHeartRateDiagnostics(samples, {
+      ...engineConfig,
+      minRoiCoverage: 0.05,
+      maxRoiCoverageStd: 0.32,
+      minSpectralQuality: REGION_AGREEMENT_MIN_QUALITY
+    });
+    return {
+      groupId,
+      bpm: diagnostics.estimate.bpm === null ? null : Math.round(diagnostics.estimate.bpm * 100) / 100,
+      signalQuality: Math.round(diagnostics.estimate.signalQuality * 10_000) / 10_000,
+      sampleCount: samples.length,
+      reasonCodes: diagnostics.estimate.reasonCodes
+    };
+  });
+  const valid = estimates.filter(
+    (estimate) => estimate.bpm !== null && estimate.signalQuality >= REGION_AGREEMENT_MIN_QUALITY && estimate.reasonCodes.length === 0
+  );
+  const spreadBpm =
+    valid.length >= MIN_REGION_AGREEMENT_GROUPS
+      ? Math.max(...valid.map((estimate) => estimate.bpm ?? 0)) - Math.min(...valid.map((estimate) => estimate.bpm ?? 0))
+      : null;
+  return {
+    estimates,
+    validGroupCount: valid.length,
+    spreadBpm: spreadBpm === null ? null : Math.round(spreadBpm * 100) / 100,
+    stable: spreadBpm === null ? null : spreadBpm <= MAX_REGION_AGREEMENT_SPREAD_BPM
+  };
+}
+
+function applyRegionAgreementGate(diagnostics: HeartRateDiagnostics, agreement: PulseRegionAgreement): HeartRateDiagnostics {
+  if (diagnostics.estimate.bpm === null || agreement.stable !== false) return diagnostics;
+  return {
+    ...diagnostics,
+    estimate: {
+      ...diagnostics.estimate,
+      bpm: null,
+      signalQuality: 0,
+      confidence: "invalid",
+      reasonCodes: uniqueReasonCodes([...diagnostics.estimate.reasonCodes, "ROI_REGIONS_DISAGREE"])
+    }
+  };
+}
+
+function stabilizeDiagnostics(
+  diagnostics: HeartRateDiagnostics,
+  acceptedHistory: BpmHistoryEntry[],
+  pendingTemporalJump: PendingTemporalJump | null
+): { diagnostics: HeartRateDiagnostics; pendingTemporalJump: PendingTemporalJump | null } {
+  const estimate = diagnostics.estimate;
+  if (estimate.bpm === null || estimate.confidence === "invalid") {
+    return { diagnostics, pendingTemporalJump };
+  }
+
+  const recent = recentHistory(acceptedHistory, estimate.timestampMs);
+  if (recent.length >= MIN_TEMPORAL_HISTORY && isLowConfidenceJump(estimate, recent)) {
+    const nextPending = updatePendingTemporalJump(pendingTemporalJump, estimate);
+    const strongMethodAgreement = hasStrongMethodAgreement(diagnostics);
+    if (!isConfirmedTemporalJump(nextPending, estimate.timestampMs, strongMethodAgreement)) {
+      return {
+        diagnostics: {
+          ...diagnostics,
+          estimate: temporalOutlierEstimate(estimate)
+        },
+        pendingTemporalJump: nextPending
+      };
+    }
+  } else {
+    pendingTemporalJump = null;
+  }
+
+  acceptedHistory.push({ timestampMs: estimate.timestampMs, bpm: estimate.bpm });
+  while (
+    acceptedHistory.length > TEMPORAL_HISTORY_SIZE ||
+    (acceptedHistory.length > 0 && estimate.timestampMs - acceptedHistory[0]!.timestampMs > TEMPORAL_HISTORY_MS)
+  ) {
+    acceptedHistory.shift();
+  }
+
+  return { diagnostics, pendingTemporalJump: null };
+}
+
+function recentHistory(history: readonly BpmHistoryEntry[], timestampMs: number): BpmHistoryEntry[] {
+  return history.filter((entry) => timestampMs - entry.timestampMs <= TEMPORAL_HISTORY_MS);
+}
+
+function isLowConfidenceJump(estimate: HeartRateEstimate, recent: readonly BpmHistoryEntry[]): boolean {
+  if (estimate.bpm === null || estimate.signalQuality >= TEMPORAL_OUTLIER_QUALITY_GATE) return false;
+  const baselineBpm = median(recent.map((entry) => entry.bpm));
+  return Math.abs(estimate.bpm - baselineBpm) > MAX_LOW_CONFIDENCE_JUMP_BPM;
+}
+
+function updatePendingTemporalJump(pending: PendingTemporalJump | null, estimate: HeartRateEstimate): PendingTemporalJump {
+  const bpm = estimate.bpm ?? 0;
+  if (!pending || Math.abs(bpm - pending.centerBpm) > TEMPORAL_OUTLIER_CLUSTER_BPM) {
+    return {
+      startedAtMs: estimate.timestampMs,
+      lastSeenAtMs: estimate.timestampMs,
+      centerBpm: bpm,
+      count: 1
+    };
+  }
+
+  const count = pending.count + 1;
+  return {
+    startedAtMs: pending.startedAtMs,
+    lastSeenAtMs: estimate.timestampMs,
+    centerBpm: pending.centerBpm + (bpm - pending.centerBpm) / count,
+    count
+  };
+}
+
+function isConfirmedTemporalJump(pending: PendingTemporalJump, timestampMs: number, strongMethodAgreement: boolean): boolean {
+  const confirmMs = strongMethodAgreement ? METHOD_AGREEMENT_FAST_CONFIRM_MS : TEMPORAL_OUTLIER_CONFIRM_MS;
+  const confirmCount = strongMethodAgreement ? METHOD_AGREEMENT_FAST_CONFIRM_COUNT : TEMPORAL_OUTLIER_CONFIRM_COUNT;
+  return timestampMs - pending.startedAtMs >= confirmMs && pending.count >= confirmCount;
+}
+
+function hasStrongMethodAgreement(diagnostics: HeartRateDiagnostics): boolean {
+  const validMethods = diagnostics.methodEstimates.filter(
+    (estimate) =>
+      (estimate.method === "CHROM" || estimate.method === "POS" || estimate.method === "GREEN") &&
+      estimate.bpm !== null &&
+      estimate.signalQuality >= METHOD_AGREEMENT_FAST_CONFIRM_MIN_QUALITY &&
+      estimate.reasonCodes.length === 0
+  );
+  if (validMethods.length < METHOD_AGREEMENT_FAST_CONFIRM_MIN_METHODS) return false;
+  const bpms = validMethods.map((estimate) => estimate.bpm ?? 0);
+  return Math.max(...bpms) - Math.min(...bpms) <= METHOD_AGREEMENT_FAST_CONFIRM_SPREAD_BPM;
+}
+
+function temporalOutlierEstimate(estimate: HeartRateEstimate): HeartRateEstimate {
+  return {
+    ...estimate,
+    bpm: null,
+    signalQuality: 0,
+    confidence: "invalid",
+    reasonCodes: uniqueReasonCodes([...estimate.reasonCodes, "TEMPORAL_OUTLIER"])
+  };
+}
+
+function uniqueReasonCodes(reasonCodes: readonly ReasonCode[]): ReasonCode[] {
+  return [...new Set(reasonCodes)];
+}
+
+function median(values: readonly number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1]! + sorted[mid]!) / 2 : sorted[mid]!;
+}
+
+function methodSignals(samples: readonly RgbTraceSample[]): PulseMethodSignal[] {
+  const green = projectGreen(samples).signal;
+  const chrom = projectChrom(samples).signal;
+  const pos = projectPos(samples).signal;
+  return [
+    { method: "GREEN", points: previewPoints(green), latest: latestCentered(green) },
+    { method: "CHROM", points: previewPoints(chrom), latest: latestCentered(chrom) },
+    { method: "POS", points: previewPoints(pos), latest: latestCentered(pos) }
+  ];
+}
+
+function previewPoints(signal: readonly number[], outputCount = 64): number[] {
+  const source = signal.slice(-240);
+  if (source.length < 3) return [];
+  const centered = centerSignal(source);
+  if (centered.length <= outputCount) return centered;
+  const stride = centered.length / outputCount;
+  return Array.from({ length: outputCount }, (_, index) => centered[Math.min(centered.length - 1, Math.floor(index * stride))]!);
+}
+
+function latestCentered(signal: readonly number[]): number | null {
+  const centered = centerSignal(signal.slice(-240));
+  return centered.at(-1) ?? null;
+}
+
+function centerSignal(signal: readonly number[]): number[] {
+  if (signal.length === 0) return [];
+  const meanValue = signal.reduce((sum, value) => sum + value, 0) / signal.length;
+  const centered = signal.map((value) => value - meanValue);
+  const maxAbs = Math.max(...centered.map((value) => Math.abs(value)), 1e-9);
+  return centered.map((value) => Math.max(-1, Math.min(1, value / maxAbs)));
+}
+
+function normalizeChromaticity(
+  channels: { r: number; g: number; b: number },
+  illumination: number
+): { r: number; g: number; b: number } {
+  const scale = 100 / Math.max(illumination, 1);
+  return {
+    r: channels.r * scale,
+    g: channels.g * scale,
+    b: channels.b * scale
+  };
+}
+
+function sampleRateHz(samples: readonly RgbTraceSample[]): number {
+  if (samples.length < 2) return 0;
+  const first = samples[0]!.timestampMs;
+  const last = samples[samples.length - 1]!.timestampMs;
+  const seconds = (last - first) / 1000;
+  return seconds > 0 ? (samples.length - 1) / seconds : 0;
+}
+
+function clampRoi(roi: RoiRect, width: number, height: number): RoiRect {
+  const x = Math.max(0, Math.min(width - 1, Math.round(roi.x)));
+  const y = Math.max(0, Math.min(height - 1, Math.round(roi.y)));
+  const maxWidth = width - x;
+  const maxHeight = height - y;
+  return {
+    x,
+    y,
+    width: Math.max(1, Math.min(maxWidth, Math.round(roi.width))),
+    height: Math.max(1, Math.min(maxHeight, Math.round(roi.height)))
+  };
+}
+
+function averageSkinRegions(
+  context: CanvasRenderingContext2D,
+  regions: readonly PulseRoiRegion[],
+  width: number,
+  height: number
+): { channels: { r: number; g: number; b: number }; coverage: number; validRegionCount: number; groupSamples: PulseRegionGroupSample[] } {
+  let totalPixels = 0;
+  let totalSkinPixels = 0;
+  const validRegions: Array<{
+    groupId: PulseRegionGroupId;
+    channels: { r: number; g: number; b: number };
+    pixelCount: number;
+    skinPixelCount: number;
+    luma: number;
+  }> = [];
+
+  for (const region of regions) {
+    const rect = clampRoi(region, width, height);
+    if (rect.width <= 0 || rect.height <= 0) continue;
+    const image = context.getImageData(rect.x, rect.y, rect.width, rect.height);
+    const skin = averageSkinChannels(image.data, rect, region.polygon);
+    totalPixels += skin.pixelCount;
+    totalSkinPixels += skin.skinPixelCount;
+    if (skin.coverage >= MIN_REGION_SKIN_COVERAGE && skin.skinPixelCount >= MIN_REGION_SKIN_PIXELS) {
+      validRegions.push({
+        groupId: regionGroupId(region.id),
+        channels: skin.channels,
+        pixelCount: skin.pixelCount,
+        skinPixelCount: skin.skinPixelCount,
+        luma: luma(skin.channels)
+      });
+    }
+  }
+
+  if (totalSkinPixels === 0 || validRegions.length === 0) {
+    return {
+      channels: { r: 0, g: 0, b: 0 },
+      coverage: 0,
+      validRegionCount: 0,
+      groupSamples: []
+    };
+  }
+
+  const medianLuma = median(validRegions.map((region) => region.luma));
+  const acceptedRegions = validRegions.filter(
+    (region) => medianLuma <= 0 || Math.abs(region.luma - medianLuma) / medianLuma <= MAX_REGION_LUMA_DEVIATION
+  );
+  const regionsForAverage = acceptedRegions.length > 0 ? acceptedRegions : validRegions;
+  const weighted = weightedAverageRegions(regionsForAverage);
+
+  return {
+    channels: weighted,
+    coverage: totalPixels > 0 ? totalSkinPixels / totalPixels : 0,
+    validRegionCount: regionsForAverage.length,
+    groupSamples: groupRegionSamples(regionsForAverage)
+  };
+}
+
+interface PulseRegionGroupSample {
+  groupId: PulseRegionGroupId;
+  channels: { r: number; g: number; b: number };
+  coverage: number;
+}
+
+function groupRegionSamples(
+  regions: ReadonlyArray<{
+    groupId: PulseRegionGroupId;
+    channels: { r: number; g: number; b: number };
+    pixelCount: number;
+    skinPixelCount: number;
+  }>
+): PulseRegionGroupSample[] {
+  return (["forehead", "left-cheek", "right-cheek"] as const)
+    .map((groupId) => {
+      const groupRegions = regions.filter((region) => region.groupId === groupId);
+      if (groupRegions.length === 0) return null;
+      const pixelCount = groupRegions.reduce((sum, region) => sum + region.pixelCount, 0);
+      const skinPixelCount = groupRegions.reduce((sum, region) => sum + region.skinPixelCount, 0);
+      return {
+        groupId,
+        channels: weightedAverageRegions(groupRegions),
+        coverage: pixelCount > 0 ? skinPixelCount / pixelCount : 0
+      };
+    })
+    .filter((group): group is PulseRegionGroupSample => group !== null);
+}
+
+function regionGroupId(regionId: string): PulseRegionGroupId {
+  if (regionId.includes("left-cheek")) return "left-cheek";
+  if (regionId.includes("right-cheek")) return "right-cheek";
+  return "forehead";
+}
+
+function weightedAverageRegions(
+  regions: ReadonlyArray<{ channels: { r: number; g: number; b: number }; skinPixelCount: number }>
+): { r: number; g: number; b: number } {
+  const totalWeight = regions.reduce((sum, region) => sum + region.skinPixelCount, 0);
+  if (totalWeight <= 0) return { r: 0, g: 0, b: 0 };
+  return {
+    r: regions.reduce((sum, region) => sum + region.channels.r * region.skinPixelCount, 0) / totalWeight,
+    g: regions.reduce((sum, region) => sum + region.channels.g * region.skinPixelCount, 0) / totalWeight,
+    b: regions.reduce((sum, region) => sum + region.channels.b * region.skinPixelCount, 0) / totalWeight
+  };
+}
+
+function luma(channels: { r: number; g: number; b: number }): number {
+  return 0.299 * channels.r + 0.587 * channels.g + 0.114 * channels.b;
+}
+
+function averageSkinChannels(
+  data: Uint8ClampedArray,
+  rect: RoiRect,
+  polygon: readonly RoiPoint[] | undefined
+): {
+  channels: { r: number; g: number; b: number };
+  coverage: number;
+  pixelCount: number;
+  skinPixelCount: number;
+} {
+  let skinR = 0;
+  let skinG = 0;
+  let skinB = 0;
+  let skinPixels = 0;
+  const rectWidth = Math.round(rect.width);
+  const pixels = data.length / 4;
+  let maskPixels = 0;
+
+  for (let index = 0; index < data.length; index += 4) {
+    const pixelIndex = index / 4;
+    const localX = pixelIndex % rectWidth;
+    const localY = Math.floor(pixelIndex / rectWidth);
+    if (polygon && !pointInPolygon(rect.x + localX + 0.5, rect.y + localY + 0.5, polygon)) {
+      continue;
+    }
+    maskPixels += 1;
+    const r = data[index]!;
+    const g = data[index + 1]!;
+    const b = data[index + 2]!;
+    if (isSkinLike(r, g, b)) {
+      skinR += r;
+      skinG += g;
+      skinB += b;
+      skinPixels += 1;
+    }
+  }
+
+  if (skinPixels === 0) {
+    return {
+      channels: { r: 0, g: 0, b: 0 },
+      coverage: 0,
+      pixelCount: polygon ? maskPixels : pixels,
+      skinPixelCount: 0
+    };
+  }
+
+  return {
+    channels: {
+      r: skinR / skinPixels,
+      g: skinG / skinPixels,
+      b: skinB / skinPixels
+    },
+    coverage: skinPixels / Math.max(1, polygon ? maskPixels : pixels),
+    pixelCount: polygon ? maskPixels : pixels,
+    skinPixelCount: skinPixels
+  };
+}
+
+function pointInPolygon(x: number, y: number, polygon: readonly RoiPoint[]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const current = polygon[i]!;
+    const previous = polygon[j]!;
+    const intersects = current.y > y !== previous.y > y && x < ((previous.x - current.x) * (y - current.y)) / (previous.y - current.y) + current.x;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function isSkinLike(r: number, g: number, b: number): boolean {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const sum = r + g + b;
+  if (sum < 45 || max - min < 8) return false;
+
+  const nr = r / sum;
+  const ng = g / sum;
+  const nb = b / sum;
+  const y = 0.299 * r + 0.587 * g + 0.114 * b;
+  const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+  const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+
+  const normalizedRgbSkin = nr > 0.32 && nr < 0.62 && ng > 0.22 && ng < 0.44 && nb > 0.12 && nb < 0.36;
+  const yCbCrSkin = y > 35 && cb >= 77 && cb <= 135 && cr >= 133 && cr <= 180;
+  const simpleRgbSkin = r > 35 && g > 20 && b > 15 && r > b && max - min > 12;
+  return (normalizedRgbSkin && yCbCrSkin) || (simpleRgbSkin && yCbCrSkin);
+}

@@ -9,6 +9,8 @@ coverage/
 dist/
 build/
 tmp/
+.playwright-cli/
+output/
 .DS_Store
 research-data/raw/
 research-data/identifiable/

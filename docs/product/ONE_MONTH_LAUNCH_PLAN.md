@@ -1,11 +1,13 @@
 # One-month desktop launch plan
 
-Status: proposed  
-Date: 2026-07-26
+Status: active MVP plan  
+Date: 2026-08-03
 
 ## Goal
 
-Launch a desktop beta in one month that supports roulette-style video chat and local, consent-based pulse-trend estimation from facial video.
+Launch a small public beta in one month that supports roulette-style video chat and local, consent-based pulse-trend estimation from facial video.
+
+The fastest current path is browser-first on `synvibe.app`, with desktop packaging kept as a later distribution option.
 
 The beta must describe outputs as physiological dynamics relative to baseline. It must not claim to determine emotions, attraction, honesty, intent, compatibility, or medical status.
 
@@ -21,7 +23,7 @@ The beta must describe outputs as physiological dynamics relative to baseline. I
 
 ## Week 1 — Vertical skeleton
 
-- Desktop shell scaffold.
+- Browser public shell and admin/debug split.
 - Local port `1059` configured for development.
 - Connect desktop client to existing signaling server or local signaling adapter.
 - Camera permission flow, preview, pause, and call teardown.
@@ -30,16 +32,28 @@ The beta must describe outputs as physiological dynamics relative to baseline. I
 
 Exit criteria:
 
-- Two local desktop clients can connect through signaling and establish a WebRTC call.
+- Public routes exist for entry, room, admin, and debug.
+- Two local clients can connect through signaling and establish a WebRTC call.
 - Physiological analysis remains disabled until explicit consent is granted.
+
+Current status:
+
+- Public routes exist: `/`, `/room`, `/admin`, `/admin/debug`.
+- Real signaling, room queue, persistent profiles, and analytics storage are pending.
 
 ## Week 2 — First pulse pipeline
 
-- Face/ROI trace extraction prototype.
+- Face/skin ROI trace extraction prototype with explicit fallback and coverage metrics.
 - First transparent pulse estimator with versioned config.
 - Signal-quality score, reason codes, and invalid-window behavior.
-- Local-only debug display for own signal quality and own estimated pulse trend.
+- Continuous local-only debug display for own signal quality, FPS, and own estimated pulse trend while camera and analysis consent are active.
 - Synthetic fixtures and basic regression tests.
+
+Initial estimator package:
+
+- `packages/rppg-engine` accepts local RGB traces and returns schema-aligned HR estimates.
+- Methods: GREEN sanity baseline, CHROM, POS, and CHROM/POS fusion with agreement gate.
+- It has no camera, network, reaction inference, or storage behavior.
 
 Exit criteria:
 
@@ -49,7 +63,7 @@ Exit criteria:
 ## Week 3 — Baseline-relative reaction states
 
 - Personal baseline calibration phases.
-- Baseline-relative state machine for physiological dynamics.
+- Baseline-relative state machine for physiological dynamics, limited to broad neutral states such as insufficient signal, calibrating baseline, near baseline, possible activation, higher activation, and recovery.
 - Alternative explanations surfaced internally and in debug logs.
 - Product UI limited to broad, non-valenced trend indicators.
 - Consent copy and safety UX review.
@@ -61,7 +75,7 @@ Exit criteria:
 
 ## Week 4 — Beta readiness
 
-- Installer/package flow.
+- Production deploy flow and optional installer/package flow.
 - Crash/error logging without raw video or biometric time-series retention by default.
 - Opt-in research feedback flow.
 - Abuse controls, report/block path, and basic moderation hooks.
@@ -84,6 +98,7 @@ Exit criteria:
 
 ## Success metrics
 
+- Landing-to-room conversion.
 - Call setup success rate.
 - Camera permission success rate.
 - Percentage of sessions with sufficient signal for the local user.
