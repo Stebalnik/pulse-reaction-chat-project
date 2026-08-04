@@ -67,7 +67,15 @@ ssh "$SERVER_HOST" "
   systemctl enable '$SERVICE_NAME'
   systemctl restart '$SERVICE_NAME'
   systemctl --no-pager --lines=40 status '$SERVICE_NAME'
-  curl -fsS 'http://127.0.0.1:1060/api/health' >/dev/null
+  for attempt in \$(seq 1 20); do
+    if curl -fsS 'http://127.0.0.1:1060/api/health' >/dev/null; then
+      exit 0
+    fi
+    sleep 1
+  done
+  echo 'Backend health check did not pass within 20 seconds.' >&2
+  journalctl -u '$SERVICE_NAME' --no-pager -n 80 >&2
+  exit 46
 "
 
 if [ "$DEPLOY_NGINX" = "1" ]; then
