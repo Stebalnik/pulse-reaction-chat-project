@@ -103,7 +103,7 @@ export function AdminApp(): JSX.Element {
             value={formatCount(summary?.activeMatches)}
             detail={`${formatCount(summary?.waitingUsers)} waiting; ${formatNullableRate(summary?.callSetupSuccessRate)} call setup`}
           />
-          <AdminCard icon={<Bug aria-hidden="true" />} label="Events" value={formatCount(summary?.visits)} detail={`${formatCount(summary?.activeSessions)} active sessions`} />
+          <AdminCard icon={<Bug aria-hidden="true" />} label="Events" value={formatCount(summary?.visits)} detail={`${formatCount(summary?.chatMessages)} chat messages`} />
         </div>
       </section>
     </main>

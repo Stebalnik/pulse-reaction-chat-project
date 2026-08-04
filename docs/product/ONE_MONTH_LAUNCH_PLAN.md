@@ -39,7 +39,7 @@ Exit criteria:
 Current status:
 
 - Public routes exist: `/`, `/room`, `/admin`, `/admin/debug`.
-- Real signaling, room queue, server profile save/load for the current anonymous user ID, operational analytics storage, and adults-only room acknowledgement are implemented in the backend MVP branch stack.
+- Real signaling, room queue, active-match text chat, server profile save/load for the current anonymous user ID, operational analytics storage, and adults-only room acknowledgement are implemented in the backend MVP branch stack.
 
 ## Week 2 — First pulse pipeline
 
@@ -101,6 +101,7 @@ Exit criteria:
 - Landing-to-room conversion.
 - Call setup success rate.
 - Call disconnect and failure count.
+- Active-match chat message count.
 - Camera permission success rate.
 - Percentage of sessions with sufficient signal for the local user.
 - Abstention rate by reason code.

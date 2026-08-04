@@ -304,7 +304,7 @@ a {
   height: calc(100dvh - 66px);
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) minmax(160px, 0.34fr);
   padding: 16px;
   gap: 14px;
 }
@@ -519,6 +519,97 @@ a {
 .reactionChip.local_only {
   border-color: #bad8c8;
   background: rgb(234 247 239 / 92%);
+}
+
+.matchChatPanel {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  border: 1px solid #c9d4ce;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.matchChatHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.matchChatHeader span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #17231f;
+  font-weight: 800;
+}
+
+.matchChatHeader svg {
+  width: 18px;
+  height: 18px;
+}
+
+.matchChatHeader strong {
+  color: #687a72;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.matchMessages {
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.matchMessages p {
+  margin: auto;
+  color: #687a72;
+  font-size: 13px;
+}
+
+.matchMessage {
+  max-width: min(72ch, 82%);
+  border-radius: 8px;
+  padding: 9px 10px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.matchMessage.you {
+  align-self: flex-end;
+  background: #226a54;
+  color: #ffffff;
+}
+
+.matchMessage.peer {
+  align-self: flex-start;
+  background: #eef3f0;
+  color: #1d2924;
+}
+
+.matchComposer {
+  display: flex;
+  gap: 8px;
+}
+
+.matchComposer input {
+  min-width: 0;
+  flex: 1;
+  height: 38px;
+  border: 1px solid #bac7c1;
+  border-radius: 8px;
+  padding: 0 11px;
+  color: #17221e;
+}
+
+.matchComposer input:disabled {
+  background: #eef3f0;
+  color: #6c7c74;
 }
 
 .dialogBackdrop {

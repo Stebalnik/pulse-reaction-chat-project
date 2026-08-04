@@ -16,6 +16,9 @@ import type {
   MatchmakingLeaveRequest,
   MatchmakingStatus,
   MatchPeer,
+  MatchChatBatch,
+  MatchChatMessage,
+  MatchChatMessageRequest,
   WebRtcSignalBatch,
   WebRtcSignalMessage,
   WebRtcSignalRequest,
@@ -110,6 +113,13 @@ export class SynVibeStore {
         sender_user_id TEXT NOT NULL REFERENCES users(id),
         type TEXT NOT NULL,
         payload_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id TEXT PRIMARY KEY,
+        match_id TEXT NOT NULL REFERENCES matches(id),
+        sender_user_id TEXT NOT NULL REFERENCES users(id),
+        body TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
       CREATE TABLE IF NOT EXISTS consent_events (
@@ -472,6 +482,45 @@ export class SynVibeStore {
     };
   }
 
+  recordChatMessage(input: MatchChatMessageRequest): MatchChatMessage {
+    const user = this.upsertAnonymousUser(input.localUserId);
+    const match = this.getActiveMatchForUser(input.matchId, user.id);
+    const now = new Date().toISOString();
+    const message: MatchChatMessage = {
+      id: randomUUID(),
+      matchId: match.id,
+      senderLocalUserId: user.localUserId,
+      body: input.body,
+      createdAtIso: now
+    };
+    this.execute(`
+      INSERT INTO chat_messages (id, match_id, sender_user_id, body, created_at)
+      VALUES (${sql(message.id)}, ${sql(match.id)}, ${sql(user.id)}, ${sql(input.body)}, ${sql(now)});
+    `);
+    return message;
+  }
+
+  getChatMessages(localUserId: string, matchId: string, afterCursor: string | null): MatchChatBatch {
+    const user = this.upsertAnonymousUser(localUserId);
+    const match = this.getActiveMatchForUser(matchId, user.id);
+    const afterClause = afterCursor ? `AND chat_messages.created_at || ':' || chat_messages.id > ${sql(afterCursor)}` : "";
+    const rows = this.query<ChatMessageRow>(`
+      SELECT chat_messages.*, users.local_user_id
+      FROM chat_messages
+      JOIN users ON users.id = chat_messages.sender_user_id
+      WHERE match_id = ${sql(match.id)}
+        ${afterClause}
+      ORDER BY chat_messages.created_at ASC, chat_messages.id ASC
+      LIMIT 100;
+    `);
+    const messages = rows.map(mapChatMessage);
+    const last = rows.at(-1);
+    return {
+      messages,
+      nextCursor: last ? `${last.created_at}:${last.id}` : afterCursor
+    };
+  }
+
   leaveMatchmaking(input: MatchmakingLeaveRequest): MatchmakingStatus {
     const user = this.upsertAnonymousUser(input.localUserId);
     const now = new Date().toISOString();
@@ -520,6 +569,7 @@ export class SynVibeStore {
     const callConnects = this.countEvents("call_connect");
     const callDisconnects = this.countEvents("call_disconnect");
     const callFailures = this.countEvents("call_fail");
+    const chatMessages = this.scalar("SELECT COUNT(*) AS value FROM chat_messages;");
     const reportCount = this.scalar("SELECT COUNT(*) AS value FROM moderation_reports WHERE type = 'report';");
     const blockCount = this.scalar("SELECT COUNT(*) AS value FROM moderation_reports WHERE type = 'block';");
     const averageSessionDurationSeconds = this.queryOne<{ value: number | null }>(`
@@ -547,6 +597,7 @@ export class SynVibeStore {
       callDisconnects,
       callFailures,
       callSetupSuccessRate: matchStarts === 0 ? null : callConnects / matchStarts,
+      chatMessages,
       averageSessionDurationSeconds,
       sufficientSignalRatio: signalCounts.total === 0 ? null : signalCounts.sufficient / signalCounts.total,
       topRejectionReasons: this.topRejectionReasons(),
@@ -725,6 +776,15 @@ interface SignalRow {
   created_at: string;
 }
 
+interface ChatMessageRow {
+  id: string;
+  match_id: string;
+  sender_user_id: string;
+  local_user_id: string;
+  body: string;
+  created_at: string;
+}
+
 function mapUser(row: UserRow): AnonymousUserRecord {
   return {
     id: row.id,
@@ -762,6 +822,16 @@ function mapSignal(row: SignalRow): WebRtcSignalMessage {
     senderLocalUserId: row.local_user_id,
     type: row.type,
     payload: parsePayload(row.payload_json),
+    createdAtIso: row.created_at
+  };
+}
+
+function mapChatMessage(row: ChatMessageRow): MatchChatMessage {
+  return {
+    id: row.id,
+    matchId: row.match_id,
+    senderLocalUserId: row.local_user_id,
+    body: row.body,
     createdAtIso: row.created_at
   };
 }

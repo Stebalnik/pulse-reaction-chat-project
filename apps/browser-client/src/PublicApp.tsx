@@ -1,12 +1,13 @@
-import { Activity, Camera, CircleUserRound, HeartPulse, Play, ShieldCheck, UserPlus, Video } from "lucide-react";
+import { Activity, Camera, CircleUserRound, HeartPulse, MessageCircle, Play, Send, ShieldCheck, UserPlus, Video } from "lucide-react";
 import type { JSX, MutableRefObject, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MatchmakingStatus, WebRtcSignalMessage } from "@pulse-reaction/shared-schemas";
+import type { MatchChatMessage, MatchmakingStatus, WebRtcSignalMessage } from "@pulse-reaction/shared-schemas";
 import {
   createServerSession,
   endServerSession,
   ensureAnonymousUser,
   joinMatchmaking,
+  loadChatMessages,
   leaveMatchmaking,
   loadMatchmakingStatus,
   loadServerProfile,
@@ -15,6 +16,7 @@ import {
   recordEvent,
   recordModerationReport,
   saveServerProfile,
+  sendChatMessage,
   sendSignal
 } from "./api.js";
 import { getOrCreateAnonymousUserId, loadLocalProfile, saveLocalProfile, type LocalProfile } from "./identity.js";
@@ -282,6 +284,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const signalCursorRef = useRef<string | null>(null);
+  const chatCursorRef = useRef<string | null>(null);
   const offerStartedRef = useRef<string | null>(null);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const endedSessionIdsRef = useRef<Set<string>>(new Set());
@@ -291,6 +294,9 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [hasRemoteStream, setHasRemoteStream] = useState(false);
   const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>("new");
+  const [chatMessages, setChatMessages] = useState<MatchChatMessage[]>([]);
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatOnline, setChatOnline] = useState(true);
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({ status: "idle" });
   const [matchingOnline, setMatchingOnline] = useState(true);
@@ -483,6 +489,43 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   }, [localStream, matchStatus, userId]);
 
   useEffect(() => {
+    if (matchStatus.status !== "matched") {
+      chatCursorRef.current = null;
+      setChatMessages([]);
+      setChatDraft("");
+      setChatOnline(true);
+      return;
+    }
+
+    const matchId = matchStatus.match.id;
+    let cancelled = false;
+    chatCursorRef.current = null;
+    setChatMessages([]);
+    setChatOnline(true);
+
+    const pollChat = async (): Promise<void> => {
+      const batch = await loadChatMessages({ localUserId: userId, matchId, after: chatCursorRef.current });
+      if (cancelled) return;
+      if (!batch) {
+        setChatOnline(false);
+        return;
+      }
+      chatCursorRef.current = batch.nextCursor;
+      setChatOnline(true);
+      if (batch.messages.length) {
+        setChatMessages((current) => appendUniqueMessages(current, batch.messages));
+      }
+    };
+
+    void pollChat();
+    const intervalId = window.setInterval(() => void pollChat(), 1500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [matchStatus, userId]);
+
+  useEffect(() => {
     if (matchStatus.status !== "matched") return;
     const eventType =
       connectionState === "connected"
@@ -504,6 +547,21 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       metadata: { matchId: matchStatus.match.id, connectionState }
     });
   }, [connectionState, matchStatus, sessionId, userId]);
+
+  const submitChatMessage = async (): Promise<void> => {
+    if (matchStatus.status !== "matched") return;
+    const body = chatDraft.trim();
+    if (!body) return;
+    setChatDraft("");
+    const message = await sendChatMessage({ localUserId: userId, matchId: matchStatus.match.id, body });
+    if (message) {
+      setChatOnline(true);
+      setChatMessages((current) => appendUniqueMessages(current, [message]));
+    } else {
+      setChatOnline(false);
+      setChatDraft(body);
+    }
+  };
 
   return (
     <section className="publicRoom">
@@ -560,6 +618,71 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
           />
           <div className="publicVideoLabel">Peer</div>
         </article>
+      </div>
+      <MatchChatPanel
+        messages={chatMessages}
+        draft={chatDraft}
+        onDraftChange={setChatDraft}
+        onSubmit={() => void submitChatMessage()}
+        localUserId={userId}
+        disabled={matchStatus.status !== "matched"}
+        online={chatOnline && matchingOnline}
+      />
+    </section>
+  );
+}
+
+function MatchChatPanel({
+  messages,
+  draft,
+  onDraftChange,
+  onSubmit,
+  localUserId,
+  disabled,
+  online
+}: {
+  messages: MatchChatMessage[];
+  draft: string;
+  onDraftChange: (value: string) => void;
+  onSubmit: () => void;
+  localUserId: string;
+  disabled: boolean;
+  online: boolean;
+}): JSX.Element {
+  return (
+    <section className="matchChatPanel" aria-label="Match chat">
+      <div className="matchChatHeader">
+        <span>
+          <MessageCircle aria-hidden="true" />
+          Chat
+        </span>
+        <strong>{disabled ? "Waiting for match" : online ? "Live" : "Reconnecting"}</strong>
+      </div>
+      <div className="matchMessages">
+        {messages.length === 0 ? (
+          <p>{disabled ? "Match with someone to start chatting." : "Say hello when you are ready."}</p>
+        ) : (
+          messages.map((message) => (
+            <div className={message.senderLocalUserId === localUserId ? "matchMessage you" : "matchMessage peer"} key={message.id}>
+              {message.body}
+            </div>
+          ))
+        )}
+      </div>
+      <div className="matchComposer">
+        <input
+          value={draft}
+          onChange={(event) => onDraftChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") onSubmit();
+          }}
+          placeholder={disabled ? "Waiting for match" : "Message"}
+          disabled={disabled}
+          maxLength={800}
+        />
+        <button className="iconButton small primary" type="button" onClick={onSubmit} disabled={disabled || draft.trim().length === 0} title="Send message">
+          <Send aria-hidden="true" />
+        </button>
       </div>
     </section>
   );
@@ -715,6 +838,17 @@ function profileSyncText(status: "unknown" | "server" | "local_only", profile: L
   if (status === "server") return "Server saved";
   if (status === "local_only") return "Local only";
   return "Checking";
+}
+
+function appendUniqueMessages(current: MatchChatMessage[], incoming: MatchChatMessage[]): MatchChatMessage[] {
+  const seen = new Set(current.map((message) => message.id));
+  const next = [...current];
+  for (const message of incoming) {
+    if (seen.has(message.id)) continue;
+    seen.add(message.id);
+    next.push(message);
+  }
+  return next.slice(-100);
 }
 
 function ensurePeerConnection({

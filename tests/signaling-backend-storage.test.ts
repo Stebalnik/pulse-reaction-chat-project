@@ -44,6 +44,7 @@ test("admin summary counts privacy-safe MVP records", () => {
     assert.equal(summary.callDisconnects, 1);
     assert.equal(summary.callFailures, 0);
     assert.equal(summary.callSetupSuccessRate, 1);
+    assert.equal(summary.chatMessages, 0);
     assert.equal(summary.registeredUsers, 1);
     assert.equal(summary.guestUsers, 0);
     assert.equal(summary.reportCount, 0);
@@ -192,6 +193,45 @@ test("signaling relay delivers peer messages only for active matches", () => {
         matchId,
         type: "answer",
         payload: { type: "answer", sdp: "v=0" }
+      })
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("match chat stores messages only for active match participants", () => {
+  const dir = mkdtempSync(join(tmpdir(), "synvibe-chat-"));
+  try {
+    const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
+    store.upsertProfile({ localUserId: "SV-CHATX-000001", displayName: "Eli", handle: "eli" });
+    store.upsertProfile({ localUserId: "SV-CHATX-000002", displayName: "Fran", handle: "fran" });
+    const first = store.joinMatchmaking({ localUserId: "SV-CHATX-000001" });
+    assert.equal(first.status, "waiting");
+    const second = store.joinMatchmaking({ localUserId: "SV-CHATX-000002" });
+    assert.equal(second.status, "matched");
+    const matchId = second.match.id;
+
+    const message = store.recordChatMessage({
+      localUserId: "SV-CHATX-000001",
+      matchId,
+      body: "Hi from the live room"
+    });
+    assert.equal(message.body, "Hi from the live room");
+
+    const peerBatch = store.getChatMessages("SV-CHATX-000002", matchId, null);
+    assert.equal(peerBatch.messages.length, 1);
+    assert.equal(peerBatch.messages[0]?.senderLocalUserId, "SV-CHATX-000001");
+    assert.equal(peerBatch.messages[0]?.body, "Hi from the live room");
+    assert.equal(store.getAdminSummary().chatMessages, 1);
+
+    assert.throws(() => store.getChatMessages("SV-CHATX-000003", matchId, null));
+    store.leaveMatchmaking({ localUserId: "SV-CHATX-000001", matchId, reason: "left" });
+    assert.throws(() =>
+      store.recordChatMessage({
+        localUserId: "SV-CHATX-000002",
+        matchId,
+        body: "After close"
       })
     );
   } finally {

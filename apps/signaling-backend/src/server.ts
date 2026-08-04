@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import type {
   ConsentEventRequest,
   EventRequest,
+  MatchChatMessageRequest,
   MatchmakingJoinRequest,
   MatchmakingLeaveRequest,
   ModerationReportRequest,
@@ -214,6 +215,33 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
       return;
     }
     sendJson(response, 200, store.getSignals(localUserId.slice(0, 64), matchId.slice(0, 64), url.searchParams.get("after")));
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/match-chat/messages") {
+    const body = await readJson(request);
+    const input: MatchChatMessageRequest = {
+      localUserId: readString(body, "localUserId", 64),
+      matchId: readString(body, "matchId", 64),
+      body: readString(body, "body", 800)
+    };
+    const message = store.recordChatMessage(input);
+    store.recordEvent({
+      localUserId: input.localUserId,
+      type: "chat_message",
+      route: "/room",
+      metadata: { matchId: input.matchId, messageId: message.id, bodyLength: input.body.length }
+    });
+    sendJson(response, 201, message);
+    return;
+  }
+  if (request.method === "GET" && url.pathname === "/api/match-chat/messages") {
+    const localUserId = url.searchParams.get("localUserId");
+    const matchId = url.searchParams.get("matchId");
+    if (!localUserId || !matchId) {
+      sendJson(response, 400, { error: "missing_chat_query" });
+      return;
+    }
+    sendJson(response, 200, store.getChatMessages(localUserId.slice(0, 64), matchId.slice(0, 64), url.searchParams.get("after")));
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/reaction-outputs") {

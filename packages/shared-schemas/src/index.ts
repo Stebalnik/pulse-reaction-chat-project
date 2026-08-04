@@ -14,6 +14,7 @@ export type SynVibeEventType =
   | "call_connect"
   | "call_disconnect"
   | "call_fail"
+  | "chat_message"
   | "report"
   | "block";
 
@@ -140,6 +141,7 @@ export interface AdminSummary {
   callDisconnects: number;
   callFailures: number;
   callSetupSuccessRate: number | null;
+  chatMessages: number;
   averageSessionDurationSeconds: number | null;
   sufficientSignalRatio: number | null;
   topRejectionReasons: Array<{ reasonCode: string; count: number }>;
@@ -199,5 +201,24 @@ export interface WebRtcSignalMessage {
 
 export interface WebRtcSignalBatch {
   messages: WebRtcSignalMessage[];
+  nextCursor: string | null;
+}
+
+export interface MatchChatMessageRequest {
+  localUserId: string;
+  matchId: string;
+  body: string;
+}
+
+export interface MatchChatMessage {
+  id: string;
+  matchId: string;
+  senderLocalUserId: string;
+  body: string;
+  createdAtIso: string;
+}
+
+export interface MatchChatBatch {
+  messages: MatchChatMessage[];
   nextCursor: string | null;
 }

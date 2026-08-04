@@ -2,6 +2,9 @@ import type {
   AdminSummary,
   ConsentEventRequest,
   EventRequest,
+  MatchChatBatch,
+  MatchChatMessage,
+  MatchChatMessageRequest,
   MatchmakingStatus,
   ModerationReportRequest,
   ProfileRecord,
@@ -103,6 +106,29 @@ export async function loadSignals(input: {
     const response = await fetch(`${API_ORIGIN}/api/signaling/messages?${params.toString()}`);
     if (!response.ok) return null;
     return (await response.json()) as WebRtcSignalBatch;
+  } catch {
+    return null;
+  }
+}
+
+export async function sendChatMessage(input: MatchChatMessageRequest): Promise<MatchChatMessage | null> {
+  return post<MatchChatMessage>("/api/match-chat/messages", input);
+}
+
+export async function loadChatMessages(input: {
+  localUserId: string;
+  matchId: string;
+  after?: string | null;
+}): Promise<MatchChatBatch | null> {
+  try {
+    const params = new URLSearchParams({
+      localUserId: input.localUserId,
+      matchId: input.matchId
+    });
+    if (input.after) params.set("after", input.after);
+    const response = await fetch(`${API_ORIGIN}/api/match-chat/messages?${params.toString()}`);
+    if (!response.ok) return null;
+    return (await response.json()) as MatchChatBatch;
   } catch {
     return null;
   }
