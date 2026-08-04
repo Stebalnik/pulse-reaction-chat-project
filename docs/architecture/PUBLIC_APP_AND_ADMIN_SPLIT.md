@@ -21,13 +21,15 @@ Server-backed identity now has a first MVP implementation in `apps/signaling-bac
 - `consent_events`: adults-only chat terms, camera access, physiological analysis, and research feedback decisions;
 - `moderation_reports`: report/block actions with selected reason, optional notes, reviewer status/notes, reporter/reported user IDs, optional match/message linkage, and no raw media or biometric traces;
 - `chat_messages`: active-match text messages scoped to participants, with sender deletion tombstones and time-limited retention;
-- `reaction_outputs`: cleaned output only, with model version, method version, confidence, quality metrics, reason codes, and no raw video.
+- `reaction_outputs`: active-consent-gated cleaned output only, with model version, method version, confidence, quality metrics, reason codes, and no raw video.
 
 The browser client posts anonymous user/profile/event records when the API is available, loads the server profile for the current anonymous ID, and falls back to local-only profile behavior when the backend is not reachable.
 
 The public room is adults-only. Browser entry and direct `/room` navigation require local adults-only acknowledgement before matching begins. The acknowledgement is also posted to `POST /api/consent-events` when the backend is available.
 
 Physiological analysis has a separate public-room consent control. Camera access alone does not enable analysis. Users can opt in to local-only pulse-pattern processing, revoke it immediately, and the browser posts `physiological_analysis` consent grant/revoke records when the backend is available. The public room still does not share precise BPM with the peer by default.
+
+The backend also enforces this boundary at `POST /api/reaction-outputs`: cleaned reaction-output records are rejected unless the latest relevant `physiological_analysis` consent decision for that user/session is `granted`.
 
 ## Matching
 

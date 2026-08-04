@@ -49,6 +49,6 @@ Not deployed in this slice.
 
 ## Next Steps
 
-1. Gate any cleaned reaction-output upload on active physiological-analysis consent.
-2. Add reviewer identity after authenticated admin accounts exist.
-3. Add WebSocket transport once HTTP polling becomes the bottleneck.
+1. Add reviewer identity after authenticated admin accounts exist.
+2. Add WebSocket transport once HTTP polling becomes the bottleneck.
+3. Add production API error reporting and client-visible retry states.

@@ -298,6 +298,10 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
       qualityScore: readNumber(body, "qualityScore"),
       regionAgreement: readString(body, "regionAgreement", 20) as ReactionOutputRequest["regionAgreement"]
     };
+    if (!store.hasActiveConsentForLocalUser(input.localUserId, "physiological_analysis", input.sessionId)) {
+      sendJson(response, 403, { error: "physiological_analysis_consent_required" });
+      return;
+    }
     store.recordReactionOutput(input);
     sendJson(response, 202, { ok: true });
     return;

@@ -278,6 +278,9 @@ export class SynVibeStore {
 
   recordReactionOutput(input: ReactionOutputRequest): void {
     const user = this.upsertAnonymousUser(input.localUserId);
+    if (!this.hasActiveConsent(user.id, "physiological_analysis", input.sessionId)) {
+      throw new Error("Physiological analysis consent is required for reaction output");
+    }
     this.execute(`
       INSERT INTO reaction_outputs (
         id, user_id, session_id, occurred_at, model_version, method_version, state, confidence,
@@ -326,6 +329,25 @@ export class SynVibeStore {
       );
     `);
     return record;
+  }
+
+  hasActiveConsent(userId: string, type: ConsentEventRequest["type"], sessionId?: string): boolean {
+    const sessionClause = sessionId ? `AND (session_id = ${sql(sessionId)} OR session_id IS NULL)` : "";
+    const latest = this.queryOne<{ decision: ConsentEventRequest["decision"] }>(`
+      SELECT decision
+      FROM consent_events
+      WHERE user_id = ${sql(userId)}
+        AND type = ${sql(type)}
+        ${sessionClause}
+      ORDER BY created_at DESC, rowid DESC
+      LIMIT 1;
+    `);
+    return latest?.decision === "granted";
+  }
+
+  hasActiveConsentForLocalUser(localUserId: string, type: ConsentEventRequest["type"], sessionId?: string): boolean {
+    const user = this.upsertAnonymousUser(localUserId);
+    return this.hasActiveConsent(user.id, type, sessionId);
   }
 
   recordModerationReport(input: ModerationReportRequest): ModerationReportRecord {

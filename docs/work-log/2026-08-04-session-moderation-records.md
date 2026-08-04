@@ -49,5 +49,5 @@ Not deployed in this slice. The backend deploy script and smoke script from the 
 ## Recommended next steps
 
 1. Add reviewer identity after authenticated admin accounts exist.
-2. Gate any cleaned reaction-output upload on active physiological-analysis consent.
+2. Add production API error reporting and client-visible retry states.
 3. Add WebSocket transport once HTTP polling becomes the bottleneck.

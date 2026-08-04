@@ -21,6 +21,13 @@ test("admin summary counts privacy-safe MVP records", () => {
     store.recordEvent({ localUserId, sessionId: session.id, type: "match_start", route: "/room" });
     store.recordEvent({ localUserId, sessionId: session.id, type: "call_connect", route: "/room" });
     store.recordEvent({ localUserId, sessionId: session.id, type: "call_disconnect", route: "/room" });
+    store.recordConsentEvent({
+      localUserId,
+      sessionId: session.id,
+      type: "physiological_analysis",
+      decision: "granted",
+      policyVersion: "physiological-analysis-2026-08-04"
+    });
     store.recordReactionOutput({
       localUserId,
       sessionId: session.id,
@@ -56,6 +63,48 @@ test("admin summary counts privacy-safe MVP records", () => {
       { reasonCode: "MOTION_HIGH", count: 1 },
       { reasonCode: "ROI_TOO_SMALL", count: 1 }
     ]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("reaction outputs require active physiological-analysis consent", () => {
+  const dir = mkdtempSync(join(tmpdir(), "synvibe-reaction-consent-"));
+  try {
+    const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
+    const localUserId = "SV-RXCONS-000001";
+    const session = store.createSession({ localUserId, route: "/room" });
+    const output = {
+      localUserId,
+      sessionId: session.id,
+      occurredAtIso: new Date().toISOString(),
+      modelVersion: "reaction-model-0.1.0",
+      methodVersion: "rppg-engine-0.1.0",
+      state: "NEAR_BASELINE" as const,
+      confidence: "medium" as const,
+      reasonCodes: [],
+      qualityScore: 0.82,
+      regionAgreement: "high" as const
+    };
+
+    assert.throws(() => store.recordReactionOutput(output));
+    store.recordConsentEvent({
+      localUserId,
+      sessionId: session.id,
+      type: "physiological_analysis",
+      decision: "granted",
+      policyVersion: "physiological-analysis-2026-08-04"
+    });
+    assert.doesNotThrow(() => store.recordReactionOutput(output));
+    store.recordConsentEvent({
+      localUserId,
+      sessionId: session.id,
+      type: "physiological_analysis",
+      decision: "revoked",
+      policyVersion: "physiological-analysis-2026-08-04"
+    });
+    assert.throws(() => store.recordReactionOutput({ ...output, occurredAtIso: new Date().toISOString() }));
+    assert.equal(store.getAdminSummary().sufficientSignalRatio, 1);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
