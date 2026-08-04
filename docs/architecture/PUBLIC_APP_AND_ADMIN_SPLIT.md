@@ -27,9 +27,9 @@ The browser client posts anonymous user/profile/event records when the API is av
 
 The public room is adults-only. Browser entry and direct `/room` navigation require local adults-only acknowledgement before matching begins. The acknowledgement is also posted to `POST /api/consent-events` when the backend is available, and the room reasserts the accepted policy when joining a server-backed session after a prior offline entry.
 
-Physiological analysis has a separate public-room consent control. Camera access alone does not enable analysis. Users can opt in to local-only pulse-pattern processing, revoke it immediately, and the browser posts `physiological_analysis` consent grant/revoke records when the backend is available. The public room still does not share precise BPM with the peer by default.
+Physiological analysis has a separate public-room consent control. Camera access alone does not enable analysis. Users can opt in to local-only pulse-pattern processing, revoke it immediately, and the browser posts `physiological_analysis` consent grant/revoke records when the backend is available. While camera and analysis consent are active, the public room can sample local face/skin ROI, compute baseline-relative neutral trend states on device, and upload cleaned `reaction_outputs` with model/method version, confidence, quality score, reason codes, and region-agreement category. The public room still does not share precise BPM with the peer by default.
 
-The backend also enforces this boundary at `POST /api/reaction-outputs`: cleaned reaction-output records are rejected unless the latest relevant `physiological_analysis` consent decision for that user/session is `granted`.
+The backend also enforces this boundary at `POST /api/reaction-outputs`: cleaned reaction-output records are rejected unless the latest relevant `physiological_analysis` consent decision for that user/session is `granted`. Uploads must not include raw video, raw RGB traces, baseline BPM, precise peer BPM, or per-frame biometric time series.
 
 ## Matching
 

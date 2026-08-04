@@ -16,7 +16,7 @@ The browser client can assign a local anonymous user ID and store a local profil
 
 The public room requires a separate opt-in before local physiological analysis is considered active. Camera permission and adults-only room acknowledgement are not treated as physiological-analysis consent. Users can revoke this consent from the room controls. The implementation records policy-versioned grant/revoke consent events when the backend is available and does not share precise BPM with the peer by default.
 
-The current backend rejects cleaned reaction-output uploads when active `physiological_analysis` consent is missing or revoked. This is a technical control in addition to the browser consent UI.
+When camera and physiological-analysis consent are both active, the public room can upload cleaned reaction-output records with model version, method version, coarse neutral state, confidence, quality score, reason codes, and region-agreement category. These uploads do not include raw video frames, raw RGB traces, precise peer BPM, baseline BPM, or per-frame biometric time series. The backend rejects cleaned reaction-output uploads when active `physiological_analysis` consent is missing or revoked. This is a technical control in addition to the browser consent UI.
 
 ## Planned Server MVP
 

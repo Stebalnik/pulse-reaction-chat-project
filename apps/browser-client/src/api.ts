@@ -13,6 +13,7 @@ import type {
   ModerationReportResolutionRequest,
   ModerationReportStatusFilter,
   ProfileRecord,
+  ReactionOutputRequest,
   SessionEndRequest,
   SessionRecord,
   WebRtcSignalBatch,
@@ -62,6 +63,10 @@ export async function recordEvent(input: EventRequest): Promise<void> {
 
 export async function recordConsentEvent(input: ConsentEventRequest): Promise<void> {
   await post("/api/consent-events", input);
+}
+
+export async function recordReactionOutput(input: ReactionOutputRequest): Promise<boolean> {
+  return (await post("/api/reaction-outputs", input)) !== null;
 }
 
 export async function recordModerationReport(input: ModerationReportRequest): Promise<void> {

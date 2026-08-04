@@ -26,6 +26,7 @@ Current prototype:
 - live FPS display for timestamp and low-frame-rate debugging;
 - requests up to 60 fps where the browser and camera allow it, while preserving FPS quality gates;
 - baseline-relative physiological trend panel with neutral states and alternative-explanation guardrails;
+- consent-gated public-room cleaned reaction-output upload with model/method version, confidence, quality score, reason codes, and no raw video/RGB traces;
 - local-only reaction badge overlay with pulse-change visual states such as steady, soft lift, quick lift, surge, peak, settling, and cooldown;
 - launch-tuned local badge calibration with visible accepted baseline estimate count and baseline span;
 - signal-quality and reason-code panel;

@@ -21,6 +21,7 @@ import {
   sendSignal
 } from "./api.js";
 import { getOrCreateAnonymousUserId, loadLocalProfile, saveLocalProfile, type LocalProfile } from "./identity.js";
+import { usePublicReactionOutput, type PublicReactionOutputState } from "./publicReactionOutput.js";
 
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "SynVibe";
 const SHOW_ADMIN_LINK = import.meta.env.VITE_SHOW_ADMIN_LINK === "true";
@@ -322,6 +323,12 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({ status: "idle" });
   const [matchingOnline, setMatchingOnline] = useState(true);
   const analysisActive = cameraEnabled && physiologicalAnalysisAccepted;
+  const reactionOutput = usePublicReactionOutput({
+    active: analysisActive,
+    localUserId: userId,
+    sessionId,
+    videoRef
+  });
 
   useEffect(() => {
     void createServerSession(userId, "/room").then((session) => {
@@ -730,6 +737,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
             cameraEnabled={cameraEnabled}
             analysisActive={analysisActive}
             physiologicalAnalysisAccepted={physiologicalAnalysisAccepted}
+            reactionOutput={reactionOutput}
           />
           <div className="publicVideoLabel">Peer</div>
         </article>
@@ -936,7 +944,8 @@ function PeerPane({
   connectionState,
   cameraEnabled,
   analysisActive,
-  physiologicalAnalysisAccepted
+  physiologicalAnalysisAccepted,
+  reactionOutput
 }: {
   status: MatchmakingStatus;
   online: boolean;
@@ -946,6 +955,7 @@ function PeerPane({
   cameraEnabled: boolean;
   analysisActive: boolean;
   physiologicalAnalysisAccepted: boolean;
+  reactionOutput: PublicReactionOutputState;
 }): JSX.Element {
   if (!online) {
     return (
@@ -969,7 +979,7 @@ function PeerPane({
           <small>{cameraEnabled ? connectionStateText(connectionState) : "Enable camera to connect video"}</small>
         </div>
         <div className="publicReactionStack" aria-label="Physiological analysis availability">
-          <ReactionChip code={analysisActive ? "LOCAL_READY" : physiologicalAnalysisAccepted ? "CAMERA_PAUSED" : "OPT_IN"} label="Local analysis" />
+          <ReactionChip code={reactionOutputChipCode(reactionOutput, analysisActive, physiologicalAnalysisAccepted)} label="Local analysis" />
           <ReactionChip code="LOCAL_ONLY" label="Precise BPM private" />
         </div>
       </>
@@ -1078,6 +1088,16 @@ function ReactionChip({ code, label }: { code: string; label: string }): JSX.Ele
       <strong>{code}</strong>
     </div>
   );
+}
+
+function reactionOutputChipCode(output: PublicReactionOutputState, analysisActive: boolean, physiologicalAnalysisAccepted: boolean): string {
+  if (!physiologicalAnalysisAccepted) return "OPT_IN";
+  if (!analysisActive) return "CAMERA_PAUSED";
+  if (output.status === "offline") return "SYNC_WAIT";
+  if (output.state === "INSUFFICIENT_SIGNAL") return "SIGNAL_LOW";
+  if (output.state === "CALIBRATING_BASELINE") return "CALIBRATING";
+  if (output.state) return output.state;
+  return "COLLECTING";
 }
 
 function roomStatusText(status: MatchmakingStatus, online: boolean): string {

@@ -521,20 +521,41 @@ a {
 }
 
 .reactionChip.pending,
-.reactionChip.local_only {
+.reactionChip.local_only,
+.reactionChip.collecting,
+.reactionChip.calibrating {
   border-color: #bad8c8;
   background: rgb(234 247 239 / 92%);
 }
 
 .reactionChip.opt_in,
-.reactionChip.camera_paused {
+.reactionChip.camera_paused,
+.reactionChip.sync_wait {
   border-color: #d9ccb1;
   background: rgb(249 241 224 / 92%);
 }
 
-.reactionChip.local_ready {
+.reactionChip.local_ready,
+.reactionChip.near_baseline {
   border-color: #a9cfbd;
   background: rgb(226 246 236 / 92%);
+}
+
+.reactionChip.signal_low,
+.reactionChip.insufficient_signal {
+  border-color: #e6c1ae;
+  background: rgb(251 228 223 / 92%);
+}
+
+.reactionChip.possible_activation,
+.reactionChip.higher_activation {
+  border-color: #e0bc88;
+  background: rgb(255 240 215 / 92%);
+}
+
+.reactionChip.recovery {
+  border-color: #b7ccdc;
+  background: rgb(230 241 248 / 92%);
 }
 
 .matchChatPanel {
