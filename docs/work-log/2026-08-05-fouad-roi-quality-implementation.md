@@ -32,10 +32,19 @@ Only aggregate pixel-count metadata is logged. No raw video frames, raw RGB trac
 - `node --import tsx --test --test-concurrency=1 tests/*.test.ts`
 - `node scripts/check-repo.mjs`
 - `apps/browser-client`: `./node_modules/.bin/vite build`
+- Production: `SERVER_HOST=root@165.232.145.239 scripts/deploy-signaling-backend.sh`
+- Production: server-side `pnpm --filter @pulse-reaction/browser-client build`
+- Production: `ADMIN_TOKEN=... scripts/smoke-production-api.sh`
+- Production: `curl -fsS https://synvibe.app/room`
+- Production: `curl -fsS https://synvibe.app/api/health`
 
 ## Deployment status
 
-Ready for deployment after commit and push.
+Deployed to `https://synvibe.app` on 2026-08-05 UTC.
+
+- Backend service: `synvibe-signaling-backend` restarted and passed health check.
+- Frontend release: `20260805031110`.
+- Production smoke passed for public health, protected admin summary behavior, and `/room` HTML delivery.
 
 ## Recommended next steps
 
