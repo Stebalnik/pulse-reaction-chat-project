@@ -30,6 +30,9 @@ No raw video, raw RGB traces, microphone audio, biometric time series, or precis
 - `node --import tsx --test tests/public-reaction-output.test.ts tests/reaction-output-mapper.test.ts`
 - `node scripts/check-repo.mjs`
 - `apps/browser-client`: `./node_modules/.bin/vite build`
+- Production: `SERVER_HOST=root@165.232.145.239 scripts/deploy-browser-client.sh`
+- Production: `curl -fsS https://synvibe.app/room`
+- Production: `curl -fsS https://synvibe.app/api/health`
 
 ## Notes
 
@@ -37,4 +40,7 @@ No raw video, raw RGB traces, microphone audio, biometric time series, or precis
 
 ## Deployment status
 
-Ready for deployment after commit and push.
+Deployed to `https://synvibe.app` on 2026-08-05 UTC.
+
+- Frontend release: `20260805235719`.
+- Production smoke passed for `/room` HTML delivery and public health.
