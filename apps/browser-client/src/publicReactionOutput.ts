@@ -13,6 +13,7 @@ export interface PublicReactionOutputState {
   status: "disabled" | "collecting" | "uploaded" | "offline";
   state: ReactionOutputRequest["state"] | null;
   confidence: ReactionOutputRequest["confidence"] | null;
+  bpmEstimate: number | null;
   qualityScore: number | null;
   reasonCodes: string[];
   roi: RoiRect | null;
@@ -41,6 +42,7 @@ export function usePublicReactionOutput(input: {
     status: "disabled",
     state: null,
     confidence: null,
+    bpmEstimate: null,
     qualityScore: null,
     reasonCodes: [],
     roi: null
@@ -52,7 +54,7 @@ export function usePublicReactionOutput(input: {
       roiTrackerRef.current.reset();
       trendMonitorRef.current.reset();
       uploadRef.current = { lastAtMs: 0, signature: null };
-      setState({ status: "disabled", state: null, confidence: null, qualityScore: null, reasonCodes: [], roi: null });
+      setState({ status: "disabled", state: null, confidence: null, bpmEstimate: null, qualityScore: null, reasonCodes: [], roi: null });
       return;
     }
 
@@ -70,7 +72,7 @@ export function usePublicReactionOutput(input: {
           if (!snapshot) {
             setState((current) => {
               if (current.status === "offline") return current;
-              const next = { ...current, status: "collecting" as const, roi: roi.roi };
+              const next = { ...current, status: "collecting" as const, bpmEstimate: null, roi: roi.roi };
               return samePublicReactionState(current, next) ? current : next;
             });
             return;
@@ -86,14 +88,14 @@ export function usePublicReactionOutput(input: {
           const signature = reactionOutputSignature(output);
           const shouldUpload = timestampMs - uploadRef.current.lastAtMs >= PUBLIC_REACTION_UPLOAD_INTERVAL_MS || signature !== uploadRef.current.signature;
           if (!shouldUpload) {
-            setStateIfChanged(setState, reactionUiState("collecting", output, roi.roi));
+            setStateIfChanged(setState, reactionUiState("collecting", output, snapshot.estimate.bpm, roi.roi));
             return;
           }
 
           const uploaded = await recordReactionOutput(output);
           if (cancelled) return;
           if (uploaded) uploadRef.current = { lastAtMs: timestampMs, signature };
-          setStateIfChanged(setState, reactionUiState(uploaded ? "uploaded" : "offline", output, roi.roi));
+          setStateIfChanged(setState, reactionUiState(uploaded ? "uploaded" : "offline", output, snapshot.estimate.bpm, roi.roi));
         });
       }
       animationId = window.requestAnimationFrame(loop);
@@ -109,11 +111,17 @@ export function usePublicReactionOutput(input: {
   return state;
 }
 
-function reactionUiState(status: PublicReactionOutputState["status"], output: ReactionOutputRequest, roi: RoiRect): PublicReactionOutputState {
+function reactionUiState(
+  status: PublicReactionOutputState["status"],
+  output: ReactionOutputRequest,
+  bpmEstimate: number | null,
+  roi: RoiRect
+): PublicReactionOutputState {
   return {
     status,
     state: output.state,
     confidence: output.confidence,
+    bpmEstimate,
     qualityScore: output.qualityScore,
     reasonCodes: output.reasonCodes,
     roi
@@ -132,11 +140,17 @@ function samePublicReactionState(left: PublicReactionOutputState, right: PublicR
     left.status === right.status &&
     left.state === right.state &&
     left.confidence === right.confidence &&
+    sameBpmEstimate(left.bpmEstimate, right.bpmEstimate) &&
     left.qualityScore === right.qualityScore &&
     sameRoi(left.roi, right.roi) &&
     left.reasonCodes.length === right.reasonCodes.length &&
     left.reasonCodes.every((reason, index) => reason === right.reasonCodes[index])
   );
+}
+
+function sameBpmEstimate(left: number | null, right: number | null): boolean {
+  if (left === null || right === null) return left === right;
+  return Math.round(left) === Math.round(right);
 }
 
 function sameRoi(left: RoiRect | null, right: RoiRect | null): boolean {

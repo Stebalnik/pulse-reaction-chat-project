@@ -784,6 +784,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
           ) : (
             <EmptyVideo label="Media paused" />
           )}
+          <PulseHeartOverlay active={analysisActive} bpmEstimate={reactionOutput.bpmEstimate} qualityScore={reactionOutput.qualityScore} />
           {cameraError && <div className="publicStatus danger">{cameraError}</div>}
           <div className="publicVideoLabel">{cameraFacingMode === "user" ? "You" : "Rear camera"}</div>
         </article>
@@ -1030,6 +1031,33 @@ function PeerPane({
       <ShieldCheck aria-hidden="true" />
       <span>Ready</span>
       <strong>Join the live queue</strong>
+    </div>
+  );
+}
+
+function PulseHeartOverlay({
+  active,
+  bpmEstimate,
+  qualityScore
+}: {
+  active: boolean;
+  bpmEstimate: number | null;
+  qualityScore: number | null;
+}): JSX.Element {
+  const boundedBpm = bpmEstimate === null ? null : Math.max(42, Math.min(180, bpmEstimate));
+  const durationSeconds = boundedBpm === null ? 1.2 : 60 / boundedBpm;
+  const quality = Math.max(0, Math.min(1, qualityScore ?? 0));
+  const style = {
+    "--pulse-heart-duration": `${durationSeconds.toFixed(3)}s`,
+    "--pulse-heart-quality": quality.toFixed(3)
+  } as CSSProperties;
+  const label = boundedBpm === null ? "Pulse estimate waiting" : `Estimated pulse ${Math.round(boundedBpm)} BPM`;
+
+  return (
+    <div className={`pulseHeartOverlay ${active && boundedBpm !== null ? "active" : "waiting"}`} style={style} aria-label={label}>
+      <HeartPulse aria-hidden="true" />
+      <span className="pulseHeartBpm">{boundedBpm === null ? "--" : Math.round(boundedBpm)}</span>
+      <span className="pulseHeartUnit">BPM est.</span>
     </div>
   );
 }
