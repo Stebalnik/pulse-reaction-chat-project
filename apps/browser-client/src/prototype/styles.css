@@ -376,9 +376,9 @@ a {
   position: relative;
   justify-self: center;
   align-self: center;
-  width: min(100%, 1040px);
+  width: min(100%, 760px, max(320px, calc((100dvh - 300px) * 5 / 4)));
   max-height: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 5 / 4;
   min-height: 0;
   overflow: hidden;
   border: 1px solid #b9c6c0;
@@ -404,9 +404,9 @@ a {
   right: 14px;
   bottom: 14px;
   z-index: 3;
-  width: min(30%, 230px);
-  min-width: 150px;
-  aspect-ratio: 9 / 16;
+  width: min(34%, 210px);
+  min-width: 128px;
+  aspect-ratio: 5 / 4;
   border: 1px solid rgb(240 247 243 / 78%);
   box-shadow: 0 18px 42px rgb(0 0 0 / 38%);
   cursor: pointer;
@@ -1236,10 +1236,10 @@ a {
   min-width: 0;
   min-height: 0;
   width: 100%;
-  max-width: calc((100dvh - 96px) * 16 / 9);
+  max-width: min(620px, calc((100dvh - 96px) * 5 / 4));
   height: auto;
   max-height: calc(100dvh - 96px);
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 5 / 4;
   justify-self: center;
 }
 
@@ -2042,12 +2042,14 @@ a {
   }
 
   .publicCallStage {
-    min-height: min(64dvh, 520px);
+    width: min(100%, 680px, max(300px, calc(58dvh * 5 / 4)));
+    min-height: 0;
+    max-height: 58dvh;
   }
 
   .publicVideoPane.pipPane {
-    width: min(34%, 150px);
-    min-width: 104px;
+    width: min(36%, 150px);
+    min-width: 108px;
     right: 10px;
     bottom: 10px;
   }
@@ -2102,10 +2104,11 @@ a {
   }
 
   .videoPane {
-    max-width: 100%;
+    max-width: min(100%, calc(42dvh * 5 / 4));
     height: auto;
     max-height: 42dvh;
     min-height: 0;
+    aspect-ratio: 5 / 4;
   }
 
   .reactionBadge.compact {
