@@ -50,7 +50,7 @@ Implement ICA/PCA as benchmark comparators and measure how often component selec
 
 ## EXP-013 — Skin segmentation and ROI coverage
 
-Compare whole-face ROI, skin-masked ROI, stable sub-ROI, and SNR-weighted ROI under normal webcam conditions. Report ROI coverage, pixel count, skin-mask false inclusion, and abstention rate.
+Compare whole-face ROI, current MediaPipe forehead/cheek zones, skin-masked all-face ROI, skin-masked sub-ROI, and SNR-weighted ROI under normal webcam conditions. Report ROI coverage, valid pixel count, skin-mask false inclusion, estimator RMSE/spread, and abstention rate. Include cases where segmentation improves aggregate error but leaves too few valid pixels for stable RGB averaging.
 
 ## EXP-014 — Motion-in-band failure fixture
 

@@ -12,7 +12,7 @@
 | CLM-0008 | Motion must be treated as a first-class confound and rejection reason for rPPG estimates. | SUPPORTED | 9 | 2026-07-26 |
 | CLM-0009 | CHROM-style chrominance projection is a high-priority MVP estimator candidate for motion-aware webcam pulse-rate tracking. | SUPPORTED | 3 | 2026-07-26 |
 | CLM-0010 | ICA/PCA/BSS methods are useful benchmark comparators but require component-selection or ambiguity handling before launch use. | PROVISIONAL | 6 | 2026-07-26 |
-| CLM-0011 | Adaptive skin segmentation and ROI coverage metrics should be implemented before product reaction states. | PROVISIONAL | 4 | 2026-07-26 |
+| CLM-0011 | Adaptive skin segmentation and ROI coverage metrics should be implemented before product reaction states. | PROVISIONAL | 4 | 2026-08-05 |
 | CLM-0012 | Motion artifacts can overlap the pulse-frequency band, so bandpass filtering alone is insufficient. | SUPPORTED | 4 | 2026-07-26 |
 | CLM-0013 | Month-one UI should expose only broad, confidence-gated pulse-trend states, not PRV/HRV-derived states. | PROVISIONAL | 5 | 2026-07-26 |
 | CLM-0014 | Shorter windows improve latency but increase instability; launch configuration must record window length and estimator latency. | PROVISIONAL | 4 | 2026-07-26 |

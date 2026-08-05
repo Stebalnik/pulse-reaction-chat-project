@@ -14,6 +14,7 @@ Quality gates decide whether an HR window is valid. Invalid windows must produce
 - `FACE_VISIBILITY_LOW`
 - `ROI_TOO_SMALL`
 - `ROI_UNSTABLE`
+- `ROI_PIXEL_COUNT_LOW`
 - `LOW_ILLUMINATION`
 - `ILLUMINATION_STEP_CHANGE`
 - `MOTION_HIGH`
@@ -36,6 +37,7 @@ Quality gates decide whether an HR window is valid. Invalid windows must produce
 - Gate before baseline and reaction inference.
 - Log reason-code distribution in opt-in beta telemetry without storing raw video by default.
 - Keep quality scoring deterministic and versioned.
+- Treat low valid-pixel count separately from low percentage coverage: a highly selective skin mask can remove nonskin pixels but still leave too few pixels for stable RGB averaging.
 
 ## launch_priority
 
