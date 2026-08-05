@@ -16,6 +16,8 @@ Quality gates decide whether an HR window is valid. Invalid windows must produce
 - `ROI_UNSTABLE`
 - `LOW_ILLUMINATION`
 - `ILLUMINATION_STEP_CHANGE`
+- `SATURATION_OR_SPECULAR`
+- `AMBIENT_FLICKER_POSSIBLE`
 - `MOTION_HIGH`
 - `MOTION_IN_PULSE_BAND`
 - `TIMESTAMP_UNRELIABLE`
@@ -30,12 +32,15 @@ Quality gates decide whether an HR window is valid. Invalid windows must produce
 - Zhang 2021 and Sun 2012: illumination must be measured, not assumed.
 - Chari VITAL: aggregate error hides subgroup and condition failures.
 - Fallet 2018: SQI and rejection are necessary under realistic iPPG.
+- Fine 2021: PPG noise sources include skin-tone and physiology variation, respiration, temperature, motion, ambient light, and sensor/contact effects; camera rPPG should transfer these as quality-gate hypotheses rather than direct numeric accuracy claims.
 
 ## implementation_notes
 
 - Gate before baseline and reaction inference.
 - Log reason-code distribution in opt-in beta telemetry without storing raw video by default.
 - Keep quality scoring deterministic and versioned.
+- Track luminance mean, saturation fraction, abrupt light changes, and method-pair switching during debug sessions.
+- Treat unconfirmed low-confidence BPM jumps as invalid temporal outliers before baseline/reaction inference.
 
 ## launch_priority
 

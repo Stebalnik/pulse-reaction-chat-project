@@ -59,3 +59,11 @@ Create fixtures where periodic motion overlaps plausible HR frequencies. Verify 
 ## EXP-015 — Desktop beta field report
 
 For opt-in beta sessions only, aggregate camera FPS, ROI coverage, illumination instability, motion score, estimator agreement, abstention reason distribution, and user-reported quality. Do not store raw video by default.
+
+## EXP-016 — Ambient-light saturation and flicker diagnostics
+
+Add real-camera fixtures for low light, daylight shifts, screen light, lamp flicker, saturation, shadows, and specular highlights. Measure whether luminance mean, luminance variance, saturation fraction, and method disagreement predict BPM error and abstention.
+
+## EXP-017 — PPG waveform/SQI research spike
+
+Evaluate whether browser rPPG traces are clean enough for morphology-inspired SQI. Keep this internal until it improves HR error/abstention against reference measurements; do not use it for PRV, BP, or reaction labels without separate validation.
