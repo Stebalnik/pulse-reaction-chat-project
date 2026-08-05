@@ -8,6 +8,7 @@ export type ReasonCode =
   | "TIMESTAMP_UNRELIABLE"
   | "LOW_FPS"
   | "ROI_TOO_SMALL"
+  | "ROI_PIXEL_COUNT_LOW"
   | "ROI_UNSTABLE"
   | "LOW_ILLUMINATION"
   | "ILLUMINATION_STEP_CHANGE"
@@ -27,6 +28,7 @@ export interface RgbTraceSample {
   g: number;
   b: number;
   roiCoverage: number;
+  validPixelCount?: number;
   motionScore?: number;
   illumination?: number;
 }
@@ -41,6 +43,7 @@ export interface HeartRateEstimate {
   method: string;
   methodVersion: string;
   roiCoverage: number;
+  validPixelCount: number;
   motionScore: number;
   illuminationInstability: number;
   reasonCodes: ReasonCode[];
@@ -67,6 +70,7 @@ export interface RppgEngineConfig {
   minSamples: number;
   minFps: number;
   minRoiCoverage: number;
+  minRoiPixelCount: number;
   maxRoiCoverageStd: number;
   maxMotionScore: number;
   maxIlluminationInstability: number;

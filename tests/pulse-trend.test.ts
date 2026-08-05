@@ -60,6 +60,7 @@ function estimate(overrides: Partial<HeartRateEstimate> = {}): HeartRateEstimate
     method: "FUSION",
     methodVersion: "test",
     roiCoverage: 0.85,
+    validPixelCount: 900,
     motionScore: 0.08,
     illuminationInstability: 0.04,
     reasonCodes: [],

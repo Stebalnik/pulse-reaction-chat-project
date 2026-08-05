@@ -22,6 +22,7 @@ Current prototype:
 - on-device MediaPipe Face Landmarker ROI when the model loads successfully;
 - browser `FaceDetector` ROI when available, skin-cluster fallback otherwise;
 - zone-based skin sampling for forehead and cheek patches instead of averaging the full face rectangle;
+- valid skin-pixel count logging and `ROI_PIXEL_COUNT_LOW` rejection to avoid accepting overly sparse skin masks;
 - chromaticity-normalized RGB sampling to reduce common lighting changes before CHROM/POS/FUSION estimation;
 - live FPS display for timestamp and low-frame-rate debugging;
 - requests up to 60 fps where the browser and camera allow it, while preserving FPS quality gates;

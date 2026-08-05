@@ -30,6 +30,7 @@ export interface PulseSamplerSnapshot {
   sampleCount: number;
   sampleRateHz: number;
   skinCoverage: number;
+  validPixelCount: number;
   validRegionCount: number;
   estimate: HeartRateEstimate;
   diagnostics: HeartRateDiagnostics;
@@ -135,6 +136,7 @@ export class PulseSampler {
       g: normalized.g,
       b: normalized.b,
       roiCoverage: skin.coverage,
+      validPixelCount: skin.validPixelCount,
       motionScore,
       illumination
     });
@@ -162,6 +164,7 @@ export class PulseSampler {
       sampleCount: this.samples.length,
       sampleRateHz: sampleRateHz(this.samples),
       skinCoverage: skin.coverage,
+      validPixelCount: skin.validPixelCount,
       validRegionCount: skin.validRegionCount,
       estimate: diagnostics.diagnostics.estimate,
       diagnostics: diagnostics.diagnostics,
@@ -189,6 +192,7 @@ export class PulseSampler {
         g: normalized.g,
         b: normalized.b,
         roiCoverage: group.coverage,
+        validPixelCount: group.validPixelCount,
         motionScore,
         illumination
       });
@@ -443,7 +447,13 @@ function averageSkinRegions(
   regions: readonly PulseRoiRegion[],
   width: number,
   height: number
-): { channels: { r: number; g: number; b: number }; coverage: number; validRegionCount: number; groupSamples: PulseRegionGroupSample[] } {
+): {
+  channels: { r: number; g: number; b: number };
+  coverage: number;
+  validPixelCount: number;
+  validRegionCount: number;
+  groupSamples: PulseRegionGroupSample[];
+} {
   let totalPixels = 0;
   let totalSkinPixels = 0;
   const validRegions: Array<{
@@ -476,6 +486,7 @@ function averageSkinRegions(
     return {
       channels: { r: 0, g: 0, b: 0 },
       coverage: 0,
+      validPixelCount: 0,
       validRegionCount: 0,
       groupSamples: []
     };
@@ -491,6 +502,7 @@ function averageSkinRegions(
   return {
     channels: weighted,
     coverage: totalPixels > 0 ? totalSkinPixels / totalPixels : 0,
+    validPixelCount: regionsForAverage.reduce((sum, region) => sum + region.skinPixelCount, 0),
     validRegionCount: regionsForAverage.length,
     groupSamples: groupRegionSamples(regionsForAverage)
   };
@@ -500,6 +512,7 @@ interface PulseRegionGroupSample {
   groupId: PulseRegionGroupId;
   channels: { r: number; g: number; b: number };
   coverage: number;
+  validPixelCount: number;
 }
 
 function groupRegionSamples(
@@ -519,7 +532,8 @@ function groupRegionSamples(
       return {
         groupId,
         channels: weightedAverageRegions(groupRegions),
-        coverage: pixelCount > 0 ? skinPixelCount / pixelCount : 0
+        coverage: pixelCount > 0 ? skinPixelCount / pixelCount : 0,
+        validPixelCount: skinPixelCount
       };
     })
     .filter((group): group is PulseRegionGroupSample => group !== null);

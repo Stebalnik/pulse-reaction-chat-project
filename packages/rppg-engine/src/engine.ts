@@ -314,6 +314,7 @@ function validEstimate(
     method,
     methodVersion: config.methodVersion,
     roiCoverage: round(clamp(prepared.roiCoverage, 0, 1), 4),
+    validPixelCount: Math.round(prepared.validPixelCount),
     motionScore: round(clamp(prepared.motionScore, 0, 1), 4),
     illuminationInstability: round(clamp(prepared.illuminationInstability, 0, 1), 4),
     reasonCodes: [...new Set(reasonCodes)]
@@ -335,6 +336,7 @@ function invalidEstimate(
     method: config.method,
     methodVersion: config.methodVersion,
     roiCoverage: round(clamp(prepared.roiCoverage, 0, 1), 4),
+    validPixelCount: Math.round(prepared.validPixelCount),
     motionScore: round(clamp(prepared.motionScore, 0, 1), 4),
     illuminationInstability: round(clamp(prepared.illuminationInstability, 0, 1), 4),
     reasonCodes: [...new Set(reasonCodes)]

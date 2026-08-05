@@ -7,6 +7,7 @@ export const DEFAULT_RPPG_ENGINE_CONFIG: RppgEngineConfig = {
   minSamples: 90,
   minFps: 6,
   minRoiCoverage: 0.55,
+  minRoiPixelCount: 250,
   maxRoiCoverageStd: 0.2,
   maxMotionScore: 0.65,
   maxIlluminationInstability: 0.22,

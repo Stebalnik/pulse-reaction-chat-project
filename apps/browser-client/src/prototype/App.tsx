@@ -51,6 +51,7 @@ interface PulseSnapshot {
   sampleCount: number;
   sampleRateHz: number;
   skinCoverage: number;
+  validPixelCount: number;
   validRegionCount: number;
   roi: FaceRoiResult;
   estimate: HeartRateEstimate;
@@ -105,6 +106,7 @@ interface DebugLogEvent {
     validRegionCount: number;
     regionCount: number;
     skinCoverage: number;
+    validPixelCount: number;
     landmarkCount: number;
   };
   estimate: {
@@ -486,6 +488,7 @@ export function App(): JSX.Element {
                 <Metric label="Maturity" value={`${Math.round((trend?.baselineMaturity ?? 0) * 100)}%`} />
                 <Metric label="FPS" value={snapshot ? `${Math.round(snapshot.sampleRateHz)}` : "--"} />
                 <Metric label="Zones" value={snapshot ? `${snapshot.validRegionCount}/${snapshot.roi.regions.length}` : "--"} />
+                <Metric label="Skin px" value={snapshot ? String(snapshot.validPixelCount) : "--"} />
                 <Metric label="Accepted" value={trend ? `${trend.evidence.validEstimateCount}` : "--"} />
                 <Metric label="Span" value={trend ? `${Math.round(trend.evidence.baselineSpanMs / 1000)}s` : "--"} />
               </div>
@@ -750,6 +753,7 @@ function debugEventFromSnapshot(
       validRegionCount: snapshot.validRegionCount,
       regionCount: snapshot.roi.regions.length,
       skinCoverage: roundForLog(snapshot.skinCoverage),
+      validPixelCount: snapshot.validPixelCount,
       landmarkCount: snapshot.roi.landmarkCount
     },
     estimate: {

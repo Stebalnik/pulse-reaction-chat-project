@@ -9,6 +9,7 @@ export interface PreparedWindow {
   windowEndMs: number;
   roiCoverage: number;
   roiCoverageStd: number;
+  validPixelCount: number;
   motionScore: number;
   illuminationInstability: number;
   reasonCodes: ReasonCode[];
@@ -46,7 +47,9 @@ export function prepareWindow(inputSamples: readonly RgbTraceSample[], config: R
   const roiValues = sorted.map((sample) => clamp(sample.roiCoverage, 0, 1));
   const roiCoverage = mean(roiValues);
   const roiCoverageStd = std(roiValues);
+  const validPixelCount = mean(sorted.map((sample) => Math.max(0, sample.validPixelCount ?? 0)));
   if (roiCoverage < config.minRoiCoverage) reasonCodes.push("ROI_TOO_SMALL");
+  if (validPixelCount > 0 && validPixelCount < config.minRoiPixelCount) reasonCodes.push("ROI_PIXEL_COUNT_LOW");
   if (roiCoverageStd > config.maxRoiCoverageStd) reasonCodes.push("ROI_UNSTABLE");
 
   const motionScore = mean(sorted.map((sample) => clamp(sample.motionScore ?? 0, 0, 1)));
@@ -71,6 +74,7 @@ export function prepareWindow(inputSamples: readonly RgbTraceSample[], config: R
     windowEndMs,
     roiCoverage,
     roiCoverageStd,
+    validPixelCount,
     motionScore,
     illuminationInstability: clamp(illuminationInstability, 0, 1),
     reasonCodes: unique(reasonCodes)
@@ -88,6 +92,7 @@ function resampleUniform(
   const g = samples.map((sample) => sample.g);
   const b = samples.map((sample) => sample.b);
   const roi = samples.map((sample) => sample.roiCoverage);
+  const validPixelCount = samples.map((sample) => sample.validPixelCount ?? 0);
   const motion = samples.map((sample) => sample.motionScore ?? 0);
   const illumination = samples.map((sample) => sample.illumination ?? (sample.r + sample.g + sample.b) / 3);
   const result: RgbTraceSample[] = [];
@@ -98,6 +103,7 @@ function resampleUniform(
       g: linearInterpolate(timestamps, g, timestampMs),
       b: linearInterpolate(timestamps, b, timestampMs),
       roiCoverage: linearInterpolate(timestamps, roi, timestampMs),
+      validPixelCount: linearInterpolate(timestamps, validPixelCount, timestampMs),
       motionScore: linearInterpolate(timestamps, motion, timestampMs),
       illumination: linearInterpolate(timestamps, illumination, timestampMs)
     });
@@ -114,6 +120,7 @@ function emptyWindow(reasonCodes: ReasonCode[]): PreparedWindow {
     windowEndMs: 0,
     roiCoverage: 0,
     roiCoverageStd: 0,
+    validPixelCount: 0,
     motionScore: 0,
     illuminationInstability: 1,
     reasonCodes

@@ -138,6 +138,14 @@ test("invalidates low ROI coverage", () => {
   assert.ok(estimate.reasonCodes.includes("ROI_TOO_SMALL"));
 });
 
+test("invalidates low valid ROI pixel count", () => {
+  const samples = syntheticTrace({ bpm: 72, seconds: 15, fps: 30, projection: "rgb", roiCoverage: 0.8, validPixelCount: 80 });
+  const estimate = estimateHeartRate(samples, { method: "FUSION", minRoiPixelCount: 250 });
+
+  assert.equal(estimate.bpm, null);
+  assert.ok(estimate.reasonCodes.includes("ROI_PIXEL_COUNT_LOW"));
+});
+
 test("invalidates timestamp gaps", () => {
   const samples = syntheticTrace({ bpm: 72, seconds: 15, fps: 30, projection: "rgb" });
   const withGap = samples.filter((sample) => sample.timestampMs < 5_000 || sample.timestampMs > 7_000);
@@ -217,6 +225,7 @@ function syntheticTrace(options: {
   fps: number;
   projection: "green" | "rgb";
   roiCoverage?: number;
+  validPixelCount?: number;
   motionScore?: number;
   normalizeChromaticity?: boolean;
   illuminationDrift?: number;
@@ -260,6 +269,7 @@ function syntheticTrace(options: {
       g: channels.g,
       b: channels.b,
       roiCoverage: options.roiCoverage ?? 0.9,
+      validPixelCount: options.validPixelCount ?? 900,
       motionScore: options.motionScore ?? 0.05,
       illumination
     });
