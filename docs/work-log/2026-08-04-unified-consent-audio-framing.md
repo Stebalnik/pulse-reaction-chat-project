@@ -19,7 +19,7 @@ The product concept assumes participants consent to reaction-pattern analysis be
 - Browser speaker output usually does not require a separate permission prompt; remote audio plays from the WebRTC media stream after the user gesture and browser autoplay policy allow it.
 - Some browsers support explicit audio-output device selection through `setSinkId`, but that is not universal and is not added here.
 - The 15% face-size rule is applied to the displayed local preview. The outbound WebRTC camera track remains the original camera stream.
-- The system still presents pulse-pattern dynamics only as baseline-relative, uncertainty-safe feedback. It does not claim to read emotions, attraction, honesty, intent, compatibility, or medical state.
+- The system still presents pulse-pattern dynamics only as baseline-relative, uncertainty-safe feedback. It avoids claims about emotions, attraction, honesty, intent, compatibility, or medical state.
 
 ## User-facing impact
 
@@ -32,12 +32,17 @@ No raw video, microphone audio, or raw biometric traces are stored by default. A
 ## Commands and checks
 
 - `node --import tsx --test --test-concurrency=1 tests/signaling-backend-admin-auth.test.ts` - passed after an earlier concurrent full-suite run hit a backend health timeout.
+- `node --import tsx --test --test-concurrency=1 tests/*.test.ts` - passed, 37 tests.
 - `./node_modules/.bin/vite build` from `apps/browser-client` with bundled Node on PATH - passed.
 - `node scripts/check-repo.mjs` - passed.
+- Server-side browser build and deploy on `/opt/synvibe/pulse-reaction-chat-project` - passed, release `20260805025459`.
+- `scripts/smoke-production-api.sh` with server-only admin token - passed against `https://synvibe.app`.
+- `curl https://synvibe.app/room` - returned the deployed build with assets `index-DWprpSxF.js` and `index-DiWdIudK.css`.
+- Playwright CLI smoke was attempted locally but the CLI wrapper and direct `npx` invocation hung before returning a snapshot in this environment.
 
 ## Deployment status
 
-Not deployed in this slice yet.
+Deployed to `https://synvibe.app` as browser release `20260805025459`. The backend repository copy was synced and the `synvibe-signaling-backend` service restarted successfully; production API smoke passed.
 
 ## Recommended next steps
 
