@@ -12,14 +12,13 @@ Routes:
 Current prototype:
 
 - public no-login user shell with local anonymous ID and consent/readiness-oriented preview;
-- adults-only safety gate before entering the dating room;
-- separate local physiological-analysis consent and revoke control in the public room;
+- unified adults-only, safety, camera/microphone, and on-device physiological-analysis consent gate before entering the dating room;
 - local registration and optional search filters stored on the device and posted to the own-server backend when available;
-- public video-room with camera enable/pause controls, live roulette queue state, and mutual profile-filter matching;
-- WhatsApp-style video stage with peer/self picture-in-picture swap and front/rear camera flip;
+- public video-room with automatic camera/microphone start after consent, call-media pause/resume controls, live roulette queue state, and mutual profile-filter matching;
+- WhatsApp-style bounded video stage with peer/self picture-in-picture swap, front/rear camera flip, and face-aware local preview framing;
 - active-match WebRTC offer/answer/ICE exchange through the own-server signaling relay;
 - local camera preview;
-- continuous local-only pulse-rate estimate from face/skin ROI in the debug console while camera and local analysis consent are active;
+- continuous local-only pulse-rate estimate from face/skin ROI in the debug console and public room while call media is active after consent;
 - on-device MediaPipe Face Landmarker ROI when the model loads successfully;
 - browser `FaceDetector` ROI when available, skin-cluster fallback otherwise;
 - zone-based skin sampling for forehead and cheek patches instead of averaging the full face rectangle;

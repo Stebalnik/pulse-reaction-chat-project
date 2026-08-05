@@ -4,7 +4,7 @@ import type { ReactionOutputRequest } from "@pulse-reaction/shared-schemas";
 import { PulseTrendMonitor } from "@pulse-reaction/rppg-engine";
 import { recordReactionOutput } from "./api.js";
 import { FaceRoiTracker } from "./prototype/faceRoi.js";
-import { PulseSampler } from "./prototype/pulseSampler.js";
+import { PulseSampler, type RoiRect } from "./prototype/pulseSampler.js";
 import { reactionOutputFromTrend } from "./reactionOutputMapper.js";
 
 const PUBLIC_REACTION_UPLOAD_INTERVAL_MS = 3_000;
@@ -15,6 +15,7 @@ export interface PublicReactionOutputState {
   confidence: ReactionOutputRequest["confidence"] | null;
   qualityScore: number | null;
   reasonCodes: string[];
+  roi: RoiRect | null;
 }
 
 export function usePublicReactionOutput(input: {
@@ -41,7 +42,8 @@ export function usePublicReactionOutput(input: {
     state: null,
     confidence: null,
     qualityScore: null,
-    reasonCodes: []
+    reasonCodes: [],
+    roi: null
   });
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export function usePublicReactionOutput(input: {
       roiTrackerRef.current.reset();
       trendMonitorRef.current.reset();
       uploadRef.current = { lastAtMs: 0, signature: null };
-      setState({ status: "disabled", state: null, confidence: null, qualityScore: null, reasonCodes: [] });
+      setState({ status: "disabled", state: null, confidence: null, qualityScore: null, reasonCodes: [], roi: null });
       return;
     }
 
@@ -68,7 +70,7 @@ export function usePublicReactionOutput(input: {
           if (!snapshot) {
             setState((current) => {
               if (current.status === "offline") return current;
-              const next = { ...current, status: "collecting" as const };
+              const next = { ...current, status: "collecting" as const, roi: roi.roi };
               return samePublicReactionState(current, next) ? current : next;
             });
             return;
@@ -84,14 +86,14 @@ export function usePublicReactionOutput(input: {
           const signature = reactionOutputSignature(output);
           const shouldUpload = timestampMs - uploadRef.current.lastAtMs >= PUBLIC_REACTION_UPLOAD_INTERVAL_MS || signature !== uploadRef.current.signature;
           if (!shouldUpload) {
-            setStateIfChanged(setState, reactionUiState("collecting", output));
+            setStateIfChanged(setState, reactionUiState("collecting", output, roi.roi));
             return;
           }
 
           const uploaded = await recordReactionOutput(output);
           if (cancelled) return;
           if (uploaded) uploadRef.current = { lastAtMs: timestampMs, signature };
-          setStateIfChanged(setState, reactionUiState(uploaded ? "uploaded" : "offline", output));
+          setStateIfChanged(setState, reactionUiState(uploaded ? "uploaded" : "offline", output, roi.roi));
         });
       }
       animationId = window.requestAnimationFrame(loop);
@@ -107,13 +109,14 @@ export function usePublicReactionOutput(input: {
   return state;
 }
 
-function reactionUiState(status: PublicReactionOutputState["status"], output: ReactionOutputRequest): PublicReactionOutputState {
+function reactionUiState(status: PublicReactionOutputState["status"], output: ReactionOutputRequest, roi: RoiRect): PublicReactionOutputState {
   return {
     status,
     state: output.state,
     confidence: output.confidence,
     qualityScore: output.qualityScore,
-    reasonCodes: output.reasonCodes
+    reasonCodes: output.reasonCodes,
+    roi
   };
 }
 
@@ -130,8 +133,19 @@ function samePublicReactionState(left: PublicReactionOutputState, right: PublicR
     left.state === right.state &&
     left.confidence === right.confidence &&
     left.qualityScore === right.qualityScore &&
+    sameRoi(left.roi, right.roi) &&
     left.reasonCodes.length === right.reasonCodes.length &&
     left.reasonCodes.every((reason, index) => reason === right.reasonCodes[index])
+  );
+}
+
+function sameRoi(left: RoiRect | null, right: RoiRect | null): boolean {
+  if (!left || !right) return left === right;
+  return (
+    Math.round(left.x) === Math.round(right.x) &&
+    Math.round(left.y) === Math.round(right.y) &&
+    Math.round(left.width) === Math.round(right.width) &&
+    Math.round(left.height) === Math.round(right.height)
   );
 }
 
