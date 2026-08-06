@@ -28,7 +28,13 @@ No data collection, sharing, storage, or biometric processing behavior changed.
 - `./node_modules/.bin/tsc --noEmit`
 - `node scripts/check-repo.mjs`
 - `apps/browser-client`: `./node_modules/.bin/vite build`
+- Production: `SERVER_HOST=root@165.232.145.239 scripts/deploy-browser-client.sh`
+- Production: `curl -fsS https://synvibe.app/room`
+- Production: `curl -fsS https://synvibe.app/api/health`
 
 ## Deployment status
 
-Ready for deployment after commit and push.
+Deployed to `https://synvibe.app` on 2026-08-06 UTC.
+
+- Frontend release: `20260806014757`.
+- Production smoke passed for `/room` HTML delivery and public health.
