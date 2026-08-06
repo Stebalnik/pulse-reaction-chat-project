@@ -23,6 +23,9 @@ import type {
   ModerationReportQueue,
   ModerationReportQueueItem,
   ModerationReportStatusFilter,
+  PeerPulseBatch,
+  PeerPulseMessage,
+  PeerPulseRequest,
   WebRtcSignalBatch,
   WebRtcSignalMessage,
   WebRtcSignalRequest,
@@ -36,6 +39,7 @@ import type {
 
 const DEFAULT_DB_PATH = resolve(process.cwd(), "data/synvibe.sqlite");
 const DEFAULT_CHAT_RETENTION_HOURS = 24;
+const PEER_PULSE_RETENTION_MS = 60_000;
 
 export class ProfileHandleConflictError extends Error {
   constructor(readonly handle: string) {
@@ -136,6 +140,15 @@ export class SynVibeStore {
         sender_user_id TEXT NOT NULL REFERENCES users(id),
         type TEXT NOT NULL,
         payload_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS peer_pulse_messages (
+        id TEXT PRIMARY KEY,
+        match_id TEXT NOT NULL REFERENCES matches(id),
+        sender_user_id TEXT NOT NULL REFERENCES users(id),
+        bpm_estimate REAL NOT NULL,
+        quality_score REAL NOT NULL,
+        occurred_at TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
       CREATE TABLE IF NOT EXISTS chat_messages (
@@ -754,6 +767,58 @@ export class SynVibeStore {
     };
   }
 
+  recordPeerPulse(input: PeerPulseRequest): PeerPulseMessage {
+    this.pruneExpiredPeerPulseMessages();
+    const user = this.upsertAnonymousUser(input.localUserId);
+    const match = this.getActiveMatchForUser(input.matchId, user.id);
+    const now = new Date().toISOString();
+    const message: PeerPulseMessage = {
+      id: randomUUID(),
+      matchId: match.id,
+      senderLocalUserId: user.localUserId,
+      bpmEstimate: input.bpmEstimate,
+      qualityScore: input.qualityScore,
+      occurredAtIso: input.occurredAtIso,
+      createdAtIso: now
+    };
+    this.execute(`
+      INSERT INTO peer_pulse_messages (id, match_id, sender_user_id, bpm_estimate, quality_score, occurred_at, created_at)
+      VALUES (
+        ${sql(message.id)},
+        ${sql(match.id)},
+        ${sql(user.id)},
+        ${input.bpmEstimate},
+        ${input.qualityScore},
+        ${sql(input.occurredAtIso)},
+        ${sql(now)}
+      );
+    `);
+    return message;
+  }
+
+  getPeerPulseMessages(localUserId: string, matchId: string, afterCursor: string | null): PeerPulseBatch {
+    this.pruneExpiredPeerPulseMessages();
+    const user = this.upsertAnonymousUser(localUserId);
+    const match = this.getActiveMatchForUser(matchId, user.id);
+    const afterClause = afterCursor ? `AND peer_pulse_messages.created_at || ':' || peer_pulse_messages.id > ${sql(afterCursor)}` : "";
+    const rows = this.query<PeerPulseRow>(`
+      SELECT peer_pulse_messages.*, users.local_user_id
+      FROM peer_pulse_messages
+      JOIN users ON users.id = peer_pulse_messages.sender_user_id
+      WHERE match_id = ${sql(match.id)}
+        AND sender_user_id != ${sql(user.id)}
+        ${afterClause}
+      ORDER BY peer_pulse_messages.created_at ASC, peer_pulse_messages.id ASC
+      LIMIT 100;
+    `);
+    const messages = rows.map(mapPeerPulseMessage);
+    const last = rows.at(-1);
+    return {
+      messages,
+      nextCursor: last ? `${last.created_at}:${last.id}` : afterCursor
+    };
+  }
+
   recordChatMessage(input: MatchChatMessageRequest): MatchChatMessage {
     this.pruneExpiredChatMessages();
     const user = this.upsertAnonymousUser(input.localUserId);
@@ -1105,6 +1170,11 @@ export class SynVibeStore {
     this.execute(`DELETE FROM chat_messages WHERE created_at < ${sql(cutoff)};`);
   }
 
+  private pruneExpiredPeerPulseMessages(): void {
+    const cutoff = new Date(Date.now() - PEER_PULSE_RETENTION_MS).toISOString();
+    this.execute(`DELETE FROM peer_pulse_messages WHERE created_at < ${sql(cutoff)};`);
+  }
+
   private getUserByLocalId(localUserId: string): AnonymousUserRecord | null {
     const row = this.queryOne<UserRow>(`SELECT * FROM users WHERE local_user_id = ${sql(localUserId)};`);
     return row ? mapUser(row) : null;
@@ -1205,6 +1275,17 @@ interface SignalRow {
   created_at: string;
 }
 
+interface PeerPulseRow {
+  id: string;
+  match_id: string;
+  sender_user_id: string;
+  local_user_id: string;
+  bpm_estimate: number;
+  quality_score: number;
+  occurred_at: string;
+  created_at: string;
+}
+
 interface ChatMessageRow {
   id: string;
   match_id: string;
@@ -1283,6 +1364,18 @@ function mapSignal(row: SignalRow): WebRtcSignalMessage {
     senderLocalUserId: row.local_user_id,
     type: row.type,
     payload: parsePayload(row.payload_json),
+    createdAtIso: row.created_at
+  };
+}
+
+function mapPeerPulseMessage(row: PeerPulseRow): PeerPulseMessage {
+  return {
+    id: row.id,
+    matchId: row.match_id,
+    senderLocalUserId: row.local_user_id,
+    bpmEstimate: row.bpm_estimate,
+    qualityScore: row.quality_score,
+    occurredAtIso: row.occurred_at,
     createdAtIso: row.created_at
   };
 }

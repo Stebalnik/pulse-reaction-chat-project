@@ -9,6 +9,7 @@ import type {
   MatchmakingLeaveRequest,
   ModerationReportRequest,
   ModerationReportResolutionRequest,
+  PeerPulseRequest,
   ProfileRequest,
   ReactionOutputRequest,
   SessionEndRequest,
@@ -266,6 +267,32 @@ async function route(request: IncomingMessage, response: ServerResponse): Promis
     sendJson(response, 200, store.getSignals(localUserId.slice(0, 64), matchId.slice(0, 64), url.searchParams.get("after")));
     return;
   }
+  if (request.method === "POST" && url.pathname === "/api/peer-pulse/messages") {
+    const body = await readJson(request);
+    const input: PeerPulseRequest = {
+      localUserId: readString(body, "localUserId", 64),
+      matchId: readString(body, "matchId", 64),
+      bpmEstimate: readBoundedNumber(body, "bpmEstimate", 42, 180),
+      qualityScore: readBoundedNumber(body, "qualityScore", 0, 1),
+      occurredAtIso: readString(body, "occurredAtIso", 40)
+    };
+    if (!store.hasActiveConsentForLocalUser(input.localUserId, "physiological_analysis")) {
+      sendJson(response, 403, { error: "physiological_analysis_consent_required" });
+      return;
+    }
+    sendJson(response, 202, store.recordPeerPulse(input));
+    return;
+  }
+  if (request.method === "GET" && url.pathname === "/api/peer-pulse/messages") {
+    const localUserId = url.searchParams.get("localUserId");
+    const matchId = url.searchParams.get("matchId");
+    if (!localUserId || !matchId) {
+      sendJson(response, 400, { error: "missing_peer_pulse_query" });
+      return;
+    }
+    sendJson(response, 200, store.getPeerPulseMessages(localUserId.slice(0, 64), matchId.slice(0, 64), url.searchParams.get("after")));
+    return;
+  }
   if (request.method === "POST" && url.pathname === "/api/match-chat/messages") {
     const body = await readJson(request);
     const input: MatchChatMessageRequest = {
@@ -496,6 +523,12 @@ function readStringArray(body: Record<string, unknown>, key: string, maxItems: n
 function readNumber(body: Record<string, unknown>, key: string): number {
   const value = body[key];
   if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`Missing number: ${key}`);
+  return value;
+}
+
+function readBoundedNumber(body: Record<string, unknown>, key: string, min: number, max: number): number {
+  const value = readNumber(body, key);
+  if (value < min || value > max) throw new Error(`Number out of range: ${key}`);
   return value;
 }
 

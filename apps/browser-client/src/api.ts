@@ -12,6 +12,8 @@ import type {
   ModerationReportRequest,
   ModerationReportResolutionRequest,
   ModerationReportStatusFilter,
+  PeerPulseBatch,
+  PeerPulseRequest,
   ProfileRequest,
   ProfileRecord,
   ReactionOutputRequest,
@@ -134,6 +136,29 @@ export async function loadSignals(input: {
     const response = await fetch(`${API_ORIGIN}/api/signaling/messages?${params.toString()}`);
     if (!response.ok) return null;
     return (await response.json()) as WebRtcSignalBatch;
+  } catch {
+    return null;
+  }
+}
+
+export async function sendPeerPulse(input: PeerPulseRequest): Promise<void> {
+  await post("/api/peer-pulse/messages", input);
+}
+
+export async function loadPeerPulse(input: {
+  localUserId: string;
+  matchId: string;
+  after?: string | null;
+}): Promise<PeerPulseBatch | null> {
+  try {
+    const params = new URLSearchParams({
+      localUserId: input.localUserId,
+      matchId: input.matchId
+    });
+    if (input.after) params.set("after", input.after);
+    const response = await fetch(`${API_ORIGIN}/api/peer-pulse/messages?${params.toString()}`);
+    if (!response.ok) return null;
+    return (await response.json()) as PeerPulseBatch;
   } catch {
     return null;
   }

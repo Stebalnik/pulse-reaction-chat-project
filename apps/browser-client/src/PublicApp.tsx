@@ -8,6 +8,7 @@ import {
   endServerSession,
   ensureAnonymousUser,
   joinMatchmaking,
+  loadPeerPulse,
   loadChatMessages,
   leaveMatchmaking,
   loadMatchmakingStatus,
@@ -17,6 +18,7 @@ import {
   recordEvent,
   recordModerationReport,
   saveServerProfile,
+  sendPeerPulse,
   sendChatMessage,
   sendSignal
 } from "./api.js";
@@ -75,6 +77,12 @@ const PACE_OPTIONS: Array<{ value: ConversationPace; label: string }> = [
 const HEARTBEAT_DISPLAY_DELAY_MS = 2_000;
 const HEARTBEAT_BUFFER_RETENTION_MS = 8_000;
 const HEARTBEAT_REFRESH_MS = 200;
+const PEER_PULSE_SYNC_INTERVAL_MS = 1_000;
+
+interface SharedPulseState {
+  bpmEstimate: number | null;
+  qualityScore: number | null;
+}
 
 export function PublicApp(): JSX.Element {
   const userId = useMemo(() => getOrCreateAnonymousUserId(), []);
@@ -252,7 +260,7 @@ function PublicHome({
           <h1>See reaction patterns while you talk.</h1>
           <p>
             Start instantly as {profile?.displayName ?? "a guest"}. Your profile name can be saved to the SynVibe server for live matching,
-            while precise pulse data stays private by default.
+            while estimated pulse rhythm is shared with your matched peer after consent.
           </p>
           <div className="heroActions">
             <button className="primaryAction" type="button" onClick={onEnterRoom}>
@@ -278,7 +286,7 @@ function PublicHome({
           <div className="previewReadiness" aria-label="Launch readiness">
             <span>Live queue</span>
             <span>Adults-only gate</span>
-            <span>Pulse private by default</span>
+            <span>Shared pulse rhythm</span>
           </div>
         </div>
       </div>
@@ -305,7 +313,7 @@ function PublicSafetyGate({ onAccept, onLeave }: { onAccept: () => void; onLeave
         <span className="productSignal">Safety gate</span>
         <h1>Adults-only video chat</h1>
         <p>
-          Continue only if you are 18 or older, agree to use report, block, and pause controls when needed, and consent to on-device reaction-pattern analysis while you are in the chat.
+          Continue only if you are 18 or older, agree to use report, block, and pause controls when needed, and consent to on-device pulse-pattern analysis with estimated pulse rhythm shared in matched chat.
         </p>
         <div className="safetyChecks">
           <label className="checkRow">
@@ -318,7 +326,7 @@ function PublicSafetyGate({ onAccept, onLeave }: { onAccept: () => void; onLeave
           </label>
           <label className="checkRow">
             <input checked={analysisConfirmed} onChange={(event) => setAnalysisConfirmed(event.target.checked)} type="checkbox" />
-            I consent to camera and microphone access, automatic on-device pulse-pattern analysis, and uncertainty-safe feedback during the chat.
+            I consent to camera and microphone access, automatic on-device pulse-pattern analysis, and sharing my estimated pulse rhythm with my matched peer during the chat.
           </label>
         </div>
         <div className="heroActions">
@@ -384,6 +392,9 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const signalCursorRef = useRef<string | null>(null);
+  const peerPulseCursorRef = useRef<string | null>(null);
+  const lastPeerPulseSentRef = useRef<{ atMs: number; roundedBpm: number } | null>(null);
+  const localPulseForSyncRef = useRef<SharedPulseState>({ bpmEstimate: null, qualityScore: null });
   const chatCursorRef = useRef<string | null>(null);
   const offerStartedRef = useRef<string | null>(null);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
@@ -405,6 +416,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [matchStatus, setMatchStatus] = useState<MatchmakingStatus>({ status: "idle" });
   const [matchingOnline, setMatchingOnline] = useState(true);
+  const [peerPulse, setPeerPulse] = useState<SharedPulseState>({ bpmEstimate: null, qualityScore: null });
   const analysisActive = cameraEnabled;
   const reactionOutput = usePublicReactionOutput({
     active: analysisActive,
@@ -413,6 +425,13 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
     videoRef
   });
   const selfVideoStyle = faceFramingStyle(reactionOutput.roi, videoRef.current);
+
+  useEffect(() => {
+    localPulseForSyncRef.current = {
+      bpmEstimate: reactionOutput.bpmEstimate,
+      qualityScore: reactionOutput.qualityScore
+    };
+  }, [reactionOutput.bpmEstimate, reactionOutput.qualityScore]);
 
   useEffect(() => {
     void createServerSession(userId, "/room").then((session) => {
@@ -555,6 +574,8 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       closePeerConnection(peerConnectionRef, remoteVideoRef, setHasRemoteStream, setConnectionState);
       offerStartedRef.current = null;
       signalCursorRef.current = null;
+      peerPulseCursorRef.current = null;
+      setPeerPulse({ bpmEstimate: null, qualityScore: null });
       pendingIceCandidatesRef.current = [];
       return;
     }
@@ -621,6 +642,56 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       window.clearInterval(intervalId);
     };
   }, [localStream, matchStatus, userId]);
+
+  useEffect(() => {
+    if (matchStatus.status !== "matched" || !analysisActive) {
+      peerPulseCursorRef.current = null;
+      lastPeerPulseSentRef.current = null;
+      setPeerPulse({ bpmEstimate: null, qualityScore: null });
+      return;
+    }
+
+    const matchId = matchStatus.match.id;
+    let cancelled = false;
+
+    const syncPulse = async (): Promise<void> => {
+      const localPulse = localPulseForSyncRef.current;
+      const localBpm = localPulse.bpmEstimate;
+      if (localBpm !== null) {
+        const roundedBpm = Math.round(localBpm);
+        const nowMs = performance.now();
+        const lastSent = lastPeerPulseSentRef.current;
+        if (!lastSent || nowMs - lastSent.atMs >= PEER_PULSE_SYNC_INTERVAL_MS || lastSent.roundedBpm !== roundedBpm) {
+          lastPeerPulseSentRef.current = { atMs: nowMs, roundedBpm };
+          await sendPeerPulse({
+            localUserId: userId,
+            matchId,
+            bpmEstimate: Math.max(42, Math.min(180, localBpm)),
+            qualityScore: Math.max(0, Math.min(1, localPulse.qualityScore ?? 0)),
+            occurredAtIso: new Date().toISOString()
+          });
+        }
+      }
+
+      const batch = await loadPeerPulse({ localUserId: userId, matchId, after: peerPulseCursorRef.current });
+      if (!batch || cancelled) return;
+      peerPulseCursorRef.current = batch.nextCursor;
+      const latest = batch.messages.at(-1);
+      if (latest) {
+        setPeerPulse({
+          bpmEstimate: latest.bpmEstimate,
+          qualityScore: latest.qualityScore
+        });
+      }
+    };
+
+    void syncPulse();
+    const intervalId = window.setInterval(() => void syncPulse(), PEER_PULSE_SYNC_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [analysisActive, matchStatus, userId]);
 
   useEffect(() => {
     if (matchStatus.status !== "matched") {
@@ -787,7 +858,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
           ) : (
             <EmptyVideo label="Media paused" />
           )}
-          <PulseHeartOverlay active={analysisActive} bpmEstimate={reactionOutput.bpmEstimate} qualityScore={reactionOutput.qualityScore} />
+          <PulseHeartOverlay active={analysisActive} bpmEstimate={reactionOutput.bpmEstimate} qualityScore={reactionOutput.qualityScore} ownerLabel="Your" />
           {cameraError && <div className="publicStatus danger">{cameraError}</div>}
           <div className="publicVideoLabel">{cameraFacingMode === "user" ? "You" : "Rear camera"}</div>
         </article>
@@ -804,6 +875,12 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
             cameraEnabled={cameraEnabled}
             analysisActive={analysisActive}
             reactionOutput={reactionOutput}
+          />
+          <PulseHeartOverlay
+            active={matchStatus.status === "matched"}
+            bpmEstimate={peerPulse.bpmEstimate}
+            qualityScore={peerPulse.qualityScore}
+            ownerLabel="Peer"
           />
           <div className="publicVideoLabel">Peer</div>
         </article>
@@ -1003,7 +1080,7 @@ function PeerPane({
         </div>
         <div className="publicReactionStack" aria-label="Physiological analysis availability">
           <ReactionChip code={reactionOutputChipCode(reactionOutput, analysisActive)} label="Local analysis" />
-          <ReactionChip code="LOCAL_ONLY" label="Precise BPM private" />
+          <ReactionChip code="PEER_SHARED" label="Pulse rhythm shared" />
         </div>
       </>
     );
@@ -1041,11 +1118,13 @@ function PeerPane({
 function PulseHeartOverlay({
   active,
   bpmEstimate,
-  qualityScore
+  qualityScore,
+  ownerLabel
 }: {
   active: boolean;
   bpmEstimate: number | null;
   qualityScore: number | null;
+  ownerLabel: "Your" | "Peer";
 }): JSX.Element {
   const pulseBufferRef = useRef<Array<{ receivedAtMs: number; bpm: number; quality: number }>>([]);
   const [displayPulse, setDisplayPulse] = useState<{ bpm: number; quality: number } | null>(null);
@@ -1093,7 +1172,7 @@ function PulseHeartOverlay({
     "--pulse-heart-duration": `${durationSeconds.toFixed(3)}s`,
     "--pulse-heart-quality": quality.toFixed(3)
   } as CSSProperties;
-  const label = boundedBpm === null ? "Pulse estimate waiting" : `Estimated pulse ${Math.round(boundedBpm)} BPM, delayed`;
+  const label = boundedBpm === null ? `${ownerLabel} pulse estimate waiting` : `${ownerLabel} estimated pulse ${Math.round(boundedBpm)} BPM, delayed`;
 
   return (
     <div className={`pulseHeartOverlay ${active && boundedBpm !== null ? "active" : "waiting"}`} style={style} aria-label={label}>
@@ -1167,7 +1246,7 @@ function RegisterDialog({
       >
         <div>
           <h2>Register profile</h2>
-          <p>Registration saves your display name and handle for matching. It does not share precise pulse data with another participant.</p>
+          <p>Registration saves your display name and handle for matching. In matched chat, estimated pulse rhythm is shared after room consent.</p>
         </div>
         <label>
           Display name

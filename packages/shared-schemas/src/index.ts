@@ -273,6 +273,29 @@ export interface WebRtcSignalBatch {
   nextCursor: string | null;
 }
 
+export interface PeerPulseRequest {
+  localUserId: string;
+  matchId: string;
+  bpmEstimate: number;
+  qualityScore: number;
+  occurredAtIso: string;
+}
+
+export interface PeerPulseMessage {
+  id: string;
+  matchId: string;
+  senderLocalUserId: string;
+  bpmEstimate: number;
+  qualityScore: number;
+  occurredAtIso: string;
+  createdAtIso: string;
+}
+
+export interface PeerPulseBatch {
+  messages: PeerPulseMessage[];
+  nextCursor: string | null;
+}
+
 export interface MatchChatMessageRequest {
   localUserId: string;
   matchId: string;

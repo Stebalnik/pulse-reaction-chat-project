@@ -383,6 +383,46 @@ test("signaling relay delivers peer messages only for active matches", () => {
   }
 });
 
+test("peer pulse relay delivers estimated BPM only to the matched peer", () => {
+  const dir = mkdtempSync(join(tmpdir(), "synvibe-peer-pulse-"));
+  try {
+    const store = new SynVibeStore(join(dir, "synvibe.sqlite"));
+    store.upsertProfile({ localUserId: "SV-PULSEA-000001", displayName: "Cam", handle: "pulsea" });
+    store.upsertProfile({ localUserId: "SV-PULSEB-000002", displayName: "Dev", handle: "pulseb" });
+    grantAdultChatTerms(store, "SV-PULSEA-000001");
+    grantAdultChatTerms(store, "SV-PULSEB-000002");
+
+    const first = store.joinMatchmaking({ localUserId: "SV-PULSEA-000001" });
+    assert.equal(first.status, "waiting");
+    const second = store.joinMatchmaking({ localUserId: "SV-PULSEB-000002" });
+    assert.equal(second.status, "matched");
+    const matchId = second.match.id;
+
+    const message = store.recordPeerPulse({
+      localUserId: "SV-PULSEA-000001",
+      matchId,
+      bpmEstimate: 82,
+      qualityScore: 0.74,
+      occurredAtIso: new Date().toISOString()
+    });
+
+    assert.equal(message.senderLocalUserId, "SV-PULSEA-000001");
+    const senderBatch = store.getPeerPulseMessages("SV-PULSEA-000001", matchId, null);
+    assert.equal(senderBatch.messages.length, 0);
+
+    const peerBatch = store.getPeerPulseMessages("SV-PULSEB-000002", matchId, null);
+    assert.equal(peerBatch.messages.length, 1);
+    assert.equal(peerBatch.messages[0]?.senderLocalUserId, "SV-PULSEA-000001");
+    assert.equal(peerBatch.messages[0]?.bpmEstimate, 82);
+    assert.equal(peerBatch.messages[0]?.qualityScore, 0.74);
+
+    const repeated = store.getPeerPulseMessages("SV-PULSEB-000002", matchId, peerBatch.nextCursor);
+    assert.equal(repeated.messages.length, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("match chat stores messages only for active match participants", () => {
   const dir = mkdtempSync(join(tmpdir(), "synvibe-chat-"));
   try {
