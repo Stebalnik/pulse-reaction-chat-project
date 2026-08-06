@@ -863,6 +863,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
           )}
           <PulseHeartOverlay active={analysisActive} bpmEstimate={reactionOutput.bpmEstimate} qualityScore={reactionOutput.qualityScore} ownerLabel="Your" />
           {cameraError && <div className="publicStatus danger">{cameraError}</div>}
+          <VideoWatermark />
           <div className="publicVideoLabel">{cameraFacingMode === "user" ? "You" : "Rear camera"}</div>
         </article>
         <article
@@ -883,6 +884,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
             qualityScore={peerPulse.qualityScore}
             ownerLabel="Peer"
           />
+          <VideoWatermark />
           <div className="publicVideoLabel">Peer</div>
         </article>
         <button className="callSwapButton" type="button" onClick={() => setCallLayout((layout) => (layout === "self_left" ? "peer_left" : "self_left"))}>
@@ -1343,6 +1345,10 @@ function EmptyVideo({ label }: { label: string }): JSX.Element {
       <span>{label}</span>
     </div>
   );
+}
+
+function VideoWatermark(): JSX.Element {
+  return <div className="videoWatermark" aria-hidden="true">synvibe.app</div>;
 }
 
 function roomStatusText(status: MatchmakingStatus, online: boolean): string {
