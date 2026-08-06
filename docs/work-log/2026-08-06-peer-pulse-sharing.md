@@ -35,7 +35,16 @@ Estimated BPM and quality score are sent to the server for active matched delive
 - `node --import tsx --test tests/public-reaction-output.test.ts tests/reaction-output-mapper.test.ts`
 - `node scripts/check-repo.mjs`
 - `apps/browser-client`: `./node_modules/.bin/vite build`
+- Production: `SERVER_HOST=root@165.232.145.239 scripts/deploy-signaling-backend.sh`
+- Production: `SERVER_HOST=root@165.232.145.239 scripts/deploy-browser-client.sh`
+- Production: `ADMIN_TOKEN=... scripts/smoke-production-api.sh`
+- Production: `curl -fsS https://synvibe.app/room`
+- Production: `curl -fsS https://synvibe.app/api/health`
 
 ## Deployment status
 
-Ready for deployment after commit and push.
+Deployed to `https://synvibe.app` on 2026-08-06 UTC.
+
+- Backend service: `synvibe-signaling-backend` restarted and passed health smoke.
+- Frontend release: `20260806004944`.
+- Production smoke passed for public health, protected admin summary behavior, and `/room` HTML delivery.
