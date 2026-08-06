@@ -1,7 +1,7 @@
 import { Activity, Camera, CircleUserRound, Flag, HeartPulse, MessageCircle, Play, Send, ShieldCheck, Trash2, UserPlus, Video } from "lucide-react";
 import type { CSSProperties, JSX, MutableRefObject, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ConversationPace, MatchAgeBracket, MatchChatMessage, MatchIntent, MatchLanguage, MatchPeer, MatchmakingStatus, MatchTopicTag, ModerationReportReason, ProfileRecord, WebRtcSignalMessage } from "@pulse-reaction/shared-schemas";
+import type { ConversationPace, MatchAgeBracket, MatchChatMessage, MatchIntent, MatchLanguage, MatchmakingStatus, MatchTopicTag, ModerationReportReason, ProfileRecord, WebRtcSignalMessage } from "@pulse-reaction/shared-schemas";
 import {
   createServerSession,
   deleteChatMessage,
@@ -403,7 +403,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const analysisStartEventsRef = useRef<Set<string>>(new Set());
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [cameraFacingMode, setCameraFacingMode] = useState<"user" | "environment">("user");
-  const [callLayout, setCallLayout] = useState<"peer_main" | "self_main">("peer_main");
+  const [callLayout, setCallLayout] = useState<"self_left" | "peer_left">("self_left");
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [audioOutputReady, setAudioOutputReady] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -418,6 +418,9 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   const [matchingOnline, setMatchingOnline] = useState(true);
   const [peerPulse, setPeerPulse] = useState<SharedPulseState>({ bpmEstimate: null, qualityScore: null });
   const analysisActive = cameraEnabled;
+  const activeMatch = matchStatus.status === "matched" ? matchStatus.match : null;
+  const activeMatchId = activeMatch?.id ?? null;
+  const activeMatchRole = activeMatch?.localRole ?? null;
   const reactionOutput = usePublicReactionOutput({
     active: analysisActive,
     localUserId: userId,
@@ -462,7 +465,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
     const refresh = async (): Promise<void> => {
       const status = await loadMatchmakingStatus(userId);
       if (!cancelled && status) {
-        setMatchStatus(status);
+        setMatchStatusIfChanged(setMatchStatus, status);
         setMatchingOnline(true);
       }
     };
@@ -472,7 +475,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       .then((status) => {
         if (cancelled) return;
         if (status) {
-          setMatchStatus(status);
+          setMatchStatusIfChanged(setMatchStatus, status);
           setMatchingOnline(true);
         } else {
           setMatchingOnline(false);
@@ -494,11 +497,11 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       ...(matchId ? { matchId } : {}),
       reason
     });
-    setMatchStatus(status ?? { status: "idle" });
+    setMatchStatusIfChanged(setMatchStatus, status ?? { status: "idle" });
     if (reason === "left") {
       await syncAdultChatTerms(userId, sessionId, "room_entry_assertion");
       const next = await joinMatchmaking(userId, sessionId);
-      if (next) setMatchStatus(next);
+      if (next) setMatchStatusIfChanged(setMatchStatus, next);
     }
   };
 
@@ -570,7 +573,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
   }, [cameraEnabled, cameraFacingMode, sessionId, userId]);
 
   useEffect(() => {
-    if (matchStatus.status !== "matched" || !localStream) {
+    if (!activeMatch || !localStream) {
       closePeerConnection(peerConnectionRef, remoteVideoRef, setHasRemoteStream, setConnectionState);
       offerStartedRef.current = null;
       signalCursorRef.current = null;
@@ -580,7 +583,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       return;
     }
 
-    const match = matchStatus.match;
+    const match = activeMatch;
     let cancelled = false;
     const connection = ensurePeerConnection({
       peerConnectionRef,
@@ -641,17 +644,17 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [localStream, matchStatus, userId]);
+  }, [activeMatch, activeMatchId, activeMatchRole, localStream, userId]);
 
   useEffect(() => {
-    if (matchStatus.status !== "matched" || !analysisActive) {
+    if (!activeMatchId || !analysisActive) {
       peerPulseCursorRef.current = null;
       lastPeerPulseSentRef.current = null;
       setPeerPulse({ bpmEstimate: null, qualityScore: null });
       return;
     }
 
-    const matchId = matchStatus.match.id;
+    const matchId = activeMatchId;
     let cancelled = false;
 
     const syncPulse = async (): Promise<void> => {
@@ -691,7 +694,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [analysisActive, matchStatus, userId]);
+  }, [activeMatchId, analysisActive, userId]);
 
   useEffect(() => {
     if (matchStatus.status !== "matched") {
@@ -822,7 +825,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
               onClick={() =>
                 void syncAdultChatTerms(userId, sessionId, "room_entry_assertion")
                   .then(() => joinMatchmaking(userId, sessionId))
-                  .then((status) => status && setMatchStatus(status))
+                  .then((status) => status && setMatchStatusIfChanged(setMatchStatus, status))
               }
             >
               {matchStatus.status === "ineligible" ? "Confirm and find peer" : "Find peer"}
@@ -843,8 +846,8 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
 
       <div className={`publicCallStage ${callLayout}`}>
         <article
-          className={`publicVideoPane selfPane ${callLayout === "self_main" ? "mainPane" : "pipPane"}`}
-          onClick={() => callLayout !== "self_main" && setCallLayout("self_main")}
+          className="publicVideoPane selfPane"
+          onClick={() => setCallLayout("self_left")}
         >
           {cameraEnabled ? (
             <video
@@ -863,8 +866,8 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
           <div className="publicVideoLabel">{cameraFacingMode === "user" ? "You" : "Rear camera"}</div>
         </article>
         <article
-          className={`publicVideoPane peerPane ${callLayout === "peer_main" ? "mainPane" : "pipPane"}`}
-          onClick={() => callLayout !== "peer_main" && setCallLayout("peer_main")}
+          className="publicVideoPane peerPane"
+          onClick={() => setCallLayout("peer_left")}
         >
           <PeerPane
             status={matchStatus}
@@ -873,8 +876,6 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
             hasRemoteStream={hasRemoteStream}
             connectionState={connectionState}
             cameraEnabled={cameraEnabled}
-            analysisActive={analysisActive}
-            reactionOutput={reactionOutput}
           />
           <PulseHeartOverlay
             active={matchStatus.status === "matched"}
@@ -884,7 +885,7 @@ function PublicRoom({ userId, profile }: { userId: string; profile: LocalProfile
           />
           <div className="publicVideoLabel">Peer</div>
         </article>
-        <button className="callSwapButton" type="button" onClick={() => setCallLayout((layout) => (layout === "peer_main" ? "self_main" : "peer_main"))}>
+        <button className="callSwapButton" type="button" onClick={() => setCallLayout((layout) => (layout === "self_left" ? "peer_left" : "self_left"))}>
           Swap view
         </button>
       </div>
@@ -1043,9 +1044,7 @@ function PeerPane({
   remoteVideoRef,
   hasRemoteStream,
   connectionState,
-  cameraEnabled,
-  analysisActive,
-  reactionOutput
+  cameraEnabled
 }: {
   status: MatchmakingStatus;
   online: boolean;
@@ -1053,8 +1052,6 @@ function PeerPane({
   hasRemoteStream: boolean;
   connectionState: RTCPeerConnectionState;
   cameraEnabled: boolean;
-  analysisActive: boolean;
-  reactionOutput: PublicReactionOutputState;
 }): JSX.Element {
   if (!online) {
     return (
@@ -1070,18 +1067,7 @@ function PeerPane({
     return (
       <>
         <video ref={remoteVideoRef} className={hasRemoteStream ? "remoteVideo active" : "remoteVideo"} autoPlay playsInline />
-        <div className={`peerMock matched ${hasRemoteStream ? "connected" : ""}`}>
-          <Activity aria-hidden="true" />
-          <span>Matched</span>
-          <strong>{status.match.peer.displayName ?? status.match.peer.localUserId}</strong>
-          {status.match.peer.handle && <em>@{status.match.peer.handle}</em>}
-          <small>{peerProfileSummary(status.match.peer)}</small>
-          <small>{cameraEnabled ? connectionStateText(connectionState) : "Resume call media to connect video and audio"}</small>
-        </div>
-        <div className="publicReactionStack" aria-label="Physiological analysis availability">
-          <ReactionChip code={reactionOutputChipCode(reactionOutput, analysisActive)} label="Local analysis" />
-          <ReactionChip code="PEER_SHARED" label="Pulse rhythm shared" />
-        </div>
+        {!hasRemoteStream && <EmptyVideo label={cameraEnabled ? connectionStateText(connectionState) : "Resume call media"} />}
       </>
     );
   }
@@ -1359,30 +1345,35 @@ function EmptyVideo({ label }: { label: string }): JSX.Element {
   );
 }
 
-function ReactionChip({ code, label }: { code: string; label: string }): JSX.Element {
-  return (
-    <div className={`reactionChip ${code.toLowerCase()}`}>
-      <span>{label}</span>
-      <strong>{code}</strong>
-    </div>
-  );
-}
-
-function reactionOutputChipCode(output: PublicReactionOutputState, analysisActive: boolean): string {
-  if (!analysisActive) return "MEDIA_PAUSED";
-  if (output.status === "offline") return "SYNC_WAIT";
-  if (output.state === "INSUFFICIENT_SIGNAL") return "SIGNAL_LOW";
-  if (output.state === "CALIBRATING_BASELINE") return "CALIBRATING";
-  if (output.state) return output.state;
-  return "COLLECTING";
-}
-
 function roomStatusText(status: MatchmakingStatus, online: boolean): string {
   if (!online) return "Matching backend offline";
   if (status.status === "matched") return `Matched with ${status.match.peer.displayName ?? status.match.peer.localUserId}`;
   if (status.status === "waiting") return `Waiting in queue, position ${status.queuePosition}`;
   if (status.status === "ineligible") return "Adults-only confirmation required";
   return "Ready to match";
+}
+
+function setMatchStatusIfChanged(
+  setMatchStatus: (updater: (current: MatchmakingStatus) => MatchmakingStatus) => void,
+  next: MatchmakingStatus
+): void {
+  setMatchStatus((current) => (matchmakingStatusKey(current) === matchmakingStatusKey(next) ? current : next));
+}
+
+function matchmakingStatusKey(status: MatchmakingStatus): string {
+  if (status.status === "matched") {
+    return [
+      status.status,
+      status.match.id,
+      status.match.localRole,
+      status.match.peer.localUserId,
+      status.match.peer.displayName ?? "",
+      status.match.peer.handle ?? ""
+    ].join(":");
+  }
+  if (status.status === "waiting") return `${status.status}:${status.joinedAtIso}:${status.queuePosition}`;
+  if (status.status === "ineligible") return `${status.status}:${status.reason}`;
+  return status.status;
 }
 
 function profileSyncText(status: "unknown" | "server" | "local_only", profile: LocalProfile | null): string {
@@ -1417,19 +1408,6 @@ function profileFromServer(profile: ProfileRecord): Omit<LocalProfile, "createdA
     topicTags: profile.topicTags,
     conversationPace: profile.conversationPace
   };
-}
-
-function peerProfileSummary(peer: MatchPeer): string {
-  const parts = [
-    peer.matchIntent ? optionLabel(INTENT_OPTIONS, peer.matchIntent) : null,
-    peer.languages.length ? peer.languages.map((language) => optionLabel(LANGUAGE_OPTIONS, language)).join(", ") : null,
-    peer.topicTags.length ? peer.topicTags.slice(0, 2).map((topic) => optionLabel(TOPIC_OPTIONS, topic)).join(", ") : null
-  ].filter(Boolean);
-  return parts.length ? parts.join(" / ") : "Broad profile";
-}
-
-function optionLabel<T extends string>(options: Array<{ value: T; label: string }>, value: T): string {
-  return options.find((option) => option.value === value)?.label ?? value;
 }
 
 function mergeChatMessages(current: MatchChatMessage[], incoming: MatchChatMessage[]): MatchChatMessage[] {
