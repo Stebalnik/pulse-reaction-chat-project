@@ -34,7 +34,13 @@ No new data is collected or shared. Raw video, audio, RGB traces, and biometric 
 - `apps/browser-client`: `./node_modules/.bin/vite build`
 - `node --import tsx --test tests/signaling-backend-storage.test.ts`
 - `node --import tsx --test tests/public-reaction-output.test.ts tests/reaction-output-mapper.test.ts`
+- Production: `SERVER_HOST=root@165.232.145.239 scripts/deploy-browser-client.sh`
+- Production: `curl -fsS https://synvibe.app/room`
+- Production: `curl -fsS https://synvibe.app/api/health`
 
 ## Deployment status
 
-Ready for deployment after commit and push.
+Deployed to `https://synvibe.app` on 2026-08-06 UTC.
+
+- Frontend release: `20260806014231`.
+- Production smoke passed for `/room` HTML delivery and public health.
