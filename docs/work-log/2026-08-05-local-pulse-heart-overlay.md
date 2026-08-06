@@ -46,4 +46,5 @@ No raw video, raw RGB traces, microphone audio, biometric time series, or precis
 Deployed to `https://synvibe.app` on 2026-08-05 UTC.
 
 - Frontend release: `20260805235719`.
+- Buffered-heart frontend release: `20260806002244`.
 - Production smoke passed for `/room` HTML delivery and public health.
