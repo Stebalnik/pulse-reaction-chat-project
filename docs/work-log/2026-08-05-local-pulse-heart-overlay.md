@@ -5,6 +5,7 @@
 - Added a local animated heart overlay to the top-left corner of the self video pane.
 - Exposed the local `bpmEstimate` from the public reaction-output hook for UI-only use.
 - Synced the heart animation duration to the latest valid estimated BPM with bounded timing.
+- Added a two-second display delay buffer so the visual beat follows confirmed recent BPM instead of immediate detector jitter.
 - Kept a waiting state when there is no valid pulse estimate.
 
 ## Why it changed
@@ -20,6 +21,8 @@ The product needs an immediate, understandable signal that reflects the user's o
 ## User-facing impact
 
 Users see a heart on their own video that contracts in rhythm with the current valid pulse estimate. If the signal is not ready, the heart shows a quiet waiting state.
+
+If valid BPM temporarily drops out after a pulse has been displayed, the heart keeps beating at the last confirmed delayed BPM until a newer confirmed BPM reaches the display buffer.
 
 ## Data and privacy implications
 

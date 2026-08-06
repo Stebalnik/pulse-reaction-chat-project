@@ -72,6 +72,9 @@ const PACE_OPTIONS: Array<{ value: ConversationPace; label: string }> = [
   { value: "balanced", label: "Balanced" },
   { value: "high_energy", label: "High energy" }
 ];
+const HEARTBEAT_DISPLAY_DELAY_MS = 2_000;
+const HEARTBEAT_BUFFER_RETENTION_MS = 8_000;
+const HEARTBEAT_REFRESH_MS = 200;
 
 export function PublicApp(): JSX.Element {
   const userId = useMemo(() => getOrCreateAnonymousUserId(), []);
@@ -1044,14 +1047,53 @@ function PulseHeartOverlay({
   bpmEstimate: number | null;
   qualityScore: number | null;
 }): JSX.Element {
-  const boundedBpm = bpmEstimate === null ? null : Math.max(42, Math.min(180, bpmEstimate));
+  const pulseBufferRef = useRef<Array<{ receivedAtMs: number; bpm: number; quality: number }>>([]);
+  const [displayPulse, setDisplayPulse] = useState<{ bpm: number; quality: number } | null>(null);
+
+  useEffect(() => {
+    if (!active) {
+      pulseBufferRef.current = [];
+      setDisplayPulse(null);
+      return;
+    }
+
+    if (bpmEstimate === null) return;
+
+    const nowMs = performance.now();
+    const boundedBpm = Math.max(42, Math.min(180, bpmEstimate));
+    const quality = Math.max(0, Math.min(1, qualityScore ?? 0));
+    pulseBufferRef.current = [
+      ...pulseBufferRef.current.filter((sample) => nowMs - sample.receivedAtMs <= HEARTBEAT_DISPLAY_DELAY_MS + HEARTBEAT_BUFFER_RETENTION_MS),
+      { receivedAtMs: nowMs, bpm: boundedBpm, quality }
+    ];
+  }, [active, bpmEstimate, qualityScore]);
+
+  useEffect(() => {
+    if (!active) return undefined;
+
+    const intervalId = window.setInterval(() => {
+      const cutoffMs = performance.now() - HEARTBEAT_DISPLAY_DELAY_MS;
+      const delayedSample = [...pulseBufferRef.current].reverse().find((sample) => sample.receivedAtMs <= cutoffMs);
+      if (!delayedSample) return;
+      setDisplayPulse((current) => {
+        if (current && Math.round(current.bpm) === Math.round(delayedSample.bpm) && Math.round(current.quality * 100) === Math.round(delayedSample.quality * 100)) {
+          return current;
+        }
+        return { bpm: delayedSample.bpm, quality: delayedSample.quality };
+      });
+    }, HEARTBEAT_REFRESH_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [active]);
+
+  const boundedBpm = displayPulse?.bpm ?? null;
   const durationSeconds = boundedBpm === null ? 1.2 : 60 / boundedBpm;
-  const quality = Math.max(0, Math.min(1, qualityScore ?? 0));
+  const quality = displayPulse?.quality ?? 0;
   const style = {
     "--pulse-heart-duration": `${durationSeconds.toFixed(3)}s`,
     "--pulse-heart-quality": quality.toFixed(3)
   } as CSSProperties;
-  const label = boundedBpm === null ? "Pulse estimate waiting" : `Estimated pulse ${Math.round(boundedBpm)} BPM`;
+  const label = boundedBpm === null ? "Pulse estimate waiting" : `Estimated pulse ${Math.round(boundedBpm)} BPM, delayed`;
 
   return (
     <div className={`pulseHeartOverlay ${active && boundedBpm !== null ? "active" : "waiting"}`} style={style} aria-label={label}>
